@@ -159,7 +159,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
       const uid = await client.join(
         agoraConfig.appId,
         agoraConfig.channelName,
-        null, // 토큰 없이 테스트
+        agoraConfig.token || null, // 토큰이 있으면 사용, 없으면 null
         numericUid
       );
       console.log('채널 조인 완료, UID:', uid);
