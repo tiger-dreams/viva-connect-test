@@ -37,7 +37,7 @@ export const ZoomConfigPanel = ({ config, onConfigChange }: ZoomConfigPanelProps
 
     setIsGenerating(true);
     try {
-      const token = generateZoomToken(
+      const token = await generateZoomToken(
         config.sdkKey,
         config.sdkSecret,
         config.sessionName,

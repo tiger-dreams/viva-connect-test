@@ -1,49 +1,52 @@
-import jwt from 'jsonwebtoken';
+import { SignJWT } from 'jose';
 
 // Agora Token Generation
-export const generateAgoraToken = (
+export const generateAgoraToken = async (
   appId: string,
   appCertificate: string,
   channelName: string,
   uid: string,
   role: 'publisher' | 'subscriber' = 'publisher',
   expirationTimeInSeconds: number = 3600
-): string => {
+): Promise<string> => {
   try {
     const now = Math.floor(Date.now() / 1000);
     const exp = now + expirationTimeInSeconds;
     
-    const payload = {
-      iss: appId,
-      exp,
-      iat: now,
+    const secret = new TextEncoder().encode(appCertificate);
+    
+    const token = await new SignJWT({
       channel: channelName,
       uid,
       role: role === 'publisher' ? 1 : 2
-    };
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer(appId)
+      .setIssuedAt(now)
+      .setExpirationTime(exp)
+      .sign(secret);
 
-    return jwt.sign(payload, appCertificate, { algorithm: 'HS256' });
+    return token;
   } catch (error) {
     throw new Error(`Failed to generate Agora token: ${error}`);
   }
 };
 
 // Zoom JWT Token Generation
-export const generateZoomToken = (
+export const generateZoomToken = async (
   sdkKey: string,
   sdkSecret: string,
   sessionName: string,
   roleType: number = 1,
   expirationTimeInSeconds: number = 3600
-): string => {
+): Promise<string> => {
   try {
     const now = Math.floor(Date.now() / 1000);
     const exp = now + expirationTimeInSeconds;
     
-    const payload = {
-      iss: sdkKey,
-      iat: now,
-      exp,
+    const secret = new TextEncoder().encode(sdkSecret);
+    
+    const token = await new SignJWT({
       aud: 'zoom',
       appKey: sdkKey,
       tokenExp: exp,
@@ -51,9 +54,14 @@ export const generateZoomToken = (
       roleType,
       userIdentity: '',
       sessionKey: ''
-    };
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer(sdkKey)
+      .setIssuedAt(now)
+      .setExpirationTime(exp)
+      .sign(secret);
 
-    return jwt.sign(payload, sdkSecret, { algorithm: 'HS256' });
+    return token;
   } catch (error) {
     throw new Error(`Failed to generate Zoom token: ${error}`);
   }
@@ -62,8 +70,9 @@ export const generateZoomToken = (
 // Validate token format
 export const validateToken = (token: string): boolean => {
   try {
-    const decoded = jwt.decode(token);
-    return decoded !== null && typeof decoded === 'object';
+    // Simple JWT format validation
+    const parts = token.split('.');
+    return parts.length === 3;
   } catch {
     return false;
   }
@@ -72,9 +81,12 @@ export const validateToken = (token: string): boolean => {
 // Get token expiration
 export const getTokenExpiration = (token: string): Date | null => {
   try {
-    const decoded = jwt.decode(token) as any;
-    if (decoded && decoded.exp) {
-      return new Date(decoded.exp * 1000);
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    const payload = JSON.parse(atob(parts[1]));
+    if (payload && payload.exp) {
+      return new Date(payload.exp * 1000);
     }
     return null;
   } catch {

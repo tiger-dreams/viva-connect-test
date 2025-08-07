@@ -37,7 +37,7 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
 
     setIsGenerating(true);
     try {
-      const token = generateAgoraToken(
+      const token = await generateAgoraToken(
         config.appId,
         config.appCertificate,
         config.channelName,
