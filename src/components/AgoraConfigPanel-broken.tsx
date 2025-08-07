@@ -18,7 +18,7 @@ interface AgoraConfigPanelProps {
 export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelProps) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [expirationTime, setExpirationTime] = useState("3600");
-  const [role, setRole] = useState<'publisher' | 'subscriber'>('publisher');
+  const [role, setRole] = useState<"publisher" | "subscriber">("publisher");
   const { toast } = useToast();
 
   const handleInputChange = (field: keyof AgoraConfig, value: string) => {
@@ -28,7 +28,7 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
   const generateToken = async () => {
     if (!config.appId || !config.appCertificate || !config.channelName) {
       toast({
-        title: "필수 정보 누락",
+        title: "설정 오류",
         description: "App ID, App Certificate, Channel Name을 모두 입력해주세요.",
         variant: "destructive",
       });
@@ -45,8 +45,8 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
         role,
         parseInt(expirationTime)
       );
-
-      onConfigChange({ ...config, token });
+      
+      handleInputChange("token", token);
       toast({
         title: "토큰 생성 완료",
         description: "Agora 토큰이 성공적으로 생성되었습니다.",
@@ -54,7 +54,7 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
     } catch (error) {
       toast({
         title: "토큰 생성 실패",
-        description: error instanceof Error ? error.message : "토큰 생성 중 오류가 발생했습니다.",
+        description: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
         variant: "destructive",
       });
     } finally {
@@ -70,15 +70,7 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
     });
   };
 
-  const clearToken = () => {
-    onConfigChange({ ...config, token: undefined });
-    toast({
-      title: "토큰 초기화",
-      description: "토큰이 삭제되었습니다. 이제 App Certificate 없이 연결할 수 있습니다.",
-    });
-  };
-
-  const tokenExpiration = config.token ? getTokenExpiration(config.token) : null;
+  const clearToken = () => {\n    onConfigChange({ ...config, token: undefined });\n    toast({\n      title: \"토큰 초기화\",\n      description: \"토큰이 삭제되었습니다. 이제 App Certificate 없이 연결할 수 있습니다.\",\n    });\n  };\n\n  const tokenExpiration = config.token ? getTokenExpiration(config.token) : null;
 
   return (
     <Card className="bg-card border-border shadow-sm">
@@ -116,15 +108,12 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
               <Input
                 id="appCertificate"
                 type="password"
-                placeholder="Agora App Certificate (선택사항)"
+                placeholder="App Certificate"
                 value={config.appCertificate}
                 onChange={(e) => handleInputChange("appCertificate", e.target.value)}
                 className="pl-10"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              App Certificate가 비활성화된 경우 비워두세요
-            </p>
           </div>
         </div>
 
@@ -135,7 +124,7 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
               <Users className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 id="channelName"
-                placeholder="채널 이름"
+                placeholder="test-channel"
                 value={config.channelName}
                 onChange={(e) => handleInputChange("channelName", e.target.value)}
                 className="pl-10"
@@ -144,61 +133,57 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="uid">UID</Label>
+            <Label htmlFor="uid">User ID</Label>
             <Input
               id="uid"
-              placeholder="사용자 ID (숫자)"
+              placeholder="0 (자동 할당)"
               value={config.uid}
               onChange={(e) => handleInputChange("uid", e.target.value)}
             />
           </div>
         </div>
 
-        {config.appCertificate && (
-          <div className="border rounded-lg p-4 bg-muted/20">
-            <h4 className="font-semibold text-sm">토큰 생성</h4>
-            <p className="text-xs text-muted-foreground mb-3">
-              App Certificate가 활성화된 경우 토큰이 필요합니다
-            </p>
-            
-            <div className="grid grid-cols-2 gap-4 mb-3">
-              <div className="space-y-2">
-                <Label htmlFor="role">역할</Label>
-                <Select value={role} onValueChange={(value: 'publisher' | 'subscriber') => setRole(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="publisher">Publisher (송신자)</SelectItem>
-                    <SelectItem value="subscriber">Subscriber (수신자)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="expiration">만료 시간</Label>
-                <Select value={expirationTime} onValueChange={setExpirationTime}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="3600">1시간</SelectItem>
-                    <SelectItem value="7200">2시간</SelectItem>
-                    <SelectItem value="86400">24시간</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        <div className="space-y-4 pt-4 border-t border-border">
+          <h4 className="font-semibold text-sm">토큰 생성</h4>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="role">역할</Label>
+              <Select value={role} onValueChange={(value) => setRole(value as "publisher" | "subscriber")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="publisher">Publisher (송신)</SelectItem>
+                  <SelectItem value="subscriber">Subscriber (수신)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-
-            <Button
-              onClick={generateToken}
-              disabled={isGenerating}
-              className="w-full bg-agora-primary hover:bg-agora-primary/90"
-            >
-              {isGenerating ? "토큰 생성 중..." : "Agora 토큰 생성"}
-            </Button>
+            
+            <div className="space-y-2">
+              <Label htmlFor="expiration">만료시간 (초)</Label>
+              <Select value={expirationTime} onValueChange={setExpirationTime}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3600">1시간</SelectItem>
+                  <SelectItem value="7200">2시간</SelectItem>
+                  <SelectItem value="86400">24시간</SelectItem>
+                  <SelectItem value="604800">1주일</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        )}
+
+          <Button
+            onClick={generateToken}
+            disabled={isGenerating}
+            className="w-full bg-agora-primary hover:bg-agora-primary/90"
+          >
+            {isGenerating ? "토큰 생성 중..." : "Agora 토큰 생성"}
+          </Button>
+        </div>
 
         {config.token && (
           <div className="space-y-2 pt-4 border-t border-border">
@@ -217,14 +202,6 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
                 >
                   <Copy className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearToken}
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
               </div>
             </div>
             <div className="relative">
@@ -232,12 +209,9 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
                 id="token"
                 value={config.token}
                 readOnly
-                className="font-mono text-xs"
+                className="font-mono text-xs bg-muted pr-12"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              이 토큰으로 Agora 채널에 연결할 수 있습니다. 토큰이 필요하지 않다면 X 버튼으로 삭제하세요.
-            </p>
           </div>
         )}
       </CardContent>
