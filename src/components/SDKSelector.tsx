@@ -1,0 +1,77 @@
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { SDKType } from "@/types/video-sdk";
+
+interface SDKSelectorProps {
+  selectedSDK: SDKType;
+  onSDKChange: (sdk: SDKType) => void;
+}
+
+export const SDKSelector = ({ selectedSDK, onSDKChange }: SDKSelectorProps) => {
+  return (
+    <Card className="bg-gradient-card border-border shadow-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-gradient-primary rounded-full animate-pulse"></div>
+          Video SDK 선택
+        </CardTitle>
+        <CardDescription>
+          테스트할 Video SDK를 선택하세요
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={selectedSDK} onValueChange={(value) => onSDKChange(value as SDKType)}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="agora" className="data-[state=active]:bg-agora-primary data-[state=active]:text-white">
+              Agora
+            </TabsTrigger>
+            <TabsTrigger value="zoom" className="data-[state=active]:bg-zoom-primary data-[state=active]:text-white">
+              Zoom
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="agora" className="mt-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Agora Web SDK</h3>
+                <Badge variant="secondary" className="bg-agora-primary/20 text-agora-primary border-agora-primary/30">
+                  v4.x
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                실시간 음성 및 영상 통화를 위한 Agora SDK를 테스트합니다.
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="text-muted-foreground">• 고품질 영상</div>
+                <div className="text-muted-foreground">• 낮은 지연시간</div>
+                <div className="text-muted-foreground">• 화면 공유</div>
+                <div className="text-muted-foreground">• 다중 플랫폼</div>
+              </div>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="zoom" className="mt-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Zoom Video SDK</h3>
+                <Badge variant="secondary" className="bg-zoom-primary/20 text-zoom-primary border-zoom-primary/30">
+                  Web
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Zoom의 비디오 SDK를 사용한 화상회의 기능을 테스트합니다.
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="text-muted-foreground">• 엔터프라이즈급</div>
+                <div className="text-muted-foreground">• 보안 강화</div>
+                <div className="text-muted-foreground">• 스케일링</div>
+                <div className="text-muted-foreground">• 안정성</div>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+};
