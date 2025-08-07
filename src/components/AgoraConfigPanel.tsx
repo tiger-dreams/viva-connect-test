@@ -73,7 +73,7 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
   const tokenExpiration = config.token ? getTokenExpiration(config.token) : null;
 
   return (
-    <Card className="bg-gradient-card border-border shadow-card">
+    <Card className="bg-card border-border shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <div className="w-8 h-8 bg-agora-primary/20 rounded-lg flex items-center justify-center">

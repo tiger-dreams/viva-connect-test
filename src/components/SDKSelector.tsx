@@ -10,10 +10,10 @@ interface SDKSelectorProps {
 
 export const SDKSelector = ({ selectedSDK, onSDKChange }: SDKSelectorProps) => {
   return (
-    <Card className="bg-gradient-card border-border shadow-card">
+    <Card className="bg-card border-border shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-gradient-primary rounded-full animate-pulse"></div>
+          <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
           Video SDK 선택
         </CardTitle>
         <CardDescription>

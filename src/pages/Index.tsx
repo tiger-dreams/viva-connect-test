@@ -65,13 +65,13 @@ const Index = () => {
   }, [selectedSDK]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground">
       {/* 헤더 */}
-      <div className="border-b border-border bg-gradient-card">
+      <div className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+              <h1 className="text-3xl font-bold text-primary">
                 Video SDK 테스트 도구
               </h1>
               <p className="text-muted-foreground">
@@ -97,7 +97,7 @@ const Index = () => {
           {/* 왼쪽 설정 패널 */}
           <div className="xl:col-span-1 space-y-6">
             {/* 프로젝트 정보 */}
-            <Card className="bg-gradient-card border-border shadow-card">
+            <Card className="bg-card border-border shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <FileText className="w-4 h-4" />

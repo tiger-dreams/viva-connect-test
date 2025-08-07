@@ -72,7 +72,7 @@ export const ZoomConfigPanel = ({ config, onConfigChange }: ZoomConfigPanelProps
   const tokenExpiration = config.token ? getTokenExpiration(config.token) : null;
 
   return (
-    <Card className="bg-gradient-card border-border shadow-card">
+    <Card className="bg-card border-border shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <div className="w-8 h-8 bg-zoom-primary/20 rounded-lg flex items-center justify-center">

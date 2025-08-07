@@ -103,7 +103,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
   return (
     <div className="space-y-4">
       {/* 연결 상태 및 컨트롤 */}
-      <Card className="bg-gradient-card border-border shadow-card">
+      <Card className="bg-card border-border shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
@@ -210,7 +210,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
       </Card>
 
       {/* 비디오 영역 */}
-      <Card className="bg-video-bg border-border shadow-card">
+      <Card className="bg-video-bg border-border shadow-sm">
         <CardContent className="p-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[400px]">
             {/* 로컬 비디오 */}
@@ -218,7 +218,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
               <div ref={localVideoRef} className="w-full h-full min-h-[200px] flex items-center justify-center">
                 {connectionStatus.connected ? (
                   <div className="text-center space-y-2">
-                    <div className="w-20 h-20 bg-gradient-primary rounded-full flex items-center justify-center text-2xl font-bold text-white mx-auto">
+                    <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center text-2xl font-bold text-white mx-auto">
                       {selectedSDK === 'agora' ? 'A' : 'Z'}
                     </div>
                     <p className="text-sm text-muted-foreground">로컬 비디오</p>
@@ -261,7 +261,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
 
       {/* 참가자 목록 */}
       {connectionStatus.connected && participants.length > 0 && (
-        <Card className="bg-gradient-card border-border shadow-card">
+        <Card className="bg-card border-border shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">참가자 목록</CardTitle>
           </CardHeader>
@@ -270,7 +270,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
               {participants.map((participant) => (
                 <div key={participant.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center text-sm font-bold text-white">
+                    <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-sm font-bold text-white">
                       {participant.name.charAt(0).toUpperCase()}
                     </div>
                     <span className="text-sm font-medium">{participant.name}</span>
