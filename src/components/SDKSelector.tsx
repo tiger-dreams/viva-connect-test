@@ -26,8 +26,8 @@ export const SDKSelector = ({ selectedSDK, onSDKChange }: SDKSelectorProps) => {
             <TabsTrigger value="agora" className="data-[state=active]:bg-agora-primary data-[state=active]:text-white">
               Agora
             </TabsTrigger>
-            <TabsTrigger value="zoom" className="data-[state=active]:bg-zoom-primary data-[state=active]:text-white">
-              Zoom
+            <TabsTrigger value="livekit" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">
+              LiveKit
             </TabsTrigger>
           </TabsList>
           
@@ -51,22 +51,22 @@ export const SDKSelector = ({ selectedSDK, onSDKChange }: SDKSelectorProps) => {
             </div>
           </TabsContent>
           
-          <TabsContent value="zoom" className="mt-4">
+          <TabsContent value="livekit" className="mt-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Zoom Video SDK</h3>
-                <Badge variant="secondary" className="bg-zoom-primary/20 text-zoom-primary border-zoom-primary/30">
-                  Web
+                <h3 className="font-semibold">LiveKit</h3>
+                <Badge variant="secondary" className="bg-green-600/20 text-green-600 border-green-600/30">
+                  오픈소스
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                Zoom의 비디오 SDK를 사용한 화상회의 기능을 테스트합니다.
+                오픈소스 WebRTC 플랫폼을 사용한 실시간 커뮤니케이션을 테스트합니다.
               </p>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="text-muted-foreground">• 엔터프라이즈급</div>
-                <div className="text-muted-foreground">• 보안 강화</div>
-                <div className="text-muted-foreground">• 스케일링</div>
-                <div className="text-muted-foreground">• 안정성</div>
+                <div className="text-muted-foreground">• 오픈소스</div>
+                <div className="text-muted-foreground">• 자체 호스팅</div>
+                <div className="text-muted-foreground">• 확장 가능</div>
+                <div className="text-muted-foreground">• 개발자 친화적</div>
               </div>
             </div>
           </TabsContent>

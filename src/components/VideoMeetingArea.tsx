@@ -17,15 +17,29 @@ import {
   Signal,
   Activity
 } from "lucide-react";
-import { SDKType, AgoraConfig, ZoomConfig, ConnectionStatus, VideoMetrics, Participant } from "@/types/video-sdk";
+import { SDKType, AgoraConfig, LiveKitConfig, ConnectionStatus, VideoMetrics, Participant } from "@/types/video-sdk";
+import { useToast } from "@/hooks/use-toast";
+import { LiveKitMeetingArea } from "@/components/LiveKitMeetingArea";
 
 interface VideoMeetingAreaProps {
   selectedSDK: SDKType;
   agoraConfig: AgoraConfig;
-  zoomConfig: ZoomConfig;
+  liveKitConfig: LiveKitConfig;
 }
 
-export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: VideoMeetingAreaProps) => {
+export const VideoMeetingArea = ({ selectedSDK, agoraConfig, liveKitConfig }: VideoMeetingAreaProps) => {
+  // LiveKit을 선택한 경우 별도 컴포넌트 렌더링
+  if (selectedSDK === 'livekit') {
+    return <LiveKitMeetingArea config={liveKitConfig} />;
+  }
+
+  // Agora 관련 컴포넌트만 렌더링
+  return <AgoraMeetingArea config={agoraConfig} />;
+};
+
+// Agora 전용 컴포넌트 분리
+const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
+  const { toast } = useToast();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     connected: false,
     connecting: false
@@ -49,14 +63,12 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
 
-  const config = selectedSDK === 'agora' ? agoraConfig : zoomConfig;
-  const isConfigValid = selectedSDK === 'agora' 
-    ? agoraConfig.appId && agoraConfig.channelName  // 토큰 없이도 테스트 가능
-    : zoomConfig.sdkKey && zoomConfig.token && zoomConfig.sessionName;
+  const isConfigValid = config.appId && config.channelName;
 
   // 컴포넌트 언마운트 시 리소스 정리
   useEffect(() => {
     return () => {
+      // Agora SDK 정리
       if (agoraClient) {
         agoraClient.leave().catch(console.error);
       }
@@ -68,6 +80,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
         localAudioTrack.stop();
         localAudioTrack.close();
       }
+      
     };
   }, [agoraClient, localVideoTrack, localAudioTrack]);
 
@@ -95,13 +108,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      if (selectedSDK === 'agora') {
-        await connectToAgora();
-      } else {
-        // Zoom SDK 연결 로직 (추후 구현)
-        console.log('Zoom SDK 연결은 아직 구현되지 않았습니다.');
-        setConnectionStatus({ connected: false, connecting: false, error: 'Zoom SDK는 아직 지원되지 않습니다.' });
-      }
+      await connectToAgora();
     } catch (error) {
       console.error('Connection failed:', error);
       setConnectionStatus({ 
@@ -115,10 +122,10 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
   const connectToAgora = async () => {
     try {
       console.log('Agora 연결 시작:', {
-        appId: agoraConfig.appId,
-        channelName: agoraConfig.channelName,
-        uid: agoraConfig.uid,
-        hasToken: !!agoraConfig.token
+        appId: config.appId,
+        channelName: config.channelName,
+        uid: config.uid,
+        hasToken: !!config.token
       });
 
       // 새로운 Agora RTC 클라이언트 생성
@@ -155,11 +162,11 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
 
       // Agora 채널 연결 (숫자 UID 사용)
       console.log('채널 조인 시작...');
-      const numericUid = agoraConfig.uid ? parseInt(agoraConfig.uid) : null;
+      const numericUid = config.uid ? parseInt(config.uid) : null;
       const uid = await client.join(
-        agoraConfig.appId,
-        agoraConfig.channelName,
-        agoraConfig.token || null, // 토큰이 있으면 사용, 없으면 null
+        config.appId,
+        config.channelName,
+        config.token || null, // 토큰이 있으면 사용, 없으면 null
         numericUid
       );
       console.log('채널 조인 완료, UID:', uid);
@@ -250,6 +257,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
     }
   };
 
+
   const handleDisconnect = async () => {
     try {
       // Agora 연결 해제
@@ -284,6 +292,11 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
         bitrate: 0,
         packetLoss: 0
       });
+
+      toast({
+        title: "연결 종료",
+        description: "Agora 세션에서 나갔습니다.",
+      });
     } catch (error) {
       console.error('Disconnect failed:', error);
     }
@@ -303,6 +316,11 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
       }
     } catch (error) {
       console.error('Toggle video failed:', error);
+      toast({
+        title: "비디오 오류",
+        description: "비디오 설정 변경에 실패했습니다.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -320,11 +338,26 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
       }
     } catch (error) {
       console.error('Toggle audio failed:', error);
+      toast({
+        title: "오디오 오류",
+        description: "오디오 설정 변경에 실패했습니다.",
+        variant: "destructive",
+      });
     }
   };
 
-  const toggleScreenShare = () => {
-    setIsScreenSharing(!isScreenSharing);
+  const toggleScreenShare = async () => {
+    try {
+      // Agora 화면 공유 로직 (추후 구현)
+      setIsScreenSharing(!isScreenSharing);
+    } catch (error) {
+      console.error('Toggle screen share failed:', error);
+      toast({
+        title: "화면 공유 오류",
+        description: "화면 공유 설정 변경에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
   };
 
   // 실시간 통계 모니터링
@@ -369,6 +402,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
     return statsInterval;
   };
 
+
   const getConnectionColor = () => {
     if (connectionStatus.connecting) return "warning";
     if (connectionStatus.connected) return "success";
@@ -388,14 +422,10 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                selectedSDK === 'agora' ? 'bg-agora-primary/20' : 'bg-zoom-primary/20'
-              }`}>
-                <Video className={`w-4 h-4 ${
-                  selectedSDK === 'agora' ? 'text-agora-primary' : 'text-zoom-primary'
-                }`} />
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-agora-primary/20">
+                <Video className="w-4 h-4 text-agora-primary" />
               </div>
-              {selectedSDK === 'agora' ? 'Agora' : 'Zoom'} 화상회의
+              Agora 화상회의
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge 
@@ -421,9 +451,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
               <Button
                 onClick={handleConnect}
                 disabled={!isConfigValid || connectionStatus.connecting}
-                className={`flex-1 ${
-                  selectedSDK === 'agora' ? 'bg-agora-primary hover:bg-agora-primary/90' : 'bg-zoom-primary hover:bg-zoom-primary/90'
-                }`}
+                className="flex-1 bg-agora-primary hover:bg-agora-primary/90"
               >
                 <Phone className="w-4 h-4 mr-2" />
                 {connectionStatus.connecting ? "연결 중..." : "회의 참여"}
@@ -442,7 +470,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
 
           {!isConfigValid && (
             <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
-              ⚠️ {selectedSDK === 'agora' ? 'Agora' : 'Zoom'} 설정을 완료하고 토큰을 생성해야 연결할 수 있습니다.
+              ⚠️ Agora 설정을 완료하고 토큰을 생성해야 연결할 수 있습니다.
             </div>
           )}
 
@@ -527,7 +555,7 @@ export const VideoMeetingArea = ({ selectedSDK, agoraConfig, zoomConfig }: Video
                 ) : !localVideoTrack ? (
                   <div className="text-center space-y-2">
                     <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center text-2xl font-bold text-white mx-auto">
-                      {selectedSDK === 'agora' ? 'A' : 'Z'}
+                      A
                     </div>
                     <p className="text-sm text-muted-foreground">비디오 로딩 중...</p>
                   </div>

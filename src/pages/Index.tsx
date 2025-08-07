@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { SDKSelector } from "@/components/SDKSelector";
 import { AgoraConfigPanel } from "@/components/AgoraConfigPanel";
-import { ZoomConfigPanel } from "@/components/ZoomConfigPanel";
+import { LiveKitConfigPanel } from "@/components/LiveKitConfigPanel";
 import { VideoMeetingArea } from "@/components/VideoMeetingArea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Activity, FileText, Zap } from "lucide-react";
-import { SDKType, AgoraConfig, ZoomConfig } from "@/types/video-sdk";
+import { SDKType, AgoraConfig, LiveKitConfig } from "@/types/video-sdk";
 
 const Index = () => {
   const [selectedSDK, setSelectedSDK] = useState<SDKType>('agora');
@@ -17,17 +17,18 @@ const Index = () => {
     channelName: 'test-channel',
     uid: '0'
   });
-  const [zoomConfig, setZoomConfig] = useState<ZoomConfig>({
-    sdkKey: '',
-    sdkSecret: '',
-    sessionName: 'test-session',
-    userName: 'Test User'
+  const [liveKitConfig, setLiveKitConfig] = useState<LiveKitConfig>({
+    serverUrl: 'wss://localhost:7880',
+    apiKey: '',
+    apiSecret: '',
+    roomName: 'test-room',
+    participantName: 'Test User'
   });
 
   // localStorage에서 설정 복원
   useEffect(() => {
     const savedAgoraConfig = localStorage.getItem('agoraConfig');
-    const savedZoomConfig = localStorage.getItem('zoomConfig');
+    const savedLiveKitConfig = localStorage.getItem('liveKitConfig');
     const savedSDK = localStorage.getItem('selectedSDK');
 
     if (savedAgoraConfig) {
@@ -38,11 +39,11 @@ const Index = () => {
       }
     }
 
-    if (savedZoomConfig) {
+    if (savedLiveKitConfig) {
       try {
-        setZoomConfig(JSON.parse(savedZoomConfig));
+        setLiveKitConfig(JSON.parse(savedLiveKitConfig));
       } catch (error) {
-        console.error('Failed to parse Zoom config:', error);
+        console.error('Failed to parse LiveKit config:', error);
       }
     }
 
@@ -57,8 +58,8 @@ const Index = () => {
   }, [agoraConfig]);
 
   useEffect(() => {
-    localStorage.setItem('zoomConfig', JSON.stringify(zoomConfig));
-  }, [zoomConfig]);
+    localStorage.setItem('liveKitConfig', JSON.stringify(liveKitConfig));
+  }, [liveKitConfig]);
 
   useEffect(() => {
     localStorage.setItem('selectedSDK', selectedSDK);
@@ -75,7 +76,7 @@ const Index = () => {
                 Video SDK 테스트 도구
               </h1>
               <p className="text-muted-foreground">
-                Agora와 Zoom Video SDK를 테스트하고 디버깅하는 개발자 도구
+                Agora와 LiveKit을 테스트하고 디버깅하는 개발자 도구
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -107,15 +108,15 @@ const Index = () => {
               <CardContent className="text-xs space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">버전:</span>
-                  <span>v1.0.0</span>
+                  <span>v1.1.0</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Agora SDK:</span>
-                  <span>4.x</span>
+                  <span>4.24.0</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Zoom SDK:</span>
-                  <span>Web</span>
+                  <span className="text-muted-foreground">LiveKit:</span>
+                  <span>2.15.4</span>
                 </div>
                 <Separator className="my-2" />
                 <p className="text-muted-foreground">
@@ -137,9 +138,9 @@ const Index = () => {
                 onConfigChange={setAgoraConfig} 
               />
             ) : (
-              <ZoomConfigPanel 
-                config={zoomConfig} 
-                onConfigChange={setZoomConfig} 
+              <LiveKitConfigPanel 
+                config={liveKitConfig} 
+                onConfigChange={setLiveKitConfig} 
               />
             )}
           </div>
@@ -149,7 +150,7 @@ const Index = () => {
             <VideoMeetingArea
               selectedSDK={selectedSDK}
               agoraConfig={agoraConfig}
-              zoomConfig={zoomConfig}
+              liveKitConfig={liveKitConfig}
             />
           </div>
         </div>

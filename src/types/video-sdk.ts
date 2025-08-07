@@ -1,4 +1,4 @@
-export type SDKType = 'agora' | 'zoom';
+export type SDKType = 'agora' | 'livekit';
 
 export interface AgoraConfig {
   appId: string;
@@ -8,11 +8,12 @@ export interface AgoraConfig {
   token?: string;
 }
 
-export interface ZoomConfig {
-  sdkKey: string;
-  sdkSecret: string;
-  sessionName: string;
-  userName: string;
+export interface LiveKitConfig {
+  serverUrl: string;
+  apiKey: string;
+  apiSecret: string;
+  roomName: string;
+  participantName: string;
   token?: string;
 }
 

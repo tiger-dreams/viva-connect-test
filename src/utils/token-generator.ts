@@ -32,7 +32,7 @@ export const generateAgoraToken = async (
   }
 };
 
-// Zoom JWT Token Generation
+// Zoom JWT Token Generation - Updated for Video SDK
 export const generateZoomToken = async (
   sdkKey: string,
   sdkSecret: string,
@@ -46,24 +46,73 @@ export const generateZoomToken = async (
     
     const secret = new TextEncoder().encode(sdkSecret);
     
-    const token = await new SignJWT({
+    // Zoom Video SDK의 최소 필수 JWT payload (단순화)
+    const payload = {
+      iss: sdkKey,
+      exp: exp,
+      iat: now,
       aud: 'zoom',
       appKey: sdkKey,
       tokenExp: exp,
-      sessionName,
-      roleType,
-      userIdentity: '',
-      sessionKey: ''
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuer(sdkKey)
-      .setIssuedAt(now)
-      .setExpirationTime(exp)
+      tpc: sessionName.toLowerCase(), // topic/session name (소문자 변환)
+      roleType: roleType
+    };
+    
+    console.log('Generating Zoom token with payload:', payload);
+    
+    const token = await new SignJWT(payload)
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .sign(secret);
 
+    console.log('Generated Zoom token length:', token.length);
     return token;
   } catch (error) {
+    console.error('Zoom token generation error:', error);
     throw new Error(`Failed to generate Zoom token: ${error}`);
+  }
+};
+
+// LiveKit Token Generation (브라우저 호환)
+export const generateLiveKitToken = async (
+  apiKey: string,
+  apiSecret: string,
+  roomName: string,
+  participantName: string,
+  expirationTimeInSeconds: number = 3600
+): Promise<string> => {
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + expirationTimeInSeconds;
+    
+    const secret = new TextEncoder().encode(apiSecret);
+    
+    // LiveKit JWT payload
+    const payload = {
+      iss: apiKey,
+      nbf: now,
+      exp: exp,
+      iat: now,
+      sub: participantName,
+      video: {
+        roomJoin: true,
+        room: roomName,
+        canPublish: true,
+        canSubscribe: true,
+        canUpdateOwnMetadata: true,
+      }
+    };
+    
+    console.log('Generating LiveKit token for:', { roomName, participantName });
+    
+    const token = await new SignJWT(payload)
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .sign(secret);
+
+    console.log('Generated LiveKit token length:', token.length);
+    return token;
+  } catch (error) {
+    console.error('LiveKit token generation error:', error);
+    throw new Error(`Failed to generate LiveKit token: ${error}`);
   }
 };
 
