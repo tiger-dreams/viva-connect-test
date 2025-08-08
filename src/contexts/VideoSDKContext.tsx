@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { SDKType, AgoraConfig, LiveKitConfig } from '@/types/video-sdk';
+import { SDKType, AgoraConfig, LiveKitConfig, PlanetKitConfig } from '@/types/video-sdk';
 
 interface VideoSDKContextType {
   selectedSDK: SDKType;
@@ -8,6 +8,8 @@ interface VideoSDKContextType {
   setAgoraConfig: (config: AgoraConfig) => void;
   liveKitConfig: LiveKitConfig;
   setLiveKitConfig: (config: LiveKitConfig) => void;
+  planetKitConfig: PlanetKitConfig;
+  setPlanetKitConfig: (config: PlanetKitConfig) => void;
   isConfigured: boolean;
 }
 
@@ -32,11 +34,19 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
     roomName: 'test-room',
     participantName: 'Test User'
   });
+  const [planetKitConfig, setPlanetKitConfig] = useState<PlanetKitConfig>({
+    serviceId: '',
+    apiKey: '',
+    userId: '',
+    roomId: 'test-planet-room',
+    accessToken: ''
+  });
 
   // localStorage에서 설정 복원
   useEffect(() => {
     const savedAgoraConfig = localStorage.getItem('agoraConfig');
     const savedLiveKitConfig = localStorage.getItem('liveKitConfig');
+    const savedPlanetKitConfig = localStorage.getItem('planetKitConfig');
     const savedSDK = localStorage.getItem('selectedSDK');
 
     if (savedAgoraConfig) {
@@ -55,6 +65,14 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
       }
     }
 
+    if (savedPlanetKitConfig) {
+      try {
+        setPlanetKitConfig(JSON.parse(savedPlanetKitConfig));
+      } catch (error) {
+        console.error('Failed to parse PlanetKit config:', error);
+      }
+    }
+
     if (savedSDK) {
       setSelectedSDK(savedSDK as SDKType);
     }
@@ -70,6 +88,10 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
   }, [liveKitConfig]);
 
   useEffect(() => {
+    localStorage.setItem('planetKitConfig', JSON.stringify(planetKitConfig));
+  }, [planetKitConfig]);
+
+  useEffect(() => {
     localStorage.setItem('selectedSDK', selectedSDK);
   }, [selectedSDK]);
 
@@ -77,7 +99,11 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
   const isConfigured = 
     selectedSDK === 'agora' 
       ? !!(agoraConfig.appId) // Agora는 App ID만 있으면 기본 테스트 가능 (App Certificate는 선택사항)
-      : !!(liveKitConfig.serverUrl && liveKitConfig.apiKey && liveKitConfig.apiSecret && liveKitConfig.token);
+      : selectedSDK === 'livekit'
+        ? !!(liveKitConfig.serverUrl && liveKitConfig.apiKey && liveKitConfig.apiSecret && liveKitConfig.token)
+        : selectedSDK === 'planetkit'
+          ? !!(planetKitConfig.serviceId && planetKitConfig.apiKey && planetKitConfig.userId && planetKitConfig.accessToken)
+          : false;
 
   const value = {
     selectedSDK,
@@ -86,6 +112,8 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
     setAgoraConfig,
     liveKitConfig,
     setLiveKitConfig,
+    planetKitConfig,
+    setPlanetKitConfig,
     isConfigured,
   };
 

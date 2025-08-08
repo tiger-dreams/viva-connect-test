@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import SetupPage from "./pages/SetupPage";
 import AgoraMeeting from "./pages/AgoraMeeting";
 import LiveKitMeeting from "./pages/LiveKitMeeting";
+import PlanetKitMeeting from "./pages/PlanetKitMeeting";
 import MeetingPage from "./pages/MeetingPage";
 import NotFound from "./pages/NotFound";
 
@@ -30,6 +31,7 @@ const App = () => (
             {/* SDK별 분리된 미팅 페이지 */}
             <Route path="/agora_meeting" element={<AgoraMeeting />} />
             <Route path="/livekit_meeting" element={<LiveKitMeeting />} />
+            <Route path="/planetkit_meeting" element={<PlanetKitMeeting />} />
             
             {/* 기존 미팅 페이지 (호환성 유지) */}
             <Route path="/meeting" element={<MeetingPage />} />

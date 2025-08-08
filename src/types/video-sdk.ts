@@ -1,4 +1,4 @@
-export type SDKType = 'agora' | 'livekit';
+export type SDKType = 'agora' | 'livekit' | 'planetkit';
 
 export interface AgoraConfig {
   appId: string;
@@ -15,6 +15,14 @@ export interface LiveKitConfig {
   roomName: string;
   participantName: string;
   token?: string;
+}
+
+export interface PlanetKitConfig {
+  serviceId: string;
+  apiKey: string;
+  userId: string;
+  roomId: string;
+  accessToken: string;
 }
 
 export interface ConnectionStatus {

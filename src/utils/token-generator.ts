@@ -116,6 +116,51 @@ export const generateLiveKitToken = async (
   }
 };
 
+// PlanetKit Access Token Generation
+export const generatePlanetKitToken = async (
+  serviceId: string,
+  apiKey: string,
+  userId: string,
+  roomId: string,
+  expirationTimeInSeconds: number = 3600
+): Promise<string> => {
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + expirationTimeInSeconds;
+    
+    // 개발용 임시 secret (실제 환경에서는 서버에서 생성해야 함)
+    const tempSecret = new TextEncoder().encode(`planetkit-dev-${serviceId}`);
+    
+    // PlanetKit Access Token payload (예상 구조)
+    const payload = {
+      iss: serviceId,
+      sub: userId,
+      iat: now,
+      exp: exp,
+      nbf: now,
+      room: roomId,
+      permissions: {
+        video: true,
+        audio: true,
+        screenShare: true,
+        chat: true
+      }
+    };
+    
+    console.log('Generating PlanetKit token for:', { serviceId, userId, roomId });
+    
+    const token = await new SignJWT(payload)
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .sign(tempSecret);
+
+    console.log('Generated PlanetKit token length:', token.length);
+    return token;
+  } catch (error) {
+    console.error('PlanetKit token generation error:', error);
+    throw new Error(`Failed to generate PlanetKit token: ${error}`);
+  }
+};
+
 // Validate token format
 export const validateToken = (token: string): boolean => {
   try {

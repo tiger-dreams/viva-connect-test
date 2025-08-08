@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { SDKSelector } from "@/components/SDKSelector";
 import { AgoraConfigPanel } from "@/components/AgoraConfigPanel";
 import { LiveKitConfigPanel } from "@/components/LiveKitConfigPanel";
+import { PlanetKitConfigPanel } from "@/components/PlanetKitConfigPanel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -11,14 +12,16 @@ import { useVideoSDK } from "@/contexts/VideoSDKContext";
 
 const SetupPage = () => {
   const navigate = useNavigate();
-  const { selectedSDK, setSelectedSDK, agoraConfig, setAgoraConfig, liveKitConfig, setLiveKitConfig, isConfigured } = useVideoSDK();
+  const { selectedSDK, setSelectedSDK, agoraConfig, setAgoraConfig, liveKitConfig, setLiveKitConfig, planetKitConfig, setPlanetKitConfig, isConfigured } = useVideoSDK();
 
   const handleJoinMeeting = () => {
     if (isConfigured) {
       if (selectedSDK === 'agora') {
         navigate('/agora_meeting');
-      } else {
+      } else if (selectedSDK === 'livekit') {
         navigate('/livekit_meeting');
+      } else if (selectedSDK === 'planetkit') {
+        navigate('/planetkit_meeting');
       }
     }
   };
@@ -34,7 +37,7 @@ const SetupPage = () => {
                 Video SDK 테스트 도구
               </h1>
               <p className="text-muted-foreground">
-                Agora와 LiveKit을 테스트하고 디버깅하는 개발자 도구
+                Agora, LiveKit, PlanetKit을 테스트하고 디버깅하는 개발자 도구
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -74,6 +77,10 @@ const SetupPage = () => {
                 <span className="text-muted-foreground">LiveKit:</span>
                 <span>2.15.4</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">PlanetKit:</span>
+                <span>5.3.0</span>
+              </div>
               <Separator className="my-2" />
               <p className="text-muted-foreground">
                 이 도구는 개발자용 테스트 환경입니다. API Key와 Secret은 로컬에만 저장됩니다.
@@ -93,10 +100,15 @@ const SetupPage = () => {
               config={agoraConfig} 
               onConfigChange={setAgoraConfig} 
             />
-          ) : (
+          ) : selectedSDK === 'livekit' ? (
             <LiveKitConfigPanel 
               config={liveKitConfig} 
               onConfigChange={setLiveKitConfig} 
+            />
+          ) : (
+            <PlanetKitConfigPanel 
+              config={planetKitConfig} 
+              onConfigChange={setPlanetKitConfig} 
             />
           )}
 
@@ -131,7 +143,9 @@ const SetupPage = () => {
                 <p className="text-xs text-muted-foreground mt-2 text-center">
                   {selectedSDK === 'agora' 
                     ? "App ID를 입력해주세요 (App Certificate는 토큰 생성 시에만 필요합니다)"
-                    : "Server URL, API Key, API Secret을 입력하고 토큰을 생성해주세요"
+                    : selectedSDK === 'livekit'
+                      ? "Server URL, API Key, API Secret을 입력하고 토큰을 생성해주세요"
+                      : "Service ID, User ID를 입력하고 Access Token을 생성해주세요"
                   }
                 </p>
               )}
