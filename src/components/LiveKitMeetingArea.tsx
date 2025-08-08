@@ -370,14 +370,15 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
       newRoom.on(RoomEvent.TrackSubscribed, (track: Track, publication: TrackPublication, participant: RemoteParticipant) => {
         console.log('Track subscribed:', track.kind, participant.identity);
         if (track.kind === 'video') {
-        const remoteVideoElement = track.attach() as HTMLVideoElement;
-        (remoteVideoElement as HTMLVideoElement).playsInline = true;
+          const remoteVideoElement = track.attach() as HTMLVideoElement;
+          (remoteVideoElement as HTMLVideoElement).playsInline = true;
           remoteVideoElement.style.width = '100%';
           remoteVideoElement.style.height = '100%';
           remoteVideoElement.style.objectFit = 'cover';
           remoteVideoElement.id = `remote-video-${participant.identity}`;
           videoElementByParticipantRef.current[participant.identity] = remoteVideoElement as HTMLVideoElement;
           videoTrackByParticipantRef.current[participant.identity] = track;
+          console.log('✅ 원격 비디오 엘리먼트 생성됨:', participant.identity);
         } else if (track.kind === 'audio') {
           audioPublicationByParticipantRef.current[participant.identity] = publication;
           // 원격 오디오 재생
@@ -399,7 +400,12 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
         console.log('Track unsubscribed:', track.kind, participant.identity);
         if (track.kind === 'video') {
           const el = videoElementByParticipantRef.current[participant.identity];
-          try { if (el) track.detach(el); } catch {}
+          try { 
+            if (el) {
+              track.detach(el);
+              console.log('✅ 원격 비디오 엘리먼트 제거됨:', participant.identity);
+            }
+          } catch {}
           delete videoElementByParticipantRef.current[participant.identity];
           delete videoTrackByParticipantRef.current[participant.identity];
         } else if (track.kind === 'audio') {
@@ -705,7 +711,7 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
         room.disconnect();
       }
     };
-  }, [room]);
+  }, []); // room 의존성 제거
 
   // 컴포넌트 언마운트 시 정리 (에이전트 룸/PC)
   useEffect(() => {
@@ -1496,14 +1502,29 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
             <CardContent>
               <div className="w-full min-h-[400px] bg-gray-900 rounded-lg p-2">
                 <TileView
-                  participants={participants.map<TileParticipant>((p) => ({
-                    ...p,
-                    videoElement: videoElementByParticipantRef.current[p.id],
-                    isLocal: p.id === 'local',
-                    audioLevel: audioLevelRef.current[p.id] || 0,
-                    isSpeaking: speakingRef.current[p.id] || false,
-                    videoStats: showVideoStats ? statsByParticipantRef.current[p.id] : undefined,
-                  }))}
+                  participants={participants.map<TileParticipant>((p) => {
+                    // 참가자 ID 매핑 디버깅
+                    console.log('Participant mapping:', {
+                      participantId: p.id,
+                      participantName: p.name,
+                      availableKeys: Object.keys(videoElementByParticipantRef.current),
+                      hasVideoElement: !!videoElementByParticipantRef.current[p.id],
+                      hasVideoElementByName: !!videoElementByParticipantRef.current[p.name]
+                    });
+                    
+                    // ID와 이름 모두 시도
+                    const videoElement = videoElementByParticipantRef.current[p.id] || 
+                                      videoElementByParticipantRef.current[p.name];
+                    
+                    return {
+                      ...p,
+                      videoElement: videoElement,
+                      isLocal: p.id === 'local',
+                      audioLevel: audioLevelRef.current[p.id] || 0,
+                      isSpeaking: speakingRef.current[p.id] || false,
+                      videoStats: showVideoStats ? statsByParticipantRef.current[p.id] : undefined,
+                    };
+                  })}
                   maxVisibleTiles={4}
                   showVideoStats={showVideoStats}
                 />
