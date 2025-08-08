@@ -28,9 +28,9 @@ interface VideoMeetingAreaProps {
 }
 
 export const VideoMeetingArea = ({ selectedSDK, agoraConfig, liveKitConfig }: VideoMeetingAreaProps) => {
-  // LiveKit을 선택한 경우 별도 컴포넌트 렌더링
+  // LiveKit을 선택한 경우 별도 컴포넌트 렌더링 (통계정보 표시 활성화)
   if (selectedSDK === 'livekit') {
-    return <LiveKitMeetingArea config={liveKitConfig} />;
+    return <LiveKitMeetingArea config={liveKitConfig} showVideoStats={true} />;
   }
 
   // Agora 관련 컴포넌트만 렌더링

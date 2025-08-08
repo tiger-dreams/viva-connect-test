@@ -4,8 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Key, Shield, Users, Video, Globe } from "lucide-react";
-import { LiveKitConfig } from "@/types/video-sdk";
+import { Copy, Key, Shield, Users, Video, Globe, Crown, User } from "lucide-react";
+import { LiveKitConfig, ParticipantRole } from "@/types/video-sdk";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateLiveKitToken, getTokenExpiration } from "@/utils/token-generator";
 import { useToast } from "@/hooks/use-toast";
 
@@ -38,7 +40,9 @@ export const LiveKitConfigPanel = ({ config, onConfigChange }: LiveKitConfigPane
         config.apiKey,
         config.apiSecret,
         config.roomName,
-        config.participantName
+        config.participantName,
+        3600, // 1 hour expiration
+        config.isHost || false // Pass host status to token generator
       );
       
       handleInputChange("token", token);
@@ -162,6 +166,78 @@ export const LiveKitConfigPanel = ({ config, onConfigChange }: LiveKitConfigPane
               value={config.participantName}
               onChange={(e) => handleInputChange("participantName", e.target.value)}
             />
+          </div>
+        </div>
+
+        {/* 호스트 권한 설정 */}
+        <div className="space-y-4 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <Crown className="w-4 h-4 text-yellow-500" />
+              참가 권한 설정
+            </h4>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isHost"
+                checked={config.isHost || false}
+                onCheckedChange={(checked) => {
+                  handleInputChange("isHost", checked as boolean);
+                  if (checked) {
+                    onConfigChange({ 
+                      ...config, 
+                      isHost: true, 
+                      role: ParticipantRole.HOST 
+                    });
+                  } else {
+                    onConfigChange({ 
+                      ...config, 
+                      isHost: false, 
+                      role: ParticipantRole.PARTICIPANT 
+                    });
+                  }
+                }}
+              />
+              <Label htmlFor="isHost" className="flex items-center gap-2">
+                {config.isHost ? <Crown className="w-4 h-4 text-yellow-500" /> : <User className="w-4 h-4" />}
+                호스트로 참여
+              </Label>
+            </div>
+
+            <div className="text-xs text-muted-foreground pl-6">
+              {config.isHost ? (
+                <div className="space-y-1">
+                  <p className="text-yellow-600 font-medium">🎯 호스트 권한:</p>
+                  <ul className="space-y-0.5 text-muted-foreground">
+                    <li>• 참가자 강제 퇴장 (Kick out)</li>
+                    <li>• 참가자 음소거/영상 끄기</li>
+                    <li>• 방 설정 관리</li>
+                    <li>• 다른 참가자 권한 변경</li>
+                  </ul>
+                </div>
+              ) : (
+                <p>일반 참가자로 입장하며, 기본적인 화상회의 기능만 사용할 수 있습니다.</p>
+              )}
+            </div>
+
+            {config.isHost && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <Shield className="w-4 h-4 text-yellow-600 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                      호스트 모드 주의사항
+                    </p>
+                    <p className="text-yellow-700 dark:text-yellow-300">
+                      호스트 권한으로 생성된 토큰은 방 관리 권한을 포함합니다. 
+                      다른 참가자들을 효과적으로 관리할 수 있지만, 토큰 보안에 주의하세요.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

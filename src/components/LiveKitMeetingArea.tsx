@@ -6,6 +6,13 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator 
+} from "@/components/ui/dropdown-menu";
 import {
   Video,
   VideoOff,
@@ -22,6 +29,9 @@ import {
   Camera,
   MicIcon,
   Speaker,
+  Crown,
+  UserX,
+  MoreVertical,
 } from "lucide-react";
 import { LiveKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { generateLiveKitToken } from "@/utils/token-generator";
@@ -98,10 +108,6 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
   const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
   const [callDuration, setCallDuration] = useState<string>("00:00:00");
   const [summaryStats, setSummaryStats] = useState<{ txBitrateBps: number; rxBitrateBps: number; rxPacketLossPctAvg: number }>({ txBitrateBps: 0, rxBitrateBps: 0, rxPacketLossPctAvg: 0 });
-  // 브라우저(Chrome) 재실행 기반의 WebRTC 네트워크 시뮬레이션 명령 생성용 상태
-  const [simLossPercent, setSimLossPercent] = useState<number>(0);
-  const [simDelayMs, setSimDelayMs] = useState<number>(50);
-  const [simCapacityKbps, setSimCapacityKbps] = useState<number>(1500);
   
   // 미디어 디바이스 관리
   const {
@@ -208,6 +214,11 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
           title: "연결 성공",
           description: "LiveKit 룸에 성공적으로 연결되었습니다.",
         });
+        
+        // 연결 후 약간의 지연을 두고 오디오 분석 강제 재시작 (speaking 감지를 위해)
+        setTimeout(() => {
+          setStatsTick((x) => (x + 1) % 1000000); // useEffect 재실행 트리거
+        }, 1000);
       });
 
       // 로컬 트랙 발행 이벤트 처리
@@ -225,6 +236,59 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
           videoElementByParticipantRef.current['local'] = videoElement;
           videoTrackByParticipantRef.current['local'] = videoTrack as unknown as Track;
           setLocalVideoTrack(videoTrack);
+          console.log('✅ 로컬 비디오 트랙 연결됨:', videoElement);
+          
+          // 참가자 상태 즉시 업데이트
+          updateParticipantTracks(participant);
+        } else if (publication.kind === 'audio' && publication.track) {
+          const audioTrack = publication.track as LocalAudioTrack;
+          setLocalAudioTrack(audioTrack);
+          console.log('✅ 로컬 오디오 트랙 연결됨');
+          
+          // 참가자 상태 즉시 업데이트
+          updateParticipantTracks(participant);
+        }
+      });
+
+      // 로컬 트랙 언발행 이벤트 처리
+      newRoom.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication, participant: LocalParticipant) => {
+        console.log('Local track unpublished:', publication.kind);
+        if (publication.kind === 'video') {
+          // 비디오 엘리먼트 정리
+          const existingElement = videoElementByParticipantRef.current['local'];
+          if (existingElement) {
+            try {
+              videoTrackByParticipantRef.current['local']?.detach(existingElement);
+            } catch {}
+            delete videoElementByParticipantRef.current['local'];
+            delete videoTrackByParticipantRef.current['local'];
+          }
+          setLocalVideoTrack(null);
+          console.log('🔇 로컬 비디오 트랙 연결 해제됨');
+          
+          // 참가자 상태 즉시 업데이트
+          updateParticipantTracks(participant);
+        } else if (publication.kind === 'audio') {
+          setLocalAudioTrack(null);
+          console.log('🔇 로컬 오디오 트랙 연결 해제됨');
+          
+          // 참가자 상태 즉시 업데이트
+          updateParticipantTracks(participant);
+        }
+      });
+
+      // 트랙 음소거/음소거 해제 이벤트 (추가 안전장치)
+      newRoom.on(RoomEvent.TrackMuted, (publication: TrackPublication, participant: LocalParticipant | RemoteParticipant) => {
+        console.log('Track muted:', publication.kind, participant.identity);
+        if (participant.identity === 'local' || participant === newRoom.localParticipant) {
+          updateParticipantTracks(participant);
+        }
+      });
+
+      newRoom.on(RoomEvent.TrackUnmuted, (publication: TrackPublication, participant: LocalParticipant | RemoteParticipant) => {
+        console.log('Track unmuted:', publication.kind, participant.identity);
+        if (participant.identity === 'local' || participant === newRoom.localParticipant) {
+          updateParticipantTracks(participant);
         }
       });
 
@@ -342,6 +406,11 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
       await room.localParticipant.setMicrophoneEnabled(true);
 
       console.log('미디어 활성화 완료');
+      
+      // 미디어 활성화 후 speaking 감지 시작을 위해 오디오 분석 재시작
+      setTimeout(() => {
+        setStatsTick((x) => (x + 1) % 1000000); // useEffect 재실행 트리거
+      }, 1500);
 
     } catch (error) {
       console.error('미디어 활성화 실패:', error);
@@ -434,6 +503,51 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
           }
         : p
     ));
+
+    // 로컬 참가자인 경우 비디오 엘리먼트 상태도 확인
+    if (participant.identity === 'local' || (room && participant === room.localParticipant)) {
+      console.log('🔄 로컬 참가자 상태 동기화:', {
+        video: participant.isCameraEnabled,
+        audio: participant.isMicrophoneEnabled,
+        screen: participant.isScreenShareEnabled
+      });
+      
+      // 비디오가 꺼진 경우 엘리먼트 정리
+      if (!participant.isCameraEnabled) {
+        const existingElement = videoElementByParticipantRef.current['local'];
+        if (existingElement) {
+          console.log('🔇 비디오 꺼짐으로 엘리먼트 정리');
+          try {
+            videoTrackByParticipantRef.current['local']?.detach(existingElement);
+          } catch {}
+          delete videoElementByParticipantRef.current['local'];
+          delete videoTrackByParticipantRef.current['local'];
+        }
+        setLocalVideoTrack(null);
+      }
+      // 비디오가 켜진 경우 엘리먼트 생성 (아직 없다면)
+      else if (participant.isCameraEnabled && !videoElementByParticipantRef.current['local']) {
+        // 약간의 지연을 두고 트랙을 확인 (트랙이 늦게 발행되는 경우 대비)
+        setTimeout(() => {
+          const videoPublication = participant.getTrackPublication(Track.Source.Camera);
+          if (videoPublication?.track && !videoElementByParticipantRef.current['local']) {
+            const videoTrack = videoPublication.track as LocalVideoTrack;
+            const videoElement = videoTrack.attach() as HTMLVideoElement;
+            videoElement.muted = true;
+            videoElement.playsInline = true;
+            videoElement.style.width = '100%';
+            videoElement.style.height = '100%';
+            videoElement.style.objectFit = 'cover';
+            videoElement.id = 'livekit-local-video';
+            
+            videoElementByParticipantRef.current['local'] = videoElement;
+            videoTrackByParticipantRef.current['local'] = videoTrack as unknown as Track;
+            setLocalVideoTrack(videoTrack);
+            console.log('✅ 비디오 켜짐으로 엘리먼트 생성:', videoElement);
+          }
+        }, 100);
+      }
+    }
   };
 
   // 연결 해제
@@ -466,37 +580,20 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
 
     try {
       const enabled = !isVideoOn;
+      console.log(`🎥 비디오 ${enabled ? '켜기' : '끄기'} 요청`);
       
-      if (!enabled) {
-        // 비디오를 끄기 전에 먼저 DOM 정리
-        cleanupVideoContainer();
-        setLocalVideoTrack(null);
-      }
+      // UI 상태를 먼저 업데이트 (즉각적인 반응을 위해)
+      setIsVideoOn(enabled);
       
       await room.localParticipant.setCameraEnabled(enabled);
+      console.log(`🎥 비디오 ${enabled ? '켜기' : '끄기'} 완료`);
       
-      if (enabled && videoContainerRef.current) {
-        // 비디오 켤 때 트랙 가져와서 attach
-        const videoPublication = room.localParticipant.getTrackPublication(Track.Source.Camera);
-        if (videoPublication && videoPublication.track) {
-          const videoTrack = videoPublication.track as LocalVideoTrack;
-          const videoElement = videoTrack.attach();
-          videoElement.style.width = '100%';
-          videoElement.style.height = '100%';
-          videoElement.style.objectFit = 'cover';
-          videoElement.id = 'local-video';
-          
-          // 기존 엘리먼트가 있다면 정리 후 추가
-          cleanupVideoContainer();
-          videoContainerRef.current.appendChild(videoElement);
-          setLocalVideoTrack(videoTrack);
-        }
-      }
-
-      setIsVideoOn(enabled);
+      // 참가자 상태 업데이트
       updateParticipantTracks(room.localParticipant);
     } catch (error) {
       console.error('비디오 토글 오류:', error);
+      // 에러 발생 시 UI 상태 되돌리기
+      setIsVideoOn(!enabled);
       toast({
         title: "비디오 오류",
         description: "비디오 설정 변경에 실패했습니다.",
@@ -511,21 +608,20 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
 
     try {
       const enabled = !isAudioOn;
-      await room.localParticipant.setMicrophoneEnabled(enabled);
+      console.log(`🎤 오디오 ${enabled ? '켜기' : '끄기'} 요청`);
       
-      if (enabled) {
-        const audioPublication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-        if (audioPublication && audioPublication.track) {
-          setLocalAudioTrack(audioPublication.track as LocalAudioTrack);
-        }
-      } else {
-        setLocalAudioTrack(null);
-      }
-
+      // UI 상태를 먼저 업데이트 (즉각적인 반응을 위해)
       setIsAudioOn(enabled);
+      
+      await room.localParticipant.setMicrophoneEnabled(enabled);
+      console.log(`🎤 오디오 ${enabled ? '켜기' : '끄기'} 완료`);
+      
+      // 참가자 상태 업데이트
       updateParticipantTracks(room.localParticipant);
     } catch (error) {
       console.error('오디오 토글 오류:', error);
+      // 에러 발생 시 UI 상태 되돌리기
+      setIsAudioOn(!enabled);
       toast({
         title: "오디오 오류",
         description: "오디오 설정 변경에 실패했습니다.",
@@ -838,60 +934,149 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
     return () => clearInterval(interval);
   }, [showVideoStats, connectionStatus.connected, room]); // Added 'room' dependency
 
-  // 오디오 레벨 측정(로컬/원격 포함)
+  // 오디오 레벨 측정(로컬/원격 포함) - speaking 하이라이트를 위해 항상 실행
   useEffect(() => {
-    if (!connectionStatus.connected || !showVideoStats) return;
-    let rafId: number;
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    if (!connectionStatus.connected || !room) return;
+    
+    // 약간의 지연을 두고 실행 (오디오 트랙이 완전히 준비될 때까지 대기)
+    const setupAudioAnalysis = () => {
+      let rafId: number;
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const analyzers: Array<{ pid: string; analyser: AnalyserNode; source: MediaStreamAudioSourceNode }> = [];
 
-    const analyzers: Array<{ pid: string; analyser: AnalyserNode; source: MediaStreamAudioSourceNode }> = [];
-
-    // 로컬 참가자 마이크
-    if (localAudioTrack && (localAudioTrack as any).mediaStreamTrack) {
-      const stream = new MediaStream([ (localAudioTrack as any).mediaStreamTrack ]);
-      const src = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      src.connect(analyser);
-      analyzers.push({ pid: 'local', analyser, source: src });
-    }
-
-    // 원격 참가자 오디오
-    for (const [pid, pub] of Object.entries(audioPublicationByParticipantRef.current)) {
-      const mt: any = pub?.track ? (pub.track as any).mediaStreamTrack : undefined;
-      if (mt) {
-        const stream = new MediaStream([ mt ]);
-        const src = audioCtx.createMediaStreamSource(stream);
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        src.connect(analyser);
-        analyzers.push({ pid, analyser, source: src });
-      }
-    }
-
-    const data = new Uint8Array(128);
-    const loop = () => {
-      analyzers.forEach(({ pid, analyser }) => {
-        analyser.getByteTimeDomainData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) {
-          const v = (data[i] - 128) / 128; // -1..1
-          sum += v * v;
+      // 로컬 참가자 마이크 - 모든 방법 시도
+      let localAnalyzerAdded = false;
+      
+      // 방법 1: LiveKit room에서 직접 가져오기
+      try {
+        const localMicPublication = room.localParticipant.getTrackPublication('microphone');
+        if (localMicPublication?.track && !localMicPublication.isMuted) {
+          const micTrack = localMicPublication.track as any;
+          if (micTrack.mediaStreamTrack && micTrack.mediaStreamTrack.readyState === 'live') {
+            const stream = new MediaStream([micTrack.mediaStreamTrack]);
+            const src = audioCtx.createMediaStreamSource(stream);
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            src.connect(analyser);
+            analyzers.push({ pid: 'local', analyser, source: src });
+            console.log('🎤 로컬 오디오 분석기 추가됨 (방법1)');
+            localAnalyzerAdded = true;
+          }
         }
-        const rms = Math.sqrt(sum / data.length); // 0..1
-        audioLevelRef.current[pid] = rms;
-        speakingRef.current[pid] = rms > 0.08; // 임계값
-      });
-      setStatsTick((x) => (x + 1) % 1000000);
+      } catch (err) {
+        console.warn('방법1 실패:', err);
+      }
+
+      // 방법 2: Track.Source.Microphone 사용
+      if (!localAnalyzerAdded) {
+        try {
+          const micPublication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+          if (micPublication?.track) {
+            const micTrack = micPublication.track as any;
+            if (micTrack.mediaStreamTrack && micTrack.mediaStreamTrack.readyState === 'live') {
+              const stream = new MediaStream([micTrack.mediaStreamTrack]);
+              const src = audioCtx.createMediaStreamSource(stream);
+              const analyser = audioCtx.createAnalyser();
+              analyser.fftSize = 256;
+              src.connect(analyser);
+              analyzers.push({ pid: 'local', analyser, source: src });
+              console.log('🎤 로컬 오디오 분석기 추가됨 (방법2)');
+              localAnalyzerAdded = true;
+            }
+          }
+        } catch (err) {
+          console.warn('방법2 실패:', err);
+        }
+      }
+
+      // 방법 3: localAudioTrack 상태 변수 사용 (폴백)
+      if (!localAnalyzerAdded && localAudioTrack) {
+        try {
+          const mediaStreamTrack = (localAudioTrack as any).mediaStreamTrack;
+          if (mediaStreamTrack && mediaStreamTrack.readyState === 'live') {
+            const stream = new MediaStream([mediaStreamTrack]);
+            const src = audioCtx.createMediaStreamSource(stream);
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            src.connect(analyser);
+            analyzers.push({ pid: 'local', analyser, source: src });
+            console.log('🎤 로컬 오디오 분석기 추가됨 (폴백)');
+            localAnalyzerAdded = true;
+          }
+        } catch (err) {
+          console.warn('폴백 방법 실패:', err);
+        }
+      }
+      
+      if (!localAnalyzerAdded) {
+        console.warn('⚠️ 로컬 오디오 분석기 추가 실패 - 모든 방법 실패');
+      }
+
+      // 원격 참가자 오디오
+      for (const [pid, pub] of Object.entries(audioPublicationByParticipantRef.current)) {
+        const mt: any = pub?.track ? (pub.track as any).mediaStreamTrack : undefined;
+        if (mt && mt.readyState === 'live') {
+          try {
+            const stream = new MediaStream([mt]);
+            const src = audioCtx.createMediaStreamSource(stream);
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            src.connect(analyser);
+            analyzers.push({ pid, analyser, source: src });
+            console.log(`📢 원격 오디오 분석기 추가됨: ${pid}`);
+          } catch (err) {
+            console.warn(`원격 오디오 분석기 생성 실패 (${pid}):`, err);
+          }
+        }
+      }
+
+      if (analyzers.length === 0) {
+        console.warn('⚠️ 분석 가능한 오디오 트랙이 없음');
+        try { audioCtx.close(); } catch {}
+        return;
+      }
+
+      const data = new Uint8Array(128);
+      const loop = () => {
+        analyzers.forEach(({ pid, analyser }) => {
+          analyser.getByteTimeDomainData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) {
+            const v = (data[i] - 128) / 128;
+            sum += v * v;
+          }
+          const rms = Math.sqrt(sum / data.length);
+          audioLevelRef.current[pid] = rms;
+          const isSpeaking = rms > 0.01;
+          const wasSpeaking = speakingRef.current[pid] || false;
+          speakingRef.current[pid] = isSpeaking;
+          
+        });
+        setStatsTick((x) => (x + 1) % 1000000);
+        rafId = requestAnimationFrame(loop);
+      };
       rafId = requestAnimationFrame(loop);
+
+      return () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        try { audioCtx.close(); } catch {}
+      };
     };
-    rafId = requestAnimationFrame(loop);
+
+    // 즉시 실행 + 재시도 로직
+    const cleanup1 = setupAudioAnalysis();
+    
+    // 2초 후 재시도 (트랙이 늦게 준비될 경우 대비)
+    const retryTimer = setTimeout(() => {
+      if (cleanup1) cleanup1();
+      setupAudioAnalysis();
+    }, 2000);
 
     return () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      try { audioCtx.close(); } catch {}
+      clearTimeout(retryTimer);
+      if (cleanup1) cleanup1();
     };
-  }, [connectionStatus.connected, showVideoStats, localAudioTrack]);
+  }, [connectionStatus.connected, room, localAudioTrack, isAudioOn]);
 
   // ---------- AI Voice Agent (브라우저 내 OpenAI Realtime 브리지) ----------
   const startAgent = async () => {
@@ -1073,6 +1258,48 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
     } catch (error) {
       console.error("에이전트 중지 실패:", error);
       toast({ title: "AI Agent 중지 실패", description: String(error), variant: "destructive" });
+    }
+  };
+
+  // Host controls - kick participant function
+  const kickParticipant = async (participantId: string, participantName: string) => {
+    if (!room || !config.isHost) {
+      toast({
+        title: "권한 없음",
+        description: "호스트만 참가자를 강제 퇴장시킬 수 있습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (participantId === 'local') {
+      toast({
+        title: "작업 불가",
+        description: "자신을 강제 퇴장시킬 수 없습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // LiveKit's removeParticipant API requires server-side implementation
+      // For now, we'll show a message that this would normally call the server API
+      toast({
+        title: "참가자 강제 퇴장",
+        description: `${participantName} 참가자를 강제 퇴장시키는 중... (서버 API 호출 필요)`,
+      });
+      
+      // In a real implementation, you would call:
+      // await room.engine.client.sendRequest('removeParticipant', { participantSid: participantId });
+      // Or make an HTTP request to your LiveKit server's REST API
+      console.log(`[HOST ACTION] Kicking participant: ${participantName} (${participantId})`);
+    } catch (error) {
+      console.error('Failed to kick participant:', error);
+      toast({
+        title: "강제 퇴장 실패",
+        description: "참가자 강제 퇴장에 실패했습니다.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1301,87 +1528,6 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
             </Card>
           )}
 
-          {/* 네트워크 시뮬레이터(가이드) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                네트워크 시뮬레이터 (Chrome 재실행 필요)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                <div>
-                  <Label>패킷 손실률(%)</Label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={simLossPercent}
-                    onChange={(e) => setSimLossPercent(Math.max(0, Math.min(100, Number(e.target.value))))}
-                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label>지연(ms)</Label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={simDelayMs}
-                    onChange={(e) => setSimDelayMs(Math.max(0, Number(e.target.value)))}
-                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <Label>링크 용량(kbps)</Label>
-                  <input
-                    type="number"
-                    min={64}
-                    value={simCapacityKbps}
-                    onChange={(e) => setSimCapacityKbps(Math.max(64, Number(e.target.value)))}
-                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-3">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={async () => {
-                    const appPath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-                    const userDataDir = '/tmp/chrome-webrtc-sim';
-                    const fieldTrials = `WebRTC-FakeNetworkConditions/Enabled/BurstLossPercent/0/DelayMs/${simDelayMs}/LossPercent/${simLossPercent}/QueueDelayMs/0/QueueLength/100/LinkCapacityKbps/${simCapacityKbps}`;
-                    const cmd = `${appPath} --user-data-dir=${userDataDir} --force-fieldtrials=${fieldTrials}`;
-                    try {
-                      await navigator.clipboard.writeText(cmd);
-                      toast({ title: '명령어 복사됨', description: '터미널에서 붙여넣어 Chrome을 실행하세요.' });
-                    } catch {
-                      toast({ title: '복사 실패', description: '클립보드 권한을 확인해주세요.', variant: 'destructive' });
-                    }
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  Chrome 실행 명령어 복사
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    toast({
-                      title: '사용 안내',
-                      description: '이 기능은 브라우저 전역 WebRTC 엔진에 적용되며, 페이지 내에서 즉시 On/Off 할 수 없습니다. 복사한 명령으로 Chrome을 별도 인스턴스로 실행해 테스트하세요.',
-                    });
-                  }}
-                >
-                  사용 안내
-                </Button>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                실제 패킷 손실은 브라우저/OS 레벨에서만 강제할 수 있습니다. 위 명령으로 실행된 Chrome 인스턴스에서 이 페이지를 열면, WebRTC 스트림에 Loss/Delay/대역 제한이 적용됩니다.
-              </p>
-            </CardContent>
-          </Card>
 
           {/* AI Agent 제어(UI) */}
           <Card>
@@ -1440,6 +1586,9 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
                 참가자 ({participants.length})
+                {config.isHost && (
+                  <Crown className="w-4 h-4 text-yellow-500" title="호스트 권한 활성화됨" />
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1463,7 +1612,12 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
                           </div>
                           <span className="text-sm font-medium">{participant.name}</span>
                           {participant.id === 'local' && (
-                            <Badge variant="outline" className="text-xs">나</Badge>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className="text-xs">나</Badge>
+                              {config.isHost && (
+                                <Crown className="w-3 h-3 text-yellow-500" title="호스트" />
+                              )}
+                            </div>
                           )}
                         </div>
                         <div className="flex items-center gap-1">
@@ -1479,6 +1633,35 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
                           )}
                           {participant.isScreenSharing && (
                             <Monitor className="w-4 h-4 text-blue-500" />
+                          )}
+                          
+                          {/* Host controls for remote participants */}
+                          {config.isHost && participant.id !== 'local' && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                  <MoreVertical className="w-3 h-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuItem 
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => kickParticipant(participant.id, participant.name)}
+                                >
+                                  <UserX className="w-4 h-4 mr-2" />
+                                  강제 퇴장
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem disabled className="text-muted-foreground">
+                                  <MicOff className="w-4 h-4 mr-2" />
+                                  음소거 (준비 중)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem disabled className="text-muted-foreground">
+                                  <VideoOff className="w-4 h-4 mr-2" />
+                                  비디오 끄기 (준비 중)
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           )}
                         </div>
                       </div>
@@ -1519,6 +1702,20 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
                     {connectionStatus.connected ? "연결됨" : "연결 안됨"}
                   </Badge>
                 </div>
+                {config.isHost && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">권한:</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">
+                        <Crown className="w-3 h-3 mr-1" />
+                        호스트 권한 활성화
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        참가자 관리 권한 보유
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

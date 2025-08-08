@@ -78,7 +78,8 @@ export const generateLiveKitToken = async (
   apiSecret: string,
   roomName: string,
   participantName: string,
-  expirationTimeInSeconds: number = 3600
+  expirationTimeInSeconds: number = 3600,
+  isHost: boolean = false
 ): Promise<string> => {
   try {
     const now = Math.floor(Date.now() / 1000);
@@ -86,8 +87,8 @@ export const generateLiveKitToken = async (
     
     const secret = new TextEncoder().encode(apiSecret);
     
-    // LiveKit JWT payload
-    const payload = {
+    // LiveKit JWT payload with conditional host permissions
+    const payload: any = {
       iss: apiKey,
       nbf: now,
       exp: exp,
@@ -101,8 +102,23 @@ export const generateLiveKitToken = async (
         canUpdateOwnMetadata: true,
       }
     };
+
+    // Add host permissions if isHost is true
+    if (isHost) {
+      payload.video = {
+        ...payload.video,
+        // Host-specific permissions
+        roomAdmin: true,           // Can remove participants and update room metadata
+        canPublishData: true,      // Can publish data messages
+        canUpdateMetadata: true,   // Can update room metadata
+        canControlRoom: true,      // General room control permissions
+      };
+      console.log('Generating LiveKit HOST token with admin permissions');
+    } else {
+      console.log('Generating LiveKit PARTICIPANT token with standard permissions');
+    }
     
-    console.log('Generating LiveKit token for:', { roomName, participantName });
+    console.log('Token payload:', { roomName, participantName, isHost, permissions: payload.video });
     
     const token = await new SignJWT(payload)
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })

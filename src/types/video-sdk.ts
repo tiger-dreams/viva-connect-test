@@ -8,6 +8,19 @@ export interface AgoraConfig {
   token?: string;
 }
 
+export enum ParticipantRole {
+  HOST = 'host',
+  MODERATOR = 'moderator', 
+  PARTICIPANT = 'participant'
+}
+
+export interface RolePermissions {
+  canKickOut: boolean;
+  canMuteOthers: boolean;
+  canChangeRole: boolean;
+  canManageRoom: boolean;
+}
+
 export interface LiveKitConfig {
   serverUrl: string;
   apiKey: string;
@@ -15,6 +28,8 @@ export interface LiveKitConfig {
   roomName: string;
   participantName: string;
   token?: string;
+  role?: ParticipantRole;
+  isHost?: boolean;
 }
 
 export interface PlanetKitConfig {
@@ -44,4 +59,6 @@ export interface Participant {
   isVideoOn: boolean;
   isAudioOn: boolean;
   isScreenSharing: boolean;
+  role?: ParticipantRole;
+  permissions?: RolePermissions;
 }
