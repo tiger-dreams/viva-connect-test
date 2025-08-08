@@ -187,39 +187,6 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
       });
 
       // 이벤트 리스너 등록
-      newRoom.on(RoomEvent.Connected, () => {
-        console.log('LiveKit room connected');
-        setConnectionStatus({ connected: true, connecting: false });
-        
-        // 통화 시작 시간 설정
-        setConnectionStartTime(new Date());
-        
-        // 로컬 참가자를 먼저 추가
-        const localParticipant: Participant = {
-          id: "local",
-          name: config.participantName,
-          isVideoOn: true,
-          isAudioOn: true,
-          isScreenSharing: false
-        };
-        setParticipants([localParticipant]);
-        
-        // 연결된 후 기존 원격 참가자들을 참가자 목록에 추가
-        newRoom.remoteParticipants.forEach((participant) => {
-          console.log('Found existing remote participant:', participant.identity);
-          addParticipant(participant);
-        });
-        
-        toast({
-          title: "연결 성공",
-          description: "LiveKit 룸에 성공적으로 연결되었습니다.",
-        });
-        
-        // 연결 후 약간의 지연을 두고 오디오 분석 강제 재시작 (speaking 감지를 위해)
-        setTimeout(() => {
-          setStatsTick((x) => (x + 1) % 1000000); // useEffect 재실행 트리거
-        }, 1000);
-      });
 
       // 로컬 트랙 발행 이벤트 처리
       newRoom.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication, participant: LocalParticipant) => {
@@ -306,10 +273,14 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
         console.log('Participant connected:', participant.identity);
         addParticipant(participant);
         
-        // 기존 참가자들의 발행된 트랙들도 확인
+        // 기존 참가자들의 발행된 트랙들도 확인하고 구독
         participant.trackPublications.forEach((publication) => {
-          if (publication.track) {
-            console.log('Found existing track:', publication.track.kind, participant.identity);
+          if (publication.track && publication.isSubscribed) {
+            console.log('Found existing subscribed track:', publication.track.kind, participant.identity);
+          } else if (publication.track && !publication.isSubscribed) {
+            console.log('Found existing unsubscribed track, subscribing:', publication.track.kind, participant.identity);
+            // 구독되지 않은 트랙이 있다면 구독 시도
+            publication.setSubscribed(true);
           }
         });
       });
@@ -317,6 +288,83 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
       newRoom.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
         console.log('Participant disconnected:', participant.identity);
         removeParticipant(participant.identity);
+      });
+
+      // Data Channel 이벤트 처리 (퇴장 신호 등)
+      newRoom.on(RoomEvent.DataReceived, (payload: Uint8Array, participant: RemoteParticipant) => {
+        try {
+          const data = JSON.parse(new TextDecoder().decode(payload));
+          console.log('Data received:', data, 'from:', participant.identity);
+          
+          if (data.type === 'kick' && data.target === config.participantName) {
+            console.log('Received kick signal from host:', data);
+            toast({
+              title: "퇴장 요청",
+              description: "호스트가 회의에서 퇴장시켰습니다.",
+              variant: "destructive",
+            });
+            
+            // 즉시 퇴장 (3초 대기 없이)
+            disconnect();
+          } else if (data.type === 'kick' && data.target === participant.identity) {
+            // 다른 참가자에게 보낸 퇴장 신호를 받은 경우 (호스트가 보낸 경우)
+            console.log('Received kick signal for another participant:', data.target);
+          } else if (data.type === 'kick') {
+            // 일반적인 퇴장 신호 로깅
+            console.log('Kick signal received:', data);
+          }
+        } catch (error) {
+          console.warn('Failed to parse data channel message:', error);
+        }
+      });
+
+      // 디버깅: 연결 시 호스트 권한 확인
+      newRoom.on(RoomEvent.Connected, () => {
+        console.log('LiveKit room connected');
+        console.log('Host status:', config.isHost);
+        console.log('Local participant permissions:', (newRoom.localParticipant as any).permissions);
+        setConnectionStatus({ connected: true, connecting: false });
+        
+        // 통화 시작 시간 설정
+        setConnectionStartTime(new Date());
+        
+        // 로컬 참가자를 먼저 추가
+        const localParticipant: Participant = {
+          id: "local",
+          name: config.participantName,
+          isVideoOn: true,
+          isAudioOn: true,
+          isScreenSharing: false
+        };
+        setParticipants([localParticipant]);
+        
+        // 연결된 후 기존 원격 참가자들을 참가자 목록에 추가
+        newRoom.remoteParticipants.forEach((participant) => {
+          console.log('Found existing remote participant:', participant.identity);
+          addParticipant(participant);
+          
+          // 기존 참가자의 발행된 트랙들도 확인하고 구독
+          participant.trackPublications.forEach((publication) => {
+            if (publication.track && publication.isSubscribed) {
+              console.log('Found existing subscribed track:', publication.track.kind, participant.identity);
+              // TrackSubscribed 이벤트가 자동으로 호출되므로 별도 처리 불필요
+            } else if (publication.track && !publication.isSubscribed) {
+              console.log('Found existing unsubscribed track, subscribing:', publication.track.kind, participant.identity);
+              // 구독되지 않은 트랙이 있다면 구독 시도
+              publication.setSubscribed(true);
+            }
+          });
+        });
+        
+        toast({
+          title: "연결 성공",
+          description: "LiveKit 룸에 성공적으로 연결되었습니다.",
+        });
+        
+        // 연결 후 약간의 지연을 두고 오디오 분석 강제 재시작 (speaking 감지를 위해)
+        setTimeout(() => {
+          setStatsTick((x) => (x + 1) % 1000000); // useEffect 재실행 트리거
+        }, 1000);
       });
 
       newRoom.on(RoomEvent.TrackSubscribed, (track: Track, publication: TrackPublication, participant: RemoteParticipant) => {
@@ -1282,17 +1330,60 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
     }
 
     try {
-      // LiveKit's removeParticipant API requires server-side implementation
-      // For now, we'll show a message that this would normally call the server API
-      toast({
-        title: "참가자 강제 퇴장",
-        description: `${participantName} 참가자를 강제 퇴장시키는 중... (서버 API 호출 필요)`,
+      console.log(`[HOST ACTION] Kicking participant: ${participantName} (${participantId})`);
+      console.log('Room state:', {
+        isHost: config.isHost,
+        roomConnected: connectionStatus.connected,
+        localParticipant: room.localParticipant.identity,
+        remoteParticipants: Array.from(room.remoteParticipants.keys())
       });
       
-      // In a real implementation, you would call:
-      // await room.engine.client.sendRequest('removeParticipant', { participantSid: participantId });
-      // Or make an HTTP request to your LiveKit server's REST API
-      console.log(`[HOST ACTION] Kicking participant: ${participantName} (${participantId})`);
+      // 방법 1: Data Channel을 통해 참가자에게 퇴장 신호 전송 (가장 확실한 방법)
+      const kickData = {
+        type: 'kick',
+        target: participantId,
+        reason: 'Host requested removal',
+        timestamp: Date.now(),
+        from: room.localParticipant.identity
+      };
+      
+      console.log('Sending kick data:', kickData);
+      
+      await room.localParticipant.publishData(
+        new TextEncoder().encode(JSON.stringify(kickData)),
+        { topic: 'admin' }
+      );
+
+      toast({
+        title: "퇴장 신호 전송",
+        description: `${participantName} 참가자에게 퇴장 신호를 전송했습니다.`,
+      });
+
+      console.log(`[SUCCESS] Kick signal sent to ${participantName} (${participantId})`);
+
+      // 참가자 목록에서 즉시 제거 (UI 반응성 향상)
+      setParticipants(prev => prev.filter(p => p.id !== participantId));
+      
+      // 비디오/오디오 엘리먼트 정리
+      const videoEl = videoElementByParticipantRef.current[participantId];
+      if (videoEl) {
+        try {
+          videoTrackByParticipantRef.current[participantId]?.detach(videoEl);
+        } catch {}
+        delete videoElementByParticipantRef.current[participantId];
+        delete videoTrackByParticipantRef.current[participantId];
+      }
+      
+      const audioEl = audioElementByParticipantRef.current[participantId];
+      if (audioEl) {
+        try {
+          audioEl.pause();
+          audioEl.srcObject = null;
+        } catch {}
+        delete audioElementByParticipantRef.current[participantId];
+      }
+      delete audioPublicationByParticipantRef.current[participantId];
+
     } catch (error) {
       console.error('Failed to kick participant:', error);
       toast({
