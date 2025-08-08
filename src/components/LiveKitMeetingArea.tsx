@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +61,7 @@ interface LiveKitMeetingAreaProps {
 
 export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMeetingAreaProps) => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const videoElementByParticipantRef = useRef<Record<string, HTMLVideoElement>>({});
   const videoTrackByParticipantRef = useRef<Record<string, Track>>({});
@@ -291,7 +293,7 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
       });
 
       // Data Channel 이벤트 처리 (퇴장 신호 등)
-      newRoom.on(RoomEvent.DataReceived, (payload: Uint8Array, participant: RemoteParticipant) => {
+      newRoom.on(RoomEvent.DataReceived, async (payload: Uint8Array, participant: RemoteParticipant) => {
         try {
           const data = JSON.parse(new TextDecoder().decode(payload));
           console.log('Data received:', data, 'from:', participant.identity);
@@ -304,8 +306,9 @@ export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMe
               variant: "destructive",
             });
             
-            // 즉시 퇴장 (3초 대기 없이)
-            disconnect();
+            // 즉시 퇴장하고 setup 페이지로 리다이렉트
+            await disconnect();
+            navigate('/setup');
           } else if (data.type === 'kick' && data.target === participant.identity) {
             // 다른 참가자에게 보낸 퇴장 신호를 받은 경우 (호스트가 보낸 경우)
             console.log('Received kick signal for another participant:', data.target);
