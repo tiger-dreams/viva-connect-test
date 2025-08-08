@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Video SDK testing application that supports both Agora and Zoom Video SDK Web versions. It's a developer tool for testing group video conferencing capabilities with real-time SDK switching, token generation, and debugging features.
+This is a Video SDK testing application that supports both Agora and LiveKit Web SDKs. It's a developer tool for testing group video conferencing capabilities with real-time SDK switching, token generation, and debugging features.
 
 ## Development Commands
 
@@ -35,7 +35,7 @@ npm run preview
 - **Styling**: Tailwind CSS + shadcn/ui components
 - **Video SDKs**: 
   - Agora Web SDK 4.x (`agora-rtc-sdk-ng`)
-  - Zoom Video SDK for Web (`@zoom/videosdk`)
+  - LiveKit Client (`livekit-client`)
 - **Token Generation**: Client-side JWT using `jose` library
 - **State Management**: React hooks + localStorage for persistence
 - **Routing**: React Router DOM
@@ -44,10 +44,11 @@ npm run preview
 
 - `src/components/` - React components
   - `ui/` - shadcn/ui component library (complete set)
-  - `SDKSelector.tsx` - SDK selection interface
+  - `SDKSelector.tsx` - SDK selection interface (Agora/LiveKit)
   - `AgoraConfigPanel.tsx` - Agora configuration panel
-  - `ZoomConfigPanel.tsx` - Zoom configuration panel  
-  - `VideoMeetingArea.tsx` - Main video conferencing interface
+  - `LiveKitConfigPanel.tsx` - LiveKit configuration panel
+  - `LiveKitMeetingArea.tsx` - LiveKit-specific meeting interface with real WebRTC integration
+  - `VideoMeetingArea.tsx` - Main video conferencing router component
 - `src/types/video-sdk.ts` - TypeScript interfaces for SDK configurations
 - `src/utils/token-generator.ts` - JWT token generation utilities
 - `src/pages/` - Route components (Index, NotFound)
@@ -56,12 +57,13 @@ npm run preview
 
 ### Key Features
 
-1. **Dual SDK Support**: Switch between Agora and Zoom Video SDKs
+1. **Dual SDK Support**: Switch between Agora and LiveKit Web SDKs
 2. **Token Generation**: Client-side JWT token generation for both SDKs
 3. **Configuration Management**: Persistent storage of API keys and settings
 4. **Video Controls**: Camera, microphone, screen sharing controls
-5. **Real-time Metrics**: Display connection status, frame rate, resolution, bitrate
+5. **Real-time WebRTC**: Full LiveKit integration with actual video streaming
 6. **Participant Management**: Show connected users and their status
+7. **Room Management**: Join/leave rooms with real-time participant updates
 
 ### Configuration Details
 
@@ -75,8 +77,9 @@ npm run preview
 - The app uses Korean text in the UI (화상회의 = video conferencing)
 - API keys and secrets are stored in localStorage for development purposes
 - Token generation happens client-side using the `jose` library
-- Both SDKs are integrated but currently show placeholder implementations
-- The VideoMeetingArea component simulates connection states and metrics
+- LiveKit integration is fully functional with real WebRTC connections
+- Agora SDK integration remains for comparison testing
+- The LiveKitMeetingArea component provides actual video conferencing capabilities
 
 ### Security Considerations
 
@@ -88,9 +91,19 @@ npm run preview
 ### Component Integration
 
 The main Index page orchestrates the entire application:
-- Manages SDK selection state
-- Handles configuration for both Agora and Zoom
-- Passes configuration to the VideoMeetingArea component
+- Manages SDK selection state between Agora and LiveKit
+- Handles configuration for both Agora and LiveKit
+- Routes to appropriate meeting components (LiveKitMeetingArea for LiveKit)
 - Persists all settings to localStorage
 
-The token generators in `src/utils/token-generator.ts` create valid JWT tokens for both SDKs using the provided API credentials.
+The token generators in `src/utils/token-generator.ts` create valid JWT tokens for both SDKs:
+- `generateAgoraToken()` - Creates Agora RTC tokens
+- `generateLiveKitToken()` - Creates LiveKit access tokens with room permissions
+
+### LiveKit Integration Details
+
+- **Real WebRTC Connection**: Uses `livekit-client` for actual video/audio streaming
+- **Room Events**: Handles participant join/leave, track subscription/unsubscription  
+- **Media Controls**: Camera, microphone, and screen sharing with real device access
+- **Token-based Authentication**: JWT tokens with room permissions and participant identity
+- **Server Compatibility**: Works with LiveKit Cloud, self-hosted, or local development servers

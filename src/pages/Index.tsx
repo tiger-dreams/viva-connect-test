@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { SDKSelector } from "@/components/SDKSelector";
 import { AgoraConfigPanel } from "@/components/AgoraConfigPanel";
 import { LiveKitConfigPanel } from "@/components/LiveKitConfigPanel";
 import { VideoMeetingArea } from "@/components/VideoMeetingArea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Activity, FileText, Zap } from "lucide-react";
+import { Activity, FileText, Zap, ExternalLink } from "lucide-react";
 import { SDKType, AgoraConfig, LiveKitConfig } from "@/types/video-sdk";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [selectedSDK, setSelectedSDK] = useState<SDKType>('agora');
   const [agoraConfig, setAgoraConfig] = useState<AgoraConfig>({
     appId: '',
@@ -88,6 +91,17 @@ const Index = () => {
                 <Zap className="w-3 h-3 mr-1" />
                 실시간 테스트
               </Badge>
+              
+              {/* 새 UI 체험 버튼 */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/setup')}
+                className="ml-2 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/30 hover:from-blue-500/20 hover:to-purple-500/20"
+              >
+                <ExternalLink className="w-3 h-3 mr-1" />
+                새 UI 체험하기
+              </Button>
             </div>
           </div>
         </div>

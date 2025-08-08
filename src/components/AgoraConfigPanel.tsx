@@ -26,11 +26,21 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
   };
 
   const generateToken = async () => {
-    if (!config.appId || !config.appCertificate || !config.channelName) {
+    if (!config.appId || !config.channelName) {
       toast({
         title: "필수 정보 누락",
-        description: "App ID, App Certificate, Channel Name을 모두 입력해주세요.",
+        description: "App ID와 Channel Name을 모두 입력해주세요.",
         variant: "destructive",
+      });
+      return;
+    }
+
+    // App Certificate가 없으면 토큰 생성을 건너뛰고 빈 토큰으로 설정
+    if (!config.appCertificate) {
+      onConfigChange({ ...config, token: "" }); // 빈 토큰으로 설정하여 테스트 모드 활성화
+      toast({
+        title: "테스트 모드 활성화",
+        description: "App Certificate가 없어 테스트 모드로 설정됩니다. 토큰 없이 연결을 시도합니다.",
       });
       return;
     }
@@ -154,69 +164,87 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
           </div>
         </div>
 
-        {config.appCertificate && (
-          <div className="border rounded-lg p-4 bg-muted/20">
-            <h4 className="font-semibold text-sm">토큰 생성</h4>
-            <p className="text-xs text-muted-foreground mb-3">
-              App Certificate가 활성화된 경우 토큰이 필요합니다
-            </p>
-            
-            <div className="grid grid-cols-2 gap-4 mb-3">
-              <div className="space-y-2">
-                <Label htmlFor="role">역할</Label>
-                <Select value={role} onValueChange={(value: 'publisher' | 'subscriber') => setRole(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="publisher">Publisher (송신자)</SelectItem>
-                    <SelectItem value="subscriber">Subscriber (수신자)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="expiration">만료 시간</Label>
-                <Select value={expirationTime} onValueChange={setExpirationTime}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="3600">1시간</SelectItem>
-                    <SelectItem value="7200">2시간</SelectItem>
-                    <SelectItem value="86400">24시간</SelectItem>
-                  </SelectContent>
-                </Select>
+        <div className="space-y-4 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-sm">연결 설정</h4>
+            {config.appCertificate ? (
+              <p className="text-xs text-muted-foreground">토큰 기반 인증</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">테스트 모드 (토큰 없음)</p>
+            )}
+          </div>
+
+          <Button
+            onClick={generateToken}
+            disabled={isGenerating}
+            className="w-full bg-agora-primary hover:bg-agora-primary/90 text-white"
+          >
+            {isGenerating 
+              ? "처리 중..." 
+              : config.appCertificate 
+                ? "토큰 생성"
+                : "테스트 모드로 설정"
+            }
+          </Button>
+
+          {config.appCertificate && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="role">역할</Label>
+                  <Select value={role} onValueChange={(value: 'publisher' | 'subscriber') => setRole(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="publisher">Publisher (송신자)</SelectItem>
+                      <SelectItem value="subscriber">Subscriber (수신자)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="expiration">만료 시간</Label>
+                  <Select value={expirationTime} onValueChange={setExpirationTime}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="3600">1시간</SelectItem>
+                      <SelectItem value="7200">2시간</SelectItem>
+                      <SelectItem value="86400">24시간</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
+          )}
 
-            <Button
-              onClick={generateToken}
-              disabled={isGenerating}
-              className="w-full bg-agora-primary hover:bg-agora-primary/90"
-            >
-              {isGenerating ? "토큰 생성 중..." : "Agora 토큰 생성"}
-            </Button>
-          </div>
-        )}
-
-        {config.token && (
+        {(config.token !== undefined) && (
           <div className="space-y-2 pt-4 border-t border-border">
             <div className="flex items-center justify-between">
-              <Label htmlFor="token">생성된 토큰</Label>
+              <Label htmlFor="token">
+                {config.token === "" ? "테스트 모드 활성화됨" : "생성된 토큰"}
+              </Label>
               <div className="flex items-center gap-2">
-                {tokenExpiration && (
+                {config.token !== "" && tokenExpiration && (
                   <Badge variant="outline" className="text-xs">
                     만료: {tokenExpiration.toLocaleString()}
                   </Badge>
                 )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => copyToClipboard(config.token!, "토큰")}
-                >
-                  <Copy className="w-4 h-4" />
-                </Button>
+                {config.token === "" ? (
+                  <Badge variant="outline" className="text-xs bg-green-500/20 text-green-600">
+                    App Certificate 없음
+                  </Badge>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(config.token!, "토큰")}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -230,16 +258,20 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
             <div className="relative">
               <Input
                 id="token"
-                value={config.token}
+                value={config.token === "" ? "테스트 모드: 토큰 없이 연결" : config.token}
                 readOnly
                 className="font-mono text-xs"
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              이 토큰으로 Agora 채널에 연결할 수 있습니다. 토큰이 필요하지 않다면 X 버튼으로 삭제하세요.
+              {config.token === "" 
+                ? "App Certificate가 없어 토큰 없이 연결합니다."
+                : "이 토큰으로 Agora 채널에 연결할 수 있습니다."
+              }
             </p>
           </div>
         )}
+        </div>
       </CardContent>
     </Card>
   );

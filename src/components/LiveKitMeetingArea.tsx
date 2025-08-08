@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import {
   Video,
   VideoOff,
@@ -15,9 +17,15 @@ import {
   Activity,
   Wifi,
   WifiOff,
+  Settings,
+  Clock,
+  Camera,
+  MicIcon,
+  Speaker,
 } from "lucide-react";
 import { LiveKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
+import { useMediaDevices } from "@/hooks/use-media-devices";
 import { 
   Room, 
   connect, 
@@ -50,6 +58,77 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
   const [room, setRoom] = useState<Room | null>(null);
   const [localVideoTrack, setLocalVideoTrack] = useState<LocalVideoTrack | null>(null);
   const [localAudioTrack, setLocalAudioTrack] = useState<LocalAudioTrack | null>(null);
+  const [showDeviceSettings, setShowDeviceSettings] = useState(false);
+  const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
+  const [callDuration, setCallDuration] = useState<string>("00:00:00");
+  
+  // 미디어 디바이스 관리
+  const {
+    videoDevices,
+    audioDevices,
+    selectedVideoDevice,
+    selectedAudioDevice,
+    setSelectedVideoDevice,
+    setSelectedAudioDevice,
+  } = useMediaDevices();
+
+  // 통화 시간 업데이트
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (connectionStatus.connected && connectionStartTime) {
+      interval = setInterval(() => {
+        const now = new Date();
+        const elapsed = Math.floor((now.getTime() - connectionStartTime.getTime()) / 1000);
+        
+        const hours = Math.floor(elapsed / 3600);
+        const minutes = Math.floor((elapsed % 3600) / 60);
+        const seconds = elapsed % 60;
+        
+        setCallDuration(
+          `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+        );
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [connectionStatus.connected, connectionStartTime]);
+
+  // 안전한 비디오 엘리먼트 정리
+  const cleanupVideoContainer = () => {
+    if (videoContainerRef.current) {
+      // 기존 비디오 엘리먼트들을 안전하게 제거
+      const videoElements = videoContainerRef.current.querySelectorAll('video');
+      videoElements.forEach(video => {
+        try {
+          // LiveKit 트랙에서 detach 먼저 수행
+          if (localVideoTrack) {
+            localVideoTrack.detach(video);
+          }
+          // 부모가 존재할 때만 제거
+          if (video.parentNode === videoContainerRef.current) {
+            video.parentNode.removeChild(video);
+          }
+        } catch (error) {
+          console.warn('비디오 엘리먼트 제거 중 오류 (무시됨):', error);
+        }
+      });
+      
+      // 원격 참가자 비디오 컨테이너도 정리
+      const remoteContainers = videoContainerRef.current.querySelectorAll('div[id^="remote-video-"]');
+      remoteContainers.forEach(container => {
+        try {
+          if (container.parentNode === videoContainerRef.current) {
+            container.parentNode.removeChild(container);
+          }
+        } catch (error) {
+          console.warn('원격 비디오 컨테이너 제거 중 오류 (무시됨):', error);
+        }
+      });
+    }
+  };
 
   // LiveKit 룸 연결
   const connectToRoom = async () => {
@@ -83,6 +162,19 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
         console.log('LiveKit room connected');
         setConnectionStatus({ connected: true, connecting: false });
         
+        // 통화 시작 시간 설정
+        setConnectionStartTime(new Date());
+        
+        // 로컬 참가자를 먼저 추가
+        const localParticipant: Participant = {
+          id: "local",
+          name: config.participantName,
+          isVideoOn: true,
+          isAudioOn: true,
+          isScreenSharing: false
+        };
+        setParticipants([localParticipant]);
+        
         // 연결된 후 기존 원격 참가자들을 참가자 목록에 추가
         newRoom.remoteParticipants.forEach((participant) => {
           console.log('Found existing remote participant:', participant.identity);
@@ -104,7 +196,10 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
           videoElement.style.width = '100%';
           videoElement.style.height = '100%';
           videoElement.style.objectFit = 'cover';
-          videoContainerRef.current.innerHTML = '';
+          videoElement.id = 'local-video';
+          
+          // 안전한 DOM 정리 후 추가
+          cleanupVideoContainer();
           videoContainerRef.current.appendChild(videoElement);
           setLocalVideoTrack(videoTrack);
         }
@@ -140,16 +235,25 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
       newRoom.on(RoomEvent.TrackSubscribed, (track: Track, publication: TrackPublication, participant: RemoteParticipant) => {
         console.log('Track subscribed:', track.kind, participant.identity);
         if (track.kind === 'video' && videoContainerRef.current) {
-          // 원격 참가자 비디오를 위한 컨테이너 생성 또는 사용
+          // 기존 해당 참가자의 비디오 컨테이너가 있다면 제거
+          const existingContainer = videoContainerRef.current.querySelector(`div[id="remote-video-container-${participant.identity}"]`);
+          if (existingContainer && existingContainer.parentNode === videoContainerRef.current) {
+            try {
+              videoContainerRef.current.removeChild(existingContainer);
+            } catch (error) {
+              console.warn('기존 원격 컨테이너 제거 중 오류 (무시됨):', error);
+            }
+          }
+          
+          // 원격 참가자 비디오를 위한 컨테이너 생성
           const remoteVideoElement = track.attach();
           remoteVideoElement.style.width = '100%';
           remoteVideoElement.style.height = '100%';
           remoteVideoElement.style.objectFit = 'cover';
           remoteVideoElement.id = `remote-video-${participant.identity}`;
           
-          // 원격 비디오를 위한 별도 컨테이너가 있다면 거기에 추가
-          // 지금은 같은 컨테이너를 사용하되, 나중에 분리 가능
           const remoteContainer = document.createElement('div');
+          remoteContainer.id = `remote-video-container-${participant.identity}`;
           remoteContainer.className = 'absolute top-2 right-2 w-32 h-24 bg-black rounded border-2 border-white';
           remoteContainer.appendChild(remoteVideoElement);
           videoContainerRef.current.appendChild(remoteContainer);
@@ -159,14 +263,20 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
 
       newRoom.on(RoomEvent.TrackUnsubscribed, (track: Track, publication: TrackPublication, participant: RemoteParticipant) => {
         console.log('Track unsubscribed:', track.kind, participant.identity);
-        // 특정 참가자의 비디오 엘리먼트 제거
-        if (track.kind === 'video') {
-          const remoteVideoElement = document.getElementById(`remote-video-${participant.identity}`);
-          if (remoteVideoElement && remoteVideoElement.parentElement) {
-            remoteVideoElement.parentElement.remove();
+        // 특정 참가자의 비디오 컨테이너 제거
+        if (track.kind === 'video' && videoContainerRef.current) {
+          const remoteContainer = videoContainerRef.current.querySelector(`div[id="remote-video-container-${participant.identity}"]`);
+          if (remoteContainer && remoteContainer.parentNode === videoContainerRef.current) {
+            try {
+              track.detach(); // 먼저 트랙에서 detach
+              videoContainerRef.current.removeChild(remoteContainer);
+            } catch (error) {
+              console.warn('원격 비디오 컨테이너 제거 중 오류 (무시됨):', error);
+            }
           }
+        } else {
+          track.detach();
         }
-        track.detach();
         updateParticipantTracks(participant);
       });
 
@@ -197,14 +307,13 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
   // 카메라와 마이크 활성화
   const enableCameraAndMicrophone = async (room: Room) => {
     try {
-      // 로컬 참가자를 먼저 참가자 목록에 추가
-      setParticipants([{
-        id: "local",
-        name: config.participantName,
-        isVideoOn: true,
-        isAudioOn: true,
-        isScreenSharing: false
-      }]);
+      // 디바이스 제약 조건 설정
+      const videoConstraints = selectedVideoDevice 
+        ? { deviceId: { exact: selectedVideoDevice } }
+        : true;
+      const audioConstraints = selectedAudioDevice 
+        ? { deviceId: { exact: selectedAudioDevice } }
+        : true;
 
       // 비디오와 오디오 활성화 (이벤트 리스너에서 UI 업데이트 처리)
       await room.localParticipant.setCameraEnabled(true);
@@ -214,6 +323,62 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
 
     } catch (error) {
       console.error('미디어 활성화 실패:', error);
+    }
+  };
+
+  // 카메라 디바이스 변경
+  const changeVideoDevice = async (deviceId: string) => {
+    if (!room) return;
+
+    try {
+      setSelectedVideoDevice(deviceId);
+      
+      if (isVideoOn) {
+        // 현재 비디오가 켜져 있다면 새 디바이스로 재활성화
+        await room.localParticipant.setCameraEnabled(false);
+        await new Promise(resolve => setTimeout(resolve, 100)); // 잠시 대기
+        await room.localParticipant.setCameraEnabled(true);
+      }
+      
+      toast({
+        title: "카메라 변경 완료",
+        description: "새 카메라 디바이스로 전환되었습니다.",
+      });
+    } catch (error) {
+      console.error('카메라 디바이스 변경 실패:', error);
+      toast({
+        title: "카메라 변경 실패",
+        description: "카메라 디바이스 변경에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // 마이크 디바이스 변경
+  const changeAudioDevice = async (deviceId: string) => {
+    if (!room) return;
+
+    try {
+      setSelectedAudioDevice(deviceId);
+      
+      if (isAudioOn) {
+        // 현재 오디오가 켜져 있다면 새 디바이스로 재활성화
+        await room.localParticipant.setMicrophoneEnabled(false);
+        await new Promise(resolve => setTimeout(resolve, 100)); // 잠시 대기
+        await room.localParticipant.setMicrophoneEnabled(true);
+      }
+      
+      toast({
+        title: "마이크 변경 완료",
+        description: "새 마이크 디바이스로 전환되었습니다.",
+      });
+    } catch (error) {
+      console.error('마이크 디바이스 변경 실패:', error);
+      toast({
+        title: "마이크 변경 실패",
+        description: "마이크 디바이스 변경에 실패했습니다.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -252,6 +417,9 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
   // 연결 해제
   const disconnect = async () => {
     try {
+      // 먼저 DOM 정리
+      cleanupVideoContainer();
+      
       if (room) {
         await room.disconnect();
         setRoom(null);
@@ -263,6 +431,8 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
       setIsScreenSharing(false);
       setLocalVideoTrack(null);
       setLocalAudioTrack(null);
+      setConnectionStartTime(null);
+      setCallDuration("00:00:00");
     } catch (error) {
       console.error('연결 해제 오류:', error);
     }
@@ -274,6 +444,13 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
 
     try {
       const enabled = !isVideoOn;
+      
+      if (!enabled) {
+        // 비디오를 끄기 전에 먼저 DOM 정리
+        cleanupVideoContainer();
+        setLocalVideoTrack(null);
+      }
+      
       await room.localParticipant.setCameraEnabled(enabled);
       
       if (enabled && videoContainerRef.current) {
@@ -285,16 +462,13 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
           videoElement.style.width = '100%';
           videoElement.style.height = '100%';
           videoElement.style.objectFit = 'cover';
-          videoContainerRef.current.innerHTML = ''; // 기존 콘텐츠 제거
+          videoElement.id = 'local-video';
+          
+          // 기존 엘리먼트가 있다면 정리 후 추가
+          cleanupVideoContainer();
           videoContainerRef.current.appendChild(videoElement);
           setLocalVideoTrack(videoTrack);
         }
-      } else if (!enabled) {
-        // 비디오 끌 때 비디오 엘리먼트 제거
-        if (videoContainerRef.current) {
-          videoContainerRef.current.innerHTML = '';
-        }
-        setLocalVideoTrack(null);
       }
 
       setIsVideoOn(enabled);
@@ -360,6 +534,8 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
+      // 컴포넌트 언마운트 시 안전한 정리
+      cleanupVideoContainer();
       if (room) {
         room.disconnect();
       }
@@ -371,23 +547,44 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
       {/* 연결 상태 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-green-600/20 rounded-lg flex items-center justify-center">
-              {connectionStatus.connected ? (
-                <Wifi className="w-4 h-4 text-green-600" />
-              ) : (
-                <WifiOff className="w-4 h-4 text-muted-foreground" />
-              )}
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-green-600/20 rounded-lg flex items-center justify-center">
+                {connectionStatus.connected ? (
+                  <Wifi className="w-4 h-4 text-green-600" />
+                ) : (
+                  <WifiOff className="w-4 h-4 text-muted-foreground" />
+                )}
+              </div>
+              LiveKit 화상회의
+              <Badge variant={connectionStatus.connected ? "default" : "secondary"} 
+                     className={connectionStatus.connected ? "bg-green-600 text-white" : ""}>
+                {connectionStatus.connecting
+                  ? "연결 중..."
+                  : connectionStatus.connected
+                  ? "연결됨"
+                  : "연결 대기"}
+              </Badge>
             </div>
-            LiveKit 화상회의
-            <Badge variant={connectionStatus.connected ? "default" : "secondary"} 
-                   className={connectionStatus.connected ? "bg-green-600 text-white" : ""}>
-              {connectionStatus.connecting
-                ? "연결 중..."
-                : connectionStatus.connected
-                ? "연결됨"
-                : "연결 대기"}
-            </Badge>
+            
+            {connectionStatus.connected && (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Clock className="w-4 h-4" />
+                  <span className="font-mono">{callDuration}</span>
+                </div>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowDeviceSettings(!showDeviceSettings)}
+                  className="flex items-center gap-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  디바이스 설정
+                </Button>
+              </div>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -485,6 +682,73 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
               </div>
             </CardContent>
           </Card>
+
+          {/* 디바이스 설정 */}
+          {showDeviceSettings && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  디바이스 설정
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* 카메라 선택 */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Camera className="w-4 h-4" />
+                      카메라
+                    </Label>
+                    <Select 
+                      value={selectedVideoDevice} 
+                      onValueChange={changeVideoDevice}
+                      disabled={!connectionStatus.connected}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="카메라를 선택하세요" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {videoDevices.map((device) => (
+                          <SelectItem key={device.deviceId} value={device.deviceId}>
+                            {device.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 마이크 선택 */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <MicIcon className="w-4 h-4" />
+                      마이크
+                    </Label>
+                    <Select 
+                      value={selectedAudioDevice} 
+                      onValueChange={changeAudioDevice}
+                      disabled={!connectionStatus.connected}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="마이크를 선택하세요" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {audioDevices.map((device) => (
+                          <SelectItem key={device.deviceId} value={device.deviceId}>
+                            {device.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="mt-4 p-3 bg-muted/20 rounded-md text-xs text-muted-foreground">
+                  <p>💡 디바이스 변경 시 현재 통화 중인 상태에서 자동으로 전환됩니다.</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* 참가자 목록 */}
           <Card>
