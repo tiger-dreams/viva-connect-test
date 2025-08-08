@@ -109,23 +109,22 @@ const AgoraMeeting = () => {
         return { extension: virtualBackgroundExtension, processor: virtualBackgroundProcessor };
       }
       
-      // Extension 호환성 확인 및 등록
-      console.log("🎭 Extension 호환성 확인 중...");
-      const checkResult = VirtualBackgroundExtension.checkCompatibility();
-      console.log("🎭 호환성 확인 결과:", checkResult);
-      
-      if (!checkResult.supported) {
-        throw new Error(`가상 배경이 지원되지 않습니다: ${checkResult.reason || '알 수 없는 이유'}`);
-      }
-      
-      // Extension 등록을 즉시 수행
-      console.log("🎭 Extension 등록 시도 중...");
-      AgoraRTC.registerExtensions([VirtualBackgroundExtension]);
-      console.log("🎭 Extension 등록 완료");
-      
-      // Extension 인스턴스 생성
+      // Extension 인스턴스 생성 및 호환성 확인
       console.log("🎭 Extension 인스턴스 생성 중...");
       const extension = new VirtualBackgroundExtension();
+
+      console.log("🎭 Extension 호환성 확인 중...");
+      const compatibility = (extension as any).checkCompatibility
+        ? (extension as any).checkCompatibility()
+        : (VirtualBackgroundExtension as any)?.checkCompatibility?.();
+      if (compatibility && compatibility.supported === false) {
+        throw new Error(`가상 배경이 지원되지 않습니다: ${compatibility.reason || '알 수 없는 이유'}`);
+      }
+
+      // Extension 등록은 "인스턴스"로 수행해야 함
+      console.log("🎭 Extension 등록 시도 중...");
+      AgoraRTC.registerExtensions([extension]);
+      console.log("🎭 Extension 등록 완료");
       
       // Extension 로딩 완료 대기
       console.log("🎭 Extension 로딩 대기 중...");
@@ -207,18 +206,27 @@ const AgoraMeeting = () => {
         // 가상 배경 제거 - pipe 해제
         try {
           console.log("🎭 기존 파이프 해제 시도...");
-          await localVideoTrack.unpipe();
+          if (typeof (localVideoTrack as any).unpipe === 'function') {
+            await (localVideoTrack as any).unpipe();
+          }
           console.log("🎭 가상 배경 제거 완료");
-        } catch (unpipeError) {
-          console.log("🎭 unpipe 실패 (이미 제거되었을 수 있음):", unpipeError.message);
+        } catch (unpipeError: any) {
+          console.log("🎭 unpipe 실패 (이미 제거되었을 수 있음):", unpipeError?.message || unpipeError);
         }
+        try {
+          if (virtualBackgroundProcessor && typeof virtualBackgroundProcessor.disable === 'function') {
+            await virtualBackgroundProcessor.disable();
+          }
+        } catch {}
       } else {
         // 기존 파이프가 있다면 먼저 해제
         try {
-          await localVideoTrack.unpipe();
+          if (typeof (localVideoTrack as any).unpipe === 'function') {
+            await (localVideoTrack as any).unpipe();
+          }
           console.log("🎭 기존 파이프 해제 완료");
-        } catch (unpipeError) {
-          console.log("🎭 기존 파이프 없음 또는 해제 실패:", unpipeError.message);
+        } catch (unpipeError: any) {
+          console.log("🎭 기존 파이프 없음 또는 해제 실패:", unpipeError?.message || unpipeError);
         }
         
         // 잠시 대기 (안정성을 위해)
@@ -231,20 +239,55 @@ const AgoraMeeting = () => {
             type: 'blur',
             blurDegree: 3
           });
+          // 기능 활성화 (최초/재설정 시 필요)
+          if (typeof processor.enable === 'function') {
+            await processor.enable();
+          }
           console.log("🎭 블러 효과 파이프 연결 중...");
-          await localVideoTrack.pipe(processor);
+          const destination = (localVideoTrack as any).processorDestination;
+          if (typeof (localVideoTrack as any).pipe === 'function' && destination) {
+            await (localVideoTrack as any).pipe(processor).pipe(destination);
+          }
           console.log("🎭 블러 효과 적용 완료");
+          // 재생 새로고침 (파이프라인 반영)
+          try {
+            (localVideoTrack as any).stop();
+            const existingVideo = document.querySelector('video#local-video-tile') as HTMLVideoElement | null;
+            if (existingVideo) {
+              (localVideoTrack as any).play(existingVideo);
+            }
+          } catch {}
           
         } else if (backgroundType === 'image' && backgroundUrl) {
           // 이미지 배경 적용
           console.log("🎭 이미지 배경 옵션 설정 중...");
-          await processor.setOptions({
-            type: 'img',
-            source: backgroundUrl
+          // 이미지 객체로 로드 필요 (URL 문자열 불가)
+          const img: HTMLImageElement = document.createElement('img');
+          img.crossOrigin = 'anonymous';
+          const loadPromise = new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = (e) => reject(e);
           });
+          img.src = backgroundUrl;
+          await loadPromise;
+          await processor.setOptions({ type: 'img', source: img as any });
+          if (typeof processor.enable === 'function') {
+            await processor.enable();
+          }
           console.log("🎭 이미지 배경 파이프 연결 중...");
-          await localVideoTrack.pipe(processor);
+          const destination = (localVideoTrack as any).processorDestination;
+          if (typeof (localVideoTrack as any).pipe === 'function' && destination) {
+            await (localVideoTrack as any).pipe(processor).pipe(destination);
+          }
           console.log("🎭 이미지 배경 적용 완료");
+          // 재생 새로고침 (파이프라인 반영)
+          try {
+            (localVideoTrack as any).stop();
+            const existingVideo = document.querySelector('video#local-video-tile') as HTMLVideoElement | null;
+            if (existingVideo) {
+              (localVideoTrack as any).play(existingVideo);
+            }
+          } catch {}
         }
       }
       
@@ -607,6 +650,9 @@ const AgoraMeeting = () => {
 
       // 로컬 비디오 엘리먼트 생성
       const localVideoElement = document.createElement("video");
+      localVideoElement.id = 'local-video-tile';
+      localVideoElement.muted = true;
+      localVideoElement.playsInline = true;
       videoTrack.play(localVideoElement);
 
       // 로컬 참가자를 타일뷰에 추가
@@ -640,6 +686,19 @@ const AgoraMeeting = () => {
   // 채널 나가기
   const leaveChannel = async () => {
     try {
+      // 가상 배경 프로세서 정리 (가능 시)
+      try {
+        if (localVideoTrack && typeof (localVideoTrack as any).unpipe === 'function') {
+          await (localVideoTrack as any).unpipe();
+        }
+      } catch {}
+
+      try {
+        if (virtualBackgroundProcessor && typeof virtualBackgroundProcessor.release === 'function') {
+          virtualBackgroundProcessor.release();
+        }
+      } catch {}
+
       // 통계 수집 중지
       if (statsInterval) {
         clearInterval(statsInterval);

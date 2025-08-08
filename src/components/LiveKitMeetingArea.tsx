@@ -24,11 +24,12 @@ import {
   Speaker,
 } from "lucide-react";
 import { LiveKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
+import { generateLiveKitToken } from "@/utils/token-generator";
+import { TileView, TileParticipant } from "@/components/TileView";
 import { useToast } from "@/hooks/use-toast";
 import { useMediaDevices } from "@/hooks/use-media-devices";
 import { 
   Room, 
-  connect, 
   LocalParticipant,
   RemoteParticipant,
   Track,
@@ -39,14 +40,39 @@ import {
   LocalVideoTrack,
   LocalAudioTrack
 } from 'livekit-client';
+// 내부 타입 접근을 위한 안전한 any 캐스트(테스트용 통계 수집)
+type AnyRoom = any;
 
 interface LiveKitMeetingAreaProps {
   config: LiveKitConfig;
+  showVideoStats?: boolean;
 }
 
-export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
+export const LiveKitMeetingArea = ({ config, showVideoStats = false }: LiveKitMeetingAreaProps) => {
   const { toast } = useToast();
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  const videoElementByParticipantRef = useRef<Record<string, HTMLVideoElement>>({});
+  const videoTrackByParticipantRef = useRef<Record<string, Track>>({});
+  const audioPublicationByParticipantRef = useRef<Record<string, TrackPublication | undefined>>({});
+  const audioElementByParticipantRef = useRef<Record<string, HTMLAudioElement | undefined>>({});
+  const statsByParticipantRef = useRef<Record<string, TileParticipant['videoStats']>>({});
+  const lastFrameCountRef = useRef<Record<string, number>>({});
+  const audioLevelRef = useRef<Record<string, number>>({});
+  const speakingRef = useRef<Record<string, boolean>>({});
+  // 요약 지표 계산용 이전 샘플 저장
+  const lastSampleTimeRef = useRef<number | null>(null);
+  const prevTxBytesRef = useRef<number>(0); // local outbound bytes
+  const prevRxBytesRef = useRef<Record<string, number>>({}); // per remote pid inbound bytes
+  const prevRxPacketsRef = useRef<Record<string, number>>({});
+  const prevRxPacketsLostRef = useRef<Record<string, number>>({});
+  // 수신 디코딩/지터 지표 누적치 추적
+  const prevFramesDecodedRef = useRef<Record<string, number>>({});
+  const prevFramesDroppedRef = useRef<Record<string, number>>({});
+  const prevTotalDecodeTimeRef = useRef<Record<string, number>>({}); // seconds
+  const prevQpSumRef = useRef<Record<string, number>>({});
+  const prevJbDelayRef = useRef<Record<string, number>>({}); // seconds
+  const prevJbEmittedRef = useRef<Record<string, number>>({});
+  const [statsTick, setStatsTick] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     connected: false,
     connecting: false,
@@ -56,11 +82,26 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
   const [isAudioOn, setIsAudioOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [room, setRoom] = useState<Room | null>(null);
+  // AI Agent용 별도 룸 연결/상태
+  const [agentRoom, setAgentRoom] = useState<Room | null>(null);
+  const agentPcRef = useRef<RTCPeerConnection | null>(null);
+  const agentRemoteAudioTrackRef = useRef<MediaStreamTrack | null>(null);
+  const [agentRunning, setAgentRunning] = useState(false);
+  const [agentStarting, setAgentStarting] = useState(false);
+  const [openAiKey, setOpenAiKey] = useState("");
+  const [openAiModel, setOpenAiModel] = useState("gpt-4o-realtime-preview-2024-12-17");
+  const [openAiVoice, setOpenAiVoice] = useState("alloy");
+  const [agentStatus, setAgentStatus] = useState<string>("");
   const [localVideoTrack, setLocalVideoTrack] = useState<LocalVideoTrack | null>(null);
   const [localAudioTrack, setLocalAudioTrack] = useState<LocalAudioTrack | null>(null);
   const [showDeviceSettings, setShowDeviceSettings] = useState(false);
   const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
   const [callDuration, setCallDuration] = useState<string>("00:00:00");
+  const [summaryStats, setSummaryStats] = useState<{ txBitrateBps: number; rxBitrateBps: number; rxPacketLossPctAvg: number }>({ txBitrateBps: 0, rxBitrateBps: 0, rxPacketLossPctAvg: 0 });
+  // 브라우저(Chrome) 재실행 기반의 WebRTC 네트워크 시뮬레이션 명령 생성용 상태
+  const [simLossPercent, setSimLossPercent] = useState<number>(0);
+  const [simDelayMs, setSimDelayMs] = useState<number>(50);
+  const [simCapacityKbps, setSimCapacityKbps] = useState<number>(1500);
   
   // 미디어 디바이스 관리
   const {
@@ -96,37 +137,19 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
     };
   }, [connectionStatus.connected, connectionStartTime]);
 
-  // 안전한 비디오 엘리먼트 정리
+  // 안전한 비디오 엘리먼트 정리 (타일뷰 기반)
   const cleanupVideoContainer = () => {
-    if (videoContainerRef.current) {
-      // 기존 비디오 엘리먼트들을 안전하게 제거
-      const videoElements = videoContainerRef.current.querySelectorAll('video');
-      videoElements.forEach(video => {
-        try {
-          // LiveKit 트랙에서 detach 먼저 수행
-          if (localVideoTrack) {
-            localVideoTrack.detach(video);
-          }
-          // 부모가 존재할 때만 제거
-          if (video.parentNode === videoContainerRef.current) {
-            video.parentNode.removeChild(video);
-          }
-        } catch (error) {
-          console.warn('비디오 엘리먼트 제거 중 오류 (무시됨):', error);
+    try {
+      for (const [pid, el] of Object.entries(videoElementByParticipantRef.current)) {
+        const track = videoTrackByParticipantRef.current[pid];
+        if (track) {
+          try { track.detach(el); } catch {}
         }
-      });
-      
-      // 원격 참가자 비디오 컨테이너도 정리
-      const remoteContainers = videoContainerRef.current.querySelectorAll('div[id^="remote-video-"]');
-      remoteContainers.forEach(container => {
-        try {
-          if (container.parentNode === videoContainerRef.current) {
-            container.parentNode.removeChild(container);
-          }
-        } catch (error) {
-          console.warn('원격 비디오 컨테이너 제거 중 오류 (무시됨):', error);
-        }
-      });
+      }
+      videoElementByParticipantRef.current = {};
+      videoTrackByParticipantRef.current = {} as any;
+    } catch (error) {
+      console.warn('비디오 트랙/엘리먼트 정리 중 오류 (무시됨):', error);
     }
   };
 
@@ -190,17 +213,17 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
       // 로컬 트랙 발행 이벤트 처리
       newRoom.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication, participant: LocalParticipant) => {
         console.log('Local track published:', publication.kind);
-        if (publication.kind === 'video' && publication.track && videoContainerRef.current) {
+        if (publication.kind === 'video' && publication.track) {
           const videoTrack = publication.track as LocalVideoTrack;
-          const videoElement = videoTrack.attach();
+          const videoElement = videoTrack.attach() as HTMLVideoElement;
+          videoElement.muted = true;
+          (videoElement as HTMLVideoElement).playsInline = true;
           videoElement.style.width = '100%';
           videoElement.style.height = '100%';
           videoElement.style.objectFit = 'cover';
-          videoElement.id = 'local-video';
-          
-          // 안전한 DOM 정리 후 추가
-          cleanupVideoContainer();
-          videoContainerRef.current.appendChild(videoElement);
+          videoElement.id = 'livekit-local-video';
+          videoElementByParticipantRef.current['local'] = videoElement;
+          videoTrackByParticipantRef.current['local'] = videoTrack as unknown as Track;
           setLocalVideoTrack(videoTrack);
         }
       });
@@ -234,47 +257,46 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
 
       newRoom.on(RoomEvent.TrackSubscribed, (track: Track, publication: TrackPublication, participant: RemoteParticipant) => {
         console.log('Track subscribed:', track.kind, participant.identity);
-        if (track.kind === 'video' && videoContainerRef.current) {
-          // 기존 해당 참가자의 비디오 컨테이너가 있다면 제거
-          const existingContainer = videoContainerRef.current.querySelector(`div[id="remote-video-container-${participant.identity}"]`);
-          if (existingContainer && existingContainer.parentNode === videoContainerRef.current) {
-            try {
-              videoContainerRef.current.removeChild(existingContainer);
-            } catch (error) {
-              console.warn('기존 원격 컨테이너 제거 중 오류 (무시됨):', error);
-            }
-          }
-          
-          // 원격 참가자 비디오를 위한 컨테이너 생성
-          const remoteVideoElement = track.attach();
+        if (track.kind === 'video') {
+        const remoteVideoElement = track.attach() as HTMLVideoElement;
+        (remoteVideoElement as HTMLVideoElement).playsInline = true;
           remoteVideoElement.style.width = '100%';
           remoteVideoElement.style.height = '100%';
           remoteVideoElement.style.objectFit = 'cover';
           remoteVideoElement.id = `remote-video-${participant.identity}`;
-          
-          const remoteContainer = document.createElement('div');
-          remoteContainer.id = `remote-video-container-${participant.identity}`;
-          remoteContainer.className = 'absolute top-2 right-2 w-32 h-24 bg-black rounded border-2 border-white';
-          remoteContainer.appendChild(remoteVideoElement);
-          videoContainerRef.current.appendChild(remoteContainer);
+          videoElementByParticipantRef.current[participant.identity] = remoteVideoElement as HTMLVideoElement;
+          videoTrackByParticipantRef.current[participant.identity] = track;
+        } else if (track.kind === 'audio') {
+          audioPublicationByParticipantRef.current[participant.identity] = publication;
+          // 원격 오디오 재생
+          try {
+            const audioEl = track.attach() as HTMLAudioElement;
+            audioEl.autoplay = true;
+            audioEl.volume = 1;
+            audioElementByParticipantRef.current[participant.identity] = audioEl;
+          } catch (e) {
+            console.warn('원격 오디오 attach 실패:', e);
+          }
+        } else {
+          track.detach();
         }
         updateParticipantTracks(participant);
       });
 
       newRoom.on(RoomEvent.TrackUnsubscribed, (track: Track, publication: TrackPublication, participant: RemoteParticipant) => {
         console.log('Track unsubscribed:', track.kind, participant.identity);
-        // 특정 참가자의 비디오 컨테이너 제거
-        if (track.kind === 'video' && videoContainerRef.current) {
-          const remoteContainer = videoContainerRef.current.querySelector(`div[id="remote-video-container-${participant.identity}"]`);
-          if (remoteContainer && remoteContainer.parentNode === videoContainerRef.current) {
-            try {
-              track.detach(); // 먼저 트랙에서 detach
-              videoContainerRef.current.removeChild(remoteContainer);
-            } catch (error) {
-              console.warn('원격 비디오 컨테이너 제거 중 오류 (무시됨):', error);
-            }
-          }
-        } else {
+        if (track.kind === 'video') {
+          const el = videoElementByParticipantRef.current[participant.identity];
+          try { if (el) track.detach(el); } catch {}
+          delete videoElementByParticipantRef.current[participant.identity];
+          delete videoTrackByParticipantRef.current[participant.identity];
+        } else if (track.kind === 'audio') {
+          delete audioPublicationByParticipantRef.current[participant.identity];
+          try {
+            const el = audioElementByParticipantRef.current[participant.identity];
+            if (el) track.detach(el);
+          } catch {}
+          delete audioElementByParticipantRef.current[participant.identity];
           track.detach();
         }
         updateParticipantTracks(participant);
@@ -455,7 +477,7 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
       
       if (enabled && videoContainerRef.current) {
         // 비디오 켤 때 트랙 가져와서 attach
-        const videoPublication = room.localParticipant.getTrackPublication('camera');
+        const videoPublication = room.localParticipant.getTrackPublication(Track.Source.Camera);
         if (videoPublication && videoPublication.track) {
           const videoTrack = videoPublication.track as LocalVideoTrack;
           const videoElement = videoTrack.attach();
@@ -492,7 +514,7 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
       await room.localParticipant.setMicrophoneEnabled(enabled);
       
       if (enabled) {
-        const audioPublication = room.localParticipant.getTrackPublication('microphone');
+        const audioPublication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
         if (audioPublication && audioPublication.track) {
           setLocalAudioTrack(audioPublication.track as LocalAudioTrack);
         }
@@ -531,16 +553,528 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
     }
   };
 
-  // 컴포넌트 언마운트 시 정리
+  // 컴포넌트 언마운트 시 정리 (사용자 룸)
   useEffect(() => {
     return () => {
-      // 컴포넌트 언마운트 시 안전한 정리
       cleanupVideoContainer();
       if (room) {
         room.disconnect();
       }
     };
   }, [room]);
+
+  // 컴포넌트 언마운트 시 정리 (에이전트 룸/PC)
+  useEffect(() => {
+    return () => {
+      if (agentRoom) {
+        agentRoom.disconnect();
+      }
+      if (agentPcRef.current) {
+        try { agentPcRef.current.close(); } catch {}
+        agentPcRef.current = null;
+      }
+    };
+  }, [agentRoom]);
+
+  // 품질 정보 수집 (간단 FPS/해상도 중심)
+  useEffect(() => {
+    if (!showVideoStats || !connectionStatus.connected) return;
+    const interval = setInterval(async () => {
+      const nowTs = performance.now();
+      const elapsedSec = lastSampleTimeRef.current ? Math.max(0.001, (nowTs - lastSampleTimeRef.current) / 1000) : 1;
+      let latestTxBitrate = 0;
+      let latestRxBitrateTotal = 0;
+      const latestLossList: number[] = [];
+      Object.entries(videoElementByParticipantRef.current).forEach(([pid, el]) => {
+        try {
+          const quality: any = (el as any).getVideoPlaybackQuality ? (el as any).getVideoPlaybackQuality() : undefined;
+          const totalFrames: number | undefined = quality?.totalVideoFrames;
+          const prev = lastFrameCountRef.current[pid] ?? totalFrames ?? 0;
+          let frameRate = 0;
+          if (typeof totalFrames === 'number') {
+            const deltaFrames = Math.max(0, totalFrames - prev);
+            frameRate = Math.round(deltaFrames / (elapsedSec || 1));
+            lastFrameCountRef.current[pid] = totalFrames;
+          }
+          const resolution = `${el.videoWidth || 0}x${el.videoHeight || 0}`;
+          const baseStats: TileParticipant['videoStats'] = {
+            bitrate: 0,
+            frameRate,
+            resolution,
+            packetLoss: 0,
+            rawStats: quality,
+          };
+          statsByParticipantRef.current[pid] = baseStats;
+        } catch {}
+      });
+      // LiveKit 원시 통계(테스트용): 퍼블리셔/서브스크라이버의 getStats 수집
+      try {
+        const lkRoom = room as unknown as AnyRoom;
+        const pcPublisher: RTCPeerConnection | undefined = lkRoom?.engine?.pcManager?.publisher?.pc;
+        const pcSubscriber: RTCPeerConnection | undefined = lkRoom?.engine?.pcManager?.subscriber?.pc;
+
+        // 1) 퍼블리셔(송신) 통계는 로컬 참가자에 그대로 부착
+        if (pcPublisher) {
+          const pubStats = await pcPublisher.getStats();
+          const aggregatedPub: Record<string, any> = {};
+          // 송신 비트레이트 계산 (outbound-rtp video 기준)
+          let totalTxBytes = 0;
+          pubStats.forEach((report) => {
+            aggregatedPub[`${report.type}:${report.id}`] = Object.fromEntries(Object.entries(report as any));
+            const r: any = report as any;
+            if (r.type === 'outbound-rtp' && (r.kind === 'video' || r.mediaType === 'video')) {
+              if (typeof r.bytesSent === 'number') {
+                totalTxBytes += r.bytesSent as number;
+              }
+            }
+          });
+          const localId = 'local';
+          const prevTxBytes = prevTxBytesRef.current || totalTxBytes;
+          const deltaTxBytes = Math.max(0, totalTxBytes - prevTxBytes);
+          const txBitrate = (deltaTxBytes * 8) / (elapsedSec || 1); // bps
+          prevTxBytesRef.current = totalTxBytes;
+          latestTxBitrate = txBitrate;
+          statsByParticipantRef.current[localId] = {
+            ...(statsByParticipantRef.current[localId] || { bitrate: 0, frameRate: 0, resolution: '0x0', packetLoss: 0 }),
+            bitrate: Math.round(txBitrate),
+            rawStats: aggregatedPub,
+          };
+        }
+
+        // 2) 서브스크라이버(수신) 통계는 원격 참가자별로 매핑하여 부착
+        if (pcSubscriber) {
+          const subStats = await pcSubscriber.getStats();
+
+          // a) 현재 원격 비디오 트랙(MediaStreamTrack) id -> 참가자 id 매핑 구성
+          const msTrackIdToPid: Record<string, string> = {};
+          Object.entries(videoTrackByParticipantRef.current).forEach(([pid, lkTrack]) => {
+            if (pid === 'local') return; // 원격만
+            const msTrack: MediaStreamTrack | undefined = (lkTrack as any)?.mediaStreamTrack;
+            if (msTrack?.id) {
+              msTrackIdToPid[msTrack.id] = pid;
+            }
+          });
+
+          // b) getStats 결과에서 track 리포트 id -> 참가자 id 매핑 (trackIdentifier == MediaStreamTrack.id)
+          const trackReportIdToPid: Record<string, string> = {};
+          const reportsById: Record<string, any> = {};
+          subStats.forEach((r: any) => {
+            reportsById[r.id] = r;
+            if (r.type === 'track') {
+              const trackIdentifier: string | undefined = r.trackIdentifier;
+              if (trackIdentifier && msTrackIdToPid[trackIdentifier]) {
+                trackReportIdToPid[r.id] = msTrackIdToPid[trackIdentifier];
+              }
+            }
+          });
+
+          // c) 참가자별로 관련 리포트를 모아 aggregated 구조 생성
+          const perPidAggregated: Record<string, Record<string, any>> = {};
+          // 요약 지표 계산용 누적값
+          const perPidRxBytes: Record<string, number> = {};
+          const perPidRxPackets: Record<string, number> = {};
+          const perPidRxPacketsLost: Record<string, number> = {};
+          const perPidFramesDecoded: Record<string, number> = {};
+          const perPidFramesDropped: Record<string, number> = {};
+          const perPidTotalDecodeTime: Record<string, number> = {}; // seconds
+          const perPidQpSum: Record<string, number> = {};
+          const perPidJbDelay: Record<string, number> = {}; // seconds (누계)
+          const perPidJbEmitted: Record<string, number> = {};
+          let rttMs: number | undefined = undefined;
+
+          subStats.forEach((r: any) => {
+            // inbound-rtp(video) 리포트에서 trackId를 통해 참가자를 찾는다
+            if (r.type === 'inbound-rtp' && (r.kind === 'video' || r.mediaType === 'video')) {
+              const trackId: string | undefined = r.trackId;
+              const pid = trackId ? trackReportIdToPid[trackId] : undefined;
+              if (!pid) return;
+              perPidAggregated[pid] ||= {};
+
+              // 기본 리포트 추가
+              perPidAggregated[pid][`${r.type}:${r.id}`] = Object.fromEntries(Object.entries(r));
+
+              // 요약 지표 누적 (bytes/packets)
+              if (typeof r.bytesReceived === 'number') {
+                perPidRxBytes[pid] = (perPidRxBytes[pid] || 0) + r.bytesReceived;
+              }
+              if (typeof r.packetsReceived === 'number') {
+                perPidRxPackets[pid] = (perPidRxPackets[pid] || 0) + r.packetsReceived;
+              }
+              if (typeof r.packetsLost === 'number') {
+                perPidRxPacketsLost[pid] = (perPidRxPacketsLost[pid] || 0) + r.packetsLost;
+              }
+              if (typeof r.framesDecoded === 'number') {
+                perPidFramesDecoded[pid] = (perPidFramesDecoded[pid] || 0) + r.framesDecoded;
+              }
+              if (typeof r.framesDropped === 'number') {
+                perPidFramesDropped[pid] = (perPidFramesDropped[pid] || 0) + r.framesDropped;
+              }
+              if (typeof r.totalDecodeTime === 'number') {
+                perPidTotalDecodeTime[pid] = (perPidTotalDecodeTime[pid] || 0) + r.totalDecodeTime;
+              }
+              if (typeof r.qpSum === 'number') {
+                perPidQpSum[pid] = (perPidQpSum[pid] || 0) + r.qpSum;
+              }
+              if (typeof r.jitterBufferDelay === 'number') {
+                perPidJbDelay[pid] = (perPidJbDelay[pid] || 0) + r.jitterBufferDelay;
+              }
+              if (typeof r.jitterBufferEmittedCount === 'number') {
+                perPidJbEmitted[pid] = (perPidJbEmitted[pid] || 0) + r.jitterBufferEmittedCount;
+              }
+
+              // 연관된 track/codec/remote-outbound-rtp/transport 리포트도 끌어온다
+              const relatedIds: string[] = [];
+              if (r.trackId) relatedIds.push(r.trackId);
+              if (r.codecId) relatedIds.push(r.codecId);
+              if (r.remoteId) relatedIds.push(r.remoteId);
+              if (r.transportId) relatedIds.push(r.transportId);
+
+              relatedIds.forEach((relId) => {
+                const rel = reportsById[relId];
+                if (rel) {
+                  perPidAggregated[pid][`${rel.type}:${rel.id}`] = Object.fromEntries(Object.entries(rel));
+                }
+              });
+            }
+            // 선택된 ICE pair의 RTT (구독 연결 전체 공통)
+            if (r.type === 'candidate-pair' && r.state === 'succeeded' && (r.selected || r.nominated)) {
+              if (typeof r.currentRoundTripTime === 'number') {
+                rttMs = Math.round(r.currentRoundTripTime * 1000);
+              }
+            }
+          });
+
+          // d) 수집된 원시 수신 통계를 각 원격 참가자의 rawStats에 반영 + 요약 지표(비트레이트/손실률)
+          Object.entries(perPidAggregated).forEach(([pid, aggregated]) => {
+            const rxBytes = perPidRxBytes[pid] || 0;
+            const prevRxBytes = prevRxBytesRef.current[pid] ?? rxBytes;
+            const deltaRxBytes = Math.max(0, rxBytes - prevRxBytes);
+            const rxBitrate = (deltaRxBytes * 8) / (elapsedSec || 1); // bps
+            prevRxBytesRef.current[pid] = rxBytes;
+
+            const rxPkts = perPidRxPackets[pid] || 0;
+            const prevPkts = prevRxPacketsRef.current[pid] ?? rxPkts;
+            const deltaPkts = Math.max(0, rxPkts - prevPkts);
+            prevRxPacketsRef.current[pid] = rxPkts;
+
+            const rxLost = perPidRxPacketsLost[pid] || 0;
+            const prevLost = prevRxPacketsLostRef.current[pid] ?? rxLost;
+            const deltaLost = Math.max(0, rxLost - prevLost);
+            prevRxPacketsLostRef.current[pid] = rxLost;
+
+            const lossPct = (deltaPkts + deltaLost) > 0 ? (deltaLost / (deltaPkts + deltaLost)) * 100 : 0;
+
+            // 디코딩/지터/품질 QP 요약 계산 (delta 기반)
+            const framesDecoded = perPidFramesDecoded[pid] || 0;
+            const prevFramesDecoded = prevFramesDecodedRef.current[pid] ?? framesDecoded;
+            const deltaFramesDecoded = Math.max(0, framesDecoded - prevFramesDecoded);
+            prevFramesDecodedRef.current[pid] = framesDecoded;
+
+            const framesDropped = perPidFramesDropped[pid] || 0;
+            const prevFramesDropped = prevFramesDroppedRef.current[pid] ?? framesDropped;
+            const deltaFramesDropped = Math.max(0, framesDropped - prevFramesDropped);
+            prevFramesDroppedRef.current[pid] = framesDropped;
+
+            const totalDecodeTime = perPidTotalDecodeTime[pid] || 0; // seconds
+            const prevTotalDecodeTime = prevTotalDecodeTimeRef.current[pid] ?? totalDecodeTime;
+            const deltaTotalDecodeTime = Math.max(0, totalDecodeTime - prevTotalDecodeTime);
+            prevTotalDecodeTimeRef.current[pid] = totalDecodeTime;
+
+            const qpSum = perPidQpSum[pid] || 0;
+            const prevQp = prevQpSumRef.current[pid] ?? qpSum;
+            const deltaQp = Math.max(0, qpSum - prevQp);
+            prevQpSumRef.current[pid] = qpSum;
+
+            const jbDelay = perPidJbDelay[pid] || 0; // seconds
+            const prevJbDelay = prevJbDelayRef.current[pid] ?? jbDelay;
+            const deltaJbDelay = Math.max(0, jbDelay - prevJbDelay);
+            prevJbDelayRef.current[pid] = jbDelay;
+
+            const jbEmitted = perPidJbEmitted[pid] || 0;
+            const prevJbEmitted = prevJbEmittedRef.current[pid] ?? jbEmitted;
+            const deltaJbEmitted = Math.max(0, jbEmitted - prevJbEmitted);
+            prevJbEmittedRef.current[pid] = jbEmitted;
+
+            const decodeFps = deltaFramesDecoded / (elapsedSec || 1);
+            const dropPct = (deltaFramesDecoded + deltaFramesDropped) > 0 ? (deltaFramesDropped / (deltaFramesDecoded + deltaFramesDropped)) * 100 : 0;
+            const decodeMsPerFrame = deltaFramesDecoded > 0 ? (deltaTotalDecodeTime * 1000) / deltaFramesDecoded : 0;
+            const avgQp = deltaFramesDecoded > 0 ? (deltaQp / deltaFramesDecoded) : 0;
+            const jbAvgMs = (deltaJbEmitted > 0) ? (deltaJbDelay * 1000) / deltaJbEmitted : 0;
+
+            // 참가자 rawStats에 요약 블록 추가
+            aggregated['rxSummary'] = {
+              rxBitrateBps: Math.round(rxBitrate),
+              packetLossPct: Math.max(0, Math.min(100, lossPct)),
+              decodeFps: Math.round(decodeFps),
+              dropPct: Math.max(0, Math.min(100, dropPct)),
+              decodeMsPerFrame: Number(decodeMsPerFrame.toFixed(2)),
+              avgQp: Number(avgQp.toFixed(1)),
+              jitterBufferAvgMs: Number(jbAvgMs.toFixed(2)),
+              rttMs: rttMs,
+            };
+
+            latestRxBitrateTotal += rxBitrate;
+            if (deltaPkts + deltaLost > 0) {
+              latestLossList.push(lossPct);
+            }
+
+            statsByParticipantRef.current[pid] = {
+              ...(statsByParticipantRef.current[pid] || { bitrate: 0, frameRate: 0, resolution: '0x0', packetLoss: 0 }),
+              bitrate: Math.round(rxBitrate),
+              packetLoss: Math.max(0, Math.min(100, lossPct)),
+              rawStats: aggregated,
+            };
+          });
+        }
+      } catch {}
+      // 상단 요약 지표 갱신
+      if (showVideoStats) {
+        const lossAvg = latestLossList.length > 0 ? (latestLossList.reduce((a, b) => a + b, 0) / latestLossList.length) : 0;
+        setSummaryStats({ txBitrateBps: Math.round(latestTxBitrate), rxBitrateBps: Math.round(latestRxBitrateTotal), rxPacketLossPctAvg: Math.max(0, Math.min(100, lossAvg)) });
+      }
+      lastSampleTimeRef.current = nowTs;
+      setStatsTick((x) => (x + 1) % 1000000);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showVideoStats, connectionStatus.connected, room]); // Added 'room' dependency
+
+  // 오디오 레벨 측정(로컬/원격 포함)
+  useEffect(() => {
+    if (!connectionStatus.connected || !showVideoStats) return;
+    let rafId: number;
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+    const analyzers: Array<{ pid: string; analyser: AnalyserNode; source: MediaStreamAudioSourceNode }> = [];
+
+    // 로컬 참가자 마이크
+    if (localAudioTrack && (localAudioTrack as any).mediaStreamTrack) {
+      const stream = new MediaStream([ (localAudioTrack as any).mediaStreamTrack ]);
+      const src = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      analyzers.push({ pid: 'local', analyser, source: src });
+    }
+
+    // 원격 참가자 오디오
+    for (const [pid, pub] of Object.entries(audioPublicationByParticipantRef.current)) {
+      const mt: any = pub?.track ? (pub.track as any).mediaStreamTrack : undefined;
+      if (mt) {
+        const stream = new MediaStream([ mt ]);
+        const src = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        src.connect(analyser);
+        analyzers.push({ pid, analyser, source: src });
+      }
+    }
+
+    const data = new Uint8Array(128);
+    const loop = () => {
+      analyzers.forEach(({ pid, analyser }) => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128; // -1..1
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / data.length); // 0..1
+        audioLevelRef.current[pid] = rms;
+        speakingRef.current[pid] = rms > 0.08; // 임계값
+      });
+      setStatsTick((x) => (x + 1) % 1000000);
+      rafId = requestAnimationFrame(loop);
+    };
+    rafId = requestAnimationFrame(loop);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      try { audioCtx.close(); } catch {}
+    };
+  }, [connectionStatus.connected, showVideoStats, localAudioTrack]);
+
+  // ---------- AI Voice Agent (브라우저 내 OpenAI Realtime 브리지) ----------
+  const startAgent = async () => {
+    try {
+      if (agentStarting) return;
+      setAgentStarting(true);
+      if (!config.serverUrl || !config.apiKey || !config.apiSecret) {
+        toast({ title: "LiveKit 설정 필요", description: "서버 URL / API Key / Secret을 입력하세요.", variant: "destructive" });
+        return;
+      }
+      if (!openAiKey) {
+        toast({ title: "OpenAI 키 필요", description: "OpenAI API Key를 입력하세요.", variant: "destructive" });
+        return;
+      }
+      setAgentStatus("에이전트 시작 중...");
+
+      // 1) LiveKit에 에이전트용 별도 참가자로 조인
+      const agentToken = await generateLiveKitToken(
+        config.apiKey,
+        config.apiSecret,
+        config.roomName || "test-agent",
+        "ai-agent"
+      );
+      const aRoom = new Room({});
+      await aRoom.connect(config.serverUrl, agentToken);
+      setAgentRoom(aRoom);
+
+      // 2) OpenAI Realtime(WebRTC) 연결 생성
+      // 먼저 마이크 권한 및 트랙 확보
+      const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const micTrack = mic.getAudioTracks()[0];
+
+      // 기존 PC 정리 후 새로 생성
+      if (agentPcRef.current) {
+        try { agentPcRef.current.close(); } catch {}
+        agentPcRef.current = null;
+      }
+      let pc = new RTCPeerConnection({ iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }] });
+      agentPcRef.current = pc;
+
+      // 트랜시버 생성(오디오 송수신)
+      let audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+      if (micTrack) await audioTransceiver.sender.replaceTrack(micTrack);
+
+      // OpenAI에서 오는 오디오 트랙 수신 → LiveKit에 발행
+      pc.ontrack = async (e) => {
+        const stream = e.streams[0];
+        const [track] = stream?.getAudioTracks() || [];
+        if (track) {
+          // 1) 로컬 재생(사용자에게 들리도록)
+          try {
+            const audioEl: HTMLAudioElement = document.createElement('audio');
+            audioEl.autoplay = true;
+            (audioEl as any).playsInline = true;
+            audioEl.muted = false;
+            audioEl.volume = 1;
+            audioEl.srcObject = stream;
+            document.body.appendChild(audioEl);
+            setTimeout(() => {
+              try { audioEl.play().catch(() => {}); } catch {}
+            }, 0);
+          } catch {}
+
+          // 2) LiveKit에 발행(다른 참가자도 들을 수 있게)
+          if (aRoom) {
+            agentRemoteAudioTrackRef.current = track;
+            try {
+              const pub = await aRoom.localParticipant.publishTrack(track, { name: 'ai-voice' });
+              // 강제로 mute가 걸려 있으면 해제
+              try { await aRoom.localParticipant.setMicrophoneEnabled(true); } catch {}
+              try { if (pub?.track) (pub.track as any).setMuted(false); } catch {}
+            } catch (err) {
+              console.error('에이전트 오디오 발행 실패:', err);
+            }
+          }
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'closed' || pc.signalingState === 'closed') {
+          console.warn('OpenAI RTCPeerConnection closed.');
+          setAgentRunning(false);
+        }
+      };
+
+      // SDP 교환
+      const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
+      await pc.setLocalDescription(offer);
+
+      const resp = await fetch(`/api/openai-realtime?model=${encodeURIComponent(openAiModel)}&voice=${encodeURIComponent(openAiVoice)}`, {
+        method: "POST",
+        headers: {
+          "x-openai-key": openAiKey,
+          "Content-Type": "application/sdp",
+          "Accept": "application/sdp",
+        },
+        body: offer.sdp || "",
+      });
+      if (!resp.ok) {
+        throw new Error(`OpenAI Realtime 연결 실패: ${resp.status} ${resp.statusText}`);
+      }
+      const answerSdp = await resp.text();
+      // 연결이 도중에 닫혔으면 재시도
+      if (pc.signalingState === 'closed') {
+        console.warn('PC closed before remote description, recreating...');
+        pc = new RTCPeerConnection({ iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }] });
+        agentPcRef.current = pc;
+        audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
+        if (micTrack) await audioTransceiver.sender.replaceTrack(micTrack);
+        pc.ontrack = async (e) => {
+          const [track] = e.streams[0]?.getAudioTracks() || [];
+          if (track && aRoom) {
+            agentRemoteAudioTrackRef.current = track;
+            try { await aRoom.localParticipant.publishTrack(track, { name: 'ai-voice' }); } catch {}
+          }
+        };
+        const retryOffer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
+        await pc.setLocalDescription(retryOffer);
+        // 재요청
+        const resp2 = await fetch(`/api/openai-realtime?model=${encodeURIComponent(openAiModel)}&voice=${encodeURIComponent(openAiVoice)}`, {
+          method: 'POST',
+          headers: { 'x-openai-key': openAiKey, 'Content-Type': 'application/sdp', 'Accept': 'application/sdp' },
+          body: retryOffer.sdp || ''
+        });
+        const answer2 = await resp2.text();
+        await pc.setRemoteDescription({ type: 'answer', sdp: answer2 });
+      } else {
+        await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+      }
+
+      // 데이터 채널 생성(명령 전송)
+      const dc = pc.createDataChannel('oai-events');
+      dc.onopen = () => {
+        // 서버 VAD로 턴 감지 + 음성 인식 활성화
+        const sessionUpdate = {
+          type: 'session.update',
+          session: {
+            turn_detection: { type: 'server_vad' },
+            input_audio_transcription: { model: 'gpt-4o-transcribe' },
+          },
+        };
+        dc.send(JSON.stringify(sessionUpdate));
+
+        // 첫 응답 트리거(대화 시작)
+        const first = {
+          type: 'response.create',
+          response: { instructions: '한국어로 간단히 인사하고, 마이크 입력을 듣고 대화해줘.' },
+        };
+        dc.send(JSON.stringify(first));
+      };
+
+      setAgentRunning(true);
+      setAgentStatus("에이전트 실행 중");
+      toast({ title: "AI Agent 시작", description: "이제 마이크로 말하면 에이전트가 응답합니다." });
+    } catch (error) {
+      console.error("에이전트 시작 실패:", error);
+      setAgentStatus(error instanceof Error ? error.message : "시작 실패");
+      toast({ title: "AI Agent 시작 실패", description: String(error), variant: "destructive" });
+    }
+    finally {
+      setAgentStarting(false);
+    }
+  };
+
+  const stopAgent = async () => {
+    try {
+      if (agentRoom) {
+        await agentRoom.disconnect();
+        setAgentRoom(null);
+      }
+      if (agentPcRef.current) {
+        try { agentPcRef.current.close(); } catch {}
+        agentPcRef.current = null;
+      }
+      agentRemoteAudioTrackRef.current = null;
+      setAgentRunning(false);
+      setAgentStatus("중지됨");
+      toast({ title: "AI Agent 중지", description: "에이전트를 종료했습니다." });
+    } catch (error) {
+      console.error("에이전트 중지 실패:", error);
+      toast({ title: "AI Agent 중지 실패", description: String(error), variant: "destructive" });
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -573,6 +1107,20 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
                   <Clock className="w-4 h-4" />
                   <span className="font-mono">{callDuration}</span>
                 </div>
+                {showVideoStats && (
+                  <div className="hidden md:flex items-center gap-3 text-xs font-mono px-2 py-1 rounded bg-muted/30">
+                    <span>TX:</span>
+                    <span className="text-green-600">{(summaryStats.txBitrateBps/1000).toFixed(0)} kbps</span>
+                    <span className="opacity-60">|</span>
+                    <span>RX:</span>
+                    <span className="text-cyan-600">{(summaryStats.rxBitrateBps/1000).toFixed(0)} kbps</span>
+                    <span className="opacity-60">|</span>
+                    <span>Loss:</span>
+                    <span className={summaryStats.rxPacketLossPctAvg > 5 ? 'text-red-600' : 'text-emerald-600'}>
+                      {summaryStats.rxPacketLossPctAvg.toFixed(1)}%
+                    </span>
+                  </div>
+                )}
                 
                 <Button
                   variant="ghost"
@@ -619,25 +1167,28 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
 
       {connectionStatus.connected && (
         <>
-          {/* 비디오 컨테이너 */}
+          {/* 타일뷰 화상회의 화면 */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Video className="w-5 h-5" />
-                비디오 화면
+                화상회의 화면 ({participants.length}명)
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div
-                ref={videoContainerRef}
-                className="w-full h-64 bg-black rounded-lg flex items-center justify-center text-white"
-              >
-                {!isVideoOn && (
-                  <div className="text-center">
-                    <VideoOff className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                    <p className="text-sm text-gray-400">비디오가 꺼져 있습니다</p>
-                  </div>
-                )}
+              <div className="w-full min-h-[400px] bg-gray-900 rounded-lg p-2">
+                <TileView
+                  participants={participants.map<TileParticipant>((p) => ({
+                    ...p,
+                    videoElement: videoElementByParticipantRef.current[p.id],
+                    isLocal: p.id === 'local',
+                    audioLevel: audioLevelRef.current[p.id] || 0,
+                    isSpeaking: speakingRef.current[p.id] || false,
+                    videoStats: showVideoStats ? statsByParticipantRef.current[p.id] : undefined,
+                  }))}
+                  maxVisibleTiles={4}
+                  showVideoStats={showVideoStats}
+                />
               </div>
 
               {/* 미디어 컨트롤 */}
@@ -749,6 +1300,139 @@ export const LiveKitMeetingArea = ({ config }: LiveKitMeetingAreaProps) => {
               </CardContent>
             </Card>
           )}
+
+          {/* 네트워크 시뮬레이터(가이드) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                네트워크 시뮬레이터 (Chrome 재실행 필요)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                <div>
+                  <Label>패킷 손실률(%)</Label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={simLossPercent}
+                    onChange={(e) => setSimLossPercent(Math.max(0, Math.min(100, Number(e.target.value))))}
+                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label>지연(ms)</Label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={simDelayMs}
+                    onChange={(e) => setSimDelayMs(Math.max(0, Number(e.target.value)))}
+                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label>링크 용량(kbps)</Label>
+                  <input
+                    type="number"
+                    min={64}
+                    value={simCapacityKbps}
+                    onChange={(e) => setSimCapacityKbps(Math.max(64, Number(e.target.value)))}
+                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={async () => {
+                    const appPath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+                    const userDataDir = '/tmp/chrome-webrtc-sim';
+                    const fieldTrials = `WebRTC-FakeNetworkConditions/Enabled/BurstLossPercent/0/DelayMs/${simDelayMs}/LossPercent/${simLossPercent}/QueueDelayMs/0/QueueLength/100/LinkCapacityKbps/${simCapacityKbps}`;
+                    const cmd = `${appPath} --user-data-dir=${userDataDir} --force-fieldtrials=${fieldTrials}`;
+                    try {
+                      await navigator.clipboard.writeText(cmd);
+                      toast({ title: '명령어 복사됨', description: '터미널에서 붙여넣어 Chrome을 실행하세요.' });
+                    } catch {
+                      toast({ title: '복사 실패', description: '클립보드 권한을 확인해주세요.', variant: 'destructive' });
+                    }
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Chrome 실행 명령어 복사
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    toast({
+                      title: '사용 안내',
+                      description: '이 기능은 브라우저 전역 WebRTC 엔진에 적용되며, 페이지 내에서 즉시 On/Off 할 수 없습니다. 복사한 명령으로 Chrome을 별도 인스턴스로 실행해 테스트하세요.',
+                    });
+                  }}
+                >
+                  사용 안내
+                </Button>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                실제 패킷 손실은 브라우저/OS 레벨에서만 강제할 수 있습니다. 위 명령으로 실행된 Chrome 인스턴스에서 이 페이지를 열면, WebRTC 스트림에 Loss/Delay/대역 제한이 적용됩니다.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* AI Agent 제어(UI) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MicIcon className="w-5 h-5" />
+                AI Voice Agent (OpenAI Realtime)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <Label>OpenAI API Key</Label>
+                  <input
+                    type="password"
+                    placeholder="sk-..."
+                    value={openAiKey}
+                    onChange={(e) => setOpenAiKey(e.target.value)}
+                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label>Model</Label>
+                  <input
+                    type="text"
+                    value={openAiModel}
+                    onChange={(e) => setOpenAiModel(e.target.value)}
+                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label>Voice</Label>
+                  <input
+                    type="text"
+                    value={openAiVoice}
+                    onChange={(e) => setOpenAiVoice(e.target.value)}
+                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-3">
+                {!agentRunning ? (
+                  <Button size="sm" onClick={startAgent} className="bg-emerald-600 hover:bg-emerald-700 text-white">시작</Button>
+                ) : (
+                  <Button size="sm" variant="destructive" onClick={stopAgent}>중지</Button>
+                )}
+                <span className="text-xs text-muted-foreground">{agentStatus}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">테스트용: 키는 클라이언트 메모리에만 저장됩니다. 보안 민감 환경에서는 서버 에이전트 사용을 권장합니다.</p>
+            </CardContent>
+          </Card>
 
           {/* 참가자 목록 */}
           <Card>

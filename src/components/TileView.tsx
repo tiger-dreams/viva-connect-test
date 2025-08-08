@@ -6,6 +6,9 @@ import { Participant } from "@/types/video-sdk";
 export interface TileParticipant extends Participant {
   videoElement?: HTMLVideoElement;
   isLocal?: boolean;
+  // 실시간 오디오 수준(0~1), 말하기 여부
+  audioLevel?: number;
+  isSpeaking?: boolean;
   videoStats?: {
     // 비디오 통계
     bitrate: number;
@@ -47,12 +50,7 @@ interface TileViewProps {
 
 export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = false }: TileViewProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  console.log(`🎬 TileView 렌더링: showVideoStats=${showVideoStats}, participants=`, participants.map(p => ({
-    id: p.id,
-    name: p.name,
-    hasVideoStats: !!p.videoStats
-  })));
+
 
   // 참가자 순서 정렬: 로컬(나)을 항상 첫 번째로, 나머지는 기존 순서 유지
   const sortedParticipants = [...participants].sort((a, b) => {
@@ -147,7 +145,7 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
         <div
           key={participant.id}
           data-participant-id={participant.id}
-          className={`relative bg-black rounded-lg overflow-hidden ${tileSize} ${getTileSpan(index, visibleParticipants.length)}`}
+          className={`relative bg-black rounded-lg overflow-hidden ${tileSize} ${getTileSpan(index, visibleParticipants.length)} ${participant.isSpeaking ? 'ring-2 ring-emerald-400' : ''}`}
         >
           {/* 비디오 컨테이너 */}
           <div className="video-container w-full h-full relative">
@@ -297,31 +295,59 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
                         'sendBandwidth', 'availableOutgoingBitrate', 'receiveBandwidth', 'availableIncomingBitrate',
                         'encoderType', 'encoder', 'decoderType', 'decoder', 'totalDuration', 'freezeRate'
                       ];
-                      
                       if (displayedKeys.includes(key) || value === null || value === undefined) {
                         return null;
                       }
-                      
-                      // 숫자값은 적절히 포맷팅
-                      let formattedValue = value;
-                      if (typeof value === 'number') {
-                        if (value > 1000000) {
-                          formattedValue = `${(value / 1000000).toFixed(1)}M`;
-                        } else if (value > 1000) {
-                          formattedValue = `${(value / 1000).toFixed(1)}K`;
-                        } else if (value < 1 && value > 0) {
-                          formattedValue = value.toFixed(3);
-                        } else {
-                          formattedValue = value.toString();
+
+                      const formatNumber = (num: number) => {
+                        if (num > 1000000) return `${(num / 1000000).toFixed(1)}M`;
+                        if (num > 1000) return `${(num / 1000).toFixed(1)}K`;
+                        if (num < 1 && num > 0) return num.toFixed(3);
+                        return num.toString();
+                      };
+
+                      const formatAny = (val: any): string => {
+                        if (val === null || val === undefined) return '';
+                        if (typeof val === 'number') return formatNumber(val);
+                        if (typeof val === 'string') return val.length > 120 ? `${val.slice(0, 117)}...` : val;
+                        if (typeof val === 'boolean') return val ? 'true' : 'false';
+                        if (Array.isArray(val)) {
+                          try {
+                            const s = JSON.stringify(val);
+                            return s.length > 120 ? `${s.slice(0, 117)}...` : s;
+                          } catch {
+                            return '[Array]';
+                          }
                         }
-                      } else if (typeof value === 'string' && value.length > 20) {
-                        formattedValue = value.substring(0, 15) + '...';
+                        // object
+                        try {
+                          const s = JSON.stringify(val);
+                          return s.length > 120 ? `${s.slice(0, 117)}...` : s;
+                        } catch {
+                          return '[Object]';
+                        }
+                      };
+
+                      // 객체인 경우 하위 키들을 펼쳐서 표시
+                      if (typeof value === 'object' && !Array.isArray(value)) {
+                        return (
+                          <React.Fragment key={key}>
+                            <span className="col-span-2 text-[9px] text-gray-300 mt-1">{key}</span>
+                            {Object.entries(value as Record<string, any>).map(([subKey, subVal]) => (
+                              <React.Fragment key={`${key}.${subKey}`}>
+                                <span className="pl-2">- {subKey}:</span>
+                                <span className="text-yellow-200 break-all">{formatAny(subVal)}</span>
+                              </React.Fragment>
+                            ))}
+                          </React.Fragment>
+                        );
                       }
-                      
+
+                      // 원시값은 단일 라인으로 표시
                       return (
                         <React.Fragment key={key}>
                           <span>{key}:</span>
-                          <span className="text-yellow-200 break-all">{formattedValue}</span>
+                          <span className="text-yellow-200 break-all">{formatAny(value)}</span>
                         </React.Fragment>
                       );
                     })}
@@ -351,7 +377,7 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
 
           {/* 말하고 있는 상태 표시 (향후 확장) */}
           {participant.isAudioOn && (
-            <div className="absolute inset-0 border-2 border-green-400 rounded-lg pointer-events-none opacity-0 transition-opacity duration-200 speaking-indicator" />
+            <div className={`absolute inset-0 border-2 rounded-lg pointer-events-none transition-opacity duration-200 ${participant.isSpeaking ? 'opacity-100 border-emerald-400' : 'opacity-0'}`} />
           )}
         </div>
       ))}

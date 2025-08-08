@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { LiveKitMeetingArea } from "@/components/LiveKitMeetingArea";
 const LiveKitMeeting = () => {
   const navigate = useNavigate();
   const { liveKitConfig } = useVideoSDK();
+  const [showVideoStats, setShowVideoStats] = useState(false);
 
   const handleBackToSetup = () => {
     navigate('/setup');
@@ -60,7 +62,15 @@ const LiveKitMeeting = () => {
                 </div>
               </div>
 
-              {/* 설정 버튼 */}
+              {/* 품질 정보 / 설정 버튼 */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowVideoStats((v) => !v)}
+                className="flex items-center gap-2"
+              >
+                품질 정보
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -77,7 +87,7 @@ const LiveKitMeeting = () => {
 
       {/* 메인 LiveKit 화상회의 영역 */}
       <div className="container mx-auto px-4 py-6">
-        <LiveKitMeetingArea config={liveKitConfig} />
+        <LiveKitMeetingArea config={liveKitConfig} showVideoStats={showVideoStats} />
       </div>
 
       {/* 하단 도움말 */}
