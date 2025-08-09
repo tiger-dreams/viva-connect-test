@@ -6,6 +6,9 @@ export interface AgoraConfig {
   channelName: string;
   uid: string;
   token?: string;
+  role?: ParticipantRole;
+  isHost?: boolean;
+  participantName?: string; // 참가자 식별용 이름
 }
 
 export enum ParticipantRole {
@@ -61,4 +64,5 @@ export interface Participant {
   isScreenSharing: boolean;
   role?: ParticipantRole;
   permissions?: RolePermissions;
+  isHost?: boolean;
 }

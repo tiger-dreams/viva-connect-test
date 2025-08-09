@@ -1,11 +1,20 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 import AgoraRTC, { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from "agora-rtc-sdk-ng";
+// @ts-ignore
+import AgoraRTM from "agora-rtm-sdk";
 import VirtualBackgroundExtension from "agora-extension-virtual-background";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator 
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { 
@@ -30,8 +39,19 @@ import {
   Image,
   Circle,
   X,
+  Crown,
+  UserX,
+  MoreVertical,
+  Users,
 } from "lucide-react";
 import { AgoraConfig, ConnectionStatus, VideoMetrics, Participant } from "@/types/video-sdk";
+
+// 전역 타입 선언
+declare global {
+  interface Window {
+    AgoraRTM?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
+}
 import { useToast } from "@/hooks/use-toast";
 import { useVideoSDK } from "@/contexts/VideoSDKContext";
 import { useMediaDevices } from "@/hooks/use-media-devices";
@@ -50,6 +70,12 @@ const AgoraMeeting = () => {
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [participants, setParticipants] = useState<TileParticipant[]>([]);
+  const [localAgoraUid, setLocalAgoraUid] = useState<string | number | null>(null);
+  
+  // Agora RTM 관련 상태
+  const [rtmClient, setRtmClient] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [rtmChannel, setRtmChannel] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [rtmConnected, setRtmConnected] = useState(false);
   const [videoMetrics, setVideoMetrics] = useState<VideoMetrics>({
     frameRate: 30,
     resolution: "1280x720",
@@ -61,8 +87,11 @@ const AgoraMeeting = () => {
   const [showVirtualBackground, setShowVirtualBackground] = useState(false);
   const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
   const [callDuration, setCallDuration] = useState<string>("00:00:00");
-  const [virtualBackgroundExtension, setVirtualBackgroundExtension] = useState<any>(null);
-  const [virtualBackgroundProcessor, setVirtualBackgroundProcessor] = useState<any>(null);
+  
+  // 음성 감지 상태 관리 (디바운싱용)
+  const [speakingCounters, setSpeakingCounters] = useState<Map<string, number>>(new Map());
+  const [virtualBackgroundExtension, setVirtualBackgroundExtension] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [virtualBackgroundProcessor, setVirtualBackgroundProcessor] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const [backgroundOptions] = useState([
     { id: 'none', name: '배경 없음', type: 'none' },
     { id: 'blur', name: '블러 효과', type: 'blur' },
@@ -154,6 +183,334 @@ const AgoraMeeting = () => {
         variant: "destructive",
       });
       return null;
+    }
+  };
+
+  // RTM 클라이언트 초기화
+  const initRTMClient = async () => {
+    console.log("🚀 RTM 초기화 시작:", {
+      appId: agoraConfig.appId,
+      channelName: agoraConfig.channelName,
+      uid: agoraConfig.uid,
+      isHost: agoraConfig.isHost
+    });
+    
+    if (!agoraConfig.appId) {
+      console.error("RTM 초기화 실패: App ID가 없습니다.")
+      return;
+    }
+
+    try {
+      // 동적 RTM SDK 로드 (ESM/CJS 양쪽 호환)
+      let RTMModule: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      try {
+        RTMModule = await import('agora-rtm-sdk');
+      } catch (e) {
+        console.warn('RTM SDK 동적 임포트 실패, 정적 임포트로 대체 시도', e);
+        RTMModule = AgoraRTM as any;
+      }
+
+      const candidates: any[] = [
+        RTMModule?.default?.AgoraRTM,
+        RTMModule?.AgoraRTM,
+        RTMModule?.default?.RTM,
+        RTMModule?.RTM,
+        RTMModule?.default,
+        RTMModule,
+      ].filter(Boolean);
+
+      const debugShapes = candidates.map((c, idx) => ({
+        idx,
+        type: typeof c,
+        keys: typeof c === 'object' ? Object.keys(c) : [],
+        hasCreateInstance: !!(c as any)?.createInstance,
+        hasRTMCreateInstance: !!(c as any)?.RTM?.createInstance,
+        isCtor: typeof c === 'function',
+      }));
+      console.log('🔍 RTM SDK 확인:', debugShapes);
+
+      let rtmClient: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+      let factorySource: string | null = null;
+
+      for (const c of candidates) {
+        if (!c) continue;
+        if (typeof c.createInstance === 'function') {
+          rtmClient = c.createInstance(agoraConfig.appId);
+          factorySource = 'createInstance@candidate';
+          break;
+        }
+        if (c.RTM && typeof c.RTM.createInstance === 'function') {
+          rtmClient = c.RTM.createInstance(agoraConfig.appId);
+          factorySource = 'RTM.createInstance@candidate';
+          break;
+        }
+      }
+
+      // 최후의 수단: CDN UMD 빌드 로드 후 window.AgoraRTM 사용
+      if (!rtmClient && typeof window !== 'undefined') {
+        try {
+          console.warn('모듈 해석 실패. CDN UMD 빌드를 로드합니다...');
+          await new Promise<void>((resolve, reject) => {
+            const existing = document.querySelector('script[data-agora-rtm-cdn]') as HTMLScriptElement | null;
+            if (existing) {
+              existing.addEventListener('load', () => resolve());
+              existing.addEventListener('error', () => reject(new Error('CDN 스크립트 로드 실패')));
+            } else {
+              const s = document.createElement('script');
+              s.src = 'https://download.agora.io/sdk/release/AgoraRTM.min.js';
+              s.async = true;
+              s.defer = true;
+              s.setAttribute('data-agora-rtm-cdn', 'true');
+              s.onload = () => resolve();
+              s.onerror = () => reject(new Error('CDN 스크립트 로드 실패'));
+              document.head.appendChild(s);
+            }
+          });
+          const globalRTM = (window as any).AgoraRTM; // eslint-disable-line @typescript-eslint/no-explicit-any
+          console.log('CDN 로드 결과 window.AgoraRTM 존재 여부:', !!globalRTM, 'keys:', globalRTM ? Object.keys(globalRTM) : []);
+          if (globalRTM?.createInstance) {
+            rtmClient = globalRTM.createInstance(agoraConfig.appId);
+            factorySource = 'window.AgoraRTM.createInstance (CDN)';
+          }
+        } catch (cdnErr) {
+          console.error('CDN UMD 로드 실패:', cdnErr);
+        }
+      }
+
+      if (!rtmClient) {
+        throw new Error('agora-rtm-sdk에서 유효한 RTM 생성 API를 찾지 못했습니다. 번들/버전 또는 CDN 로드를 확인해 주세요.');
+      }
+
+      // RTM UID는 문자열이어야 하며 최대 64바이트 권장. 안전 문자만 허용
+      const rawUid = (agoraConfig.uid && String(agoraConfig.uid)) || Math.random().toString(36).slice(2, 11);
+      const safeUid = rawUid.trim().replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 64);
+
+      console.log("🔧 RTM 생성 시도 - AppId:", agoraConfig.appId, "UID:", safeUid, "via:", factorySource);
+
+      // 일부 번들에서는 createInstance 시점에 uid를 요구할 수 있으므로 시그니처를 순차 시도
+      const tryCreateInstance = (factory: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        const attempts = [
+          { sig: 'createInstance(appId)', args: [agoraConfig.appId] },
+          { sig: 'createInstance(appId, { uid })', args: [agoraConfig.appId, { uid: safeUid }] },
+          { sig: 'createInstance(appId, uid)', args: [agoraConfig.appId, safeUid] },
+        ];
+        for (const a of attempts) {
+          try {
+            console.log('🧪 RTM createInstance 시도:', a.sig);
+            return { client: factory.createInstance(...a.args), sig: a.sig };
+          } catch (e: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+            const msg = String(e?.message || e);
+            console.warn('❌ createInstance 실패:', a.sig, msg);
+            // -10006 (Invalid user id) 등인 경우 다음 시그니처로 시도
+          }
+        }
+        return { client: null, sig: null };
+      };
+
+      if (factorySource === 'createInstance@candidate' || factorySource === 'RTM.createInstance@candidate' || factorySource === null) {
+        const factory = candidates.find((c) => typeof c?.createInstance === 'function')
+          || candidates.find((c) => c?.RTM && typeof c.RTM.createInstance === 'function')?.RTM;
+        if (factory) {
+          const { client, sig } = tryCreateInstance(factory);
+          if (client) {
+            rtmClient = client;
+            factorySource = `resolved ${sig}`;
+          }
+        }
+      }
+
+      // RTM 로그인 (토큰이 필요한 경우 생성)
+      let loginOptions: any = { uid: safeUid }; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      if (agoraConfig.appCertificate) {
+        console.log("🔐 RTM 토큰 생성 중...");
+        try {
+          // RTM 토큰 생성 (동적 import 사용)
+          const { generateAgoraRTMToken } = await import('@/utils/token-generator');
+          const rtmToken = await generateAgoraRTMToken(
+            agoraConfig.appId,
+            agoraConfig.appCertificate,
+            safeUid,
+            3600
+          );
+          loginOptions.token = rtmToken;
+          console.log("✅ RTM 토큰 생성 완료");
+        } catch (tokenError) {
+          console.error("❌ RTM 토큰 생성 실패:", tokenError);
+          throw new Error(`RTM 토큰 생성 실패: ${tokenError.message}`);
+        }
+      } else {
+        console.log("🔓 RTM 토큰 없이 로그인 (테스트 모드)");
+      }
+      
+      await rtmClient.login(loginOptions);
+      const channel = rtmClient.createChannel(agoraConfig.channelName);
+      
+      // 채널 이벤트 리스너 등록
+      channel.on('ChannelMessage', (message, memberId) => {
+        console.log(`RTM 메시지 수신: ${memberId} - ${message.text}`);
+        
+        try {
+          const data = JSON.parse(message.text);
+          
+          // 강퇴 메시지 처리
+          if (data.type === 'kick' && data.targetUid === agoraConfig.uid) {
+            toast({
+              title: "강퇴되었습니다",
+              description: "호스트에 의해 회의에서 제외되었습니다.",
+              variant: "destructive",
+            });
+            setTimeout(() => {
+              leaveChannel();
+              navigate('/setup');
+            }, 2000);
+          }
+          
+          // 음소거 메시지 처리
+          if (data.type === 'mute' && data.targetUid === agoraConfig.uid) {
+            if (data.mediaType === 'audio' && localAudioTrack) {
+              localAudioTrack.setEnabled(false);
+              setIsAudioEnabled(false);
+              toast({
+                title: "음소거 되었습니다",
+                description: "호스트에 의해 마이크가 음소거되었습니다.",
+              });
+            } else if (data.mediaType === 'video' && localVideoTrack) {
+              localVideoTrack.setEnabled(false);
+              setIsVideoEnabled(false);
+              toast({
+                title: "비디오가 꺼졌습니다",
+                description: "호스트에 의해 비디오가 비활성화되었습니다.",
+              });
+            }
+          }
+        } catch (error) {
+          console.log("RTM 메시지 파싱 실패:", error);
+        }
+      });
+      
+      await channel.join();
+      
+      setRtmClient(rtmClient);
+      setRtmChannel(channel);
+      setRtmConnected(true);
+      
+      console.log("✅ RTM 클라이언트 초기화 완료:", {
+        rtmClient: !!rtmClient,
+        rtmChannel: !!channel,
+        rtmConnected: true,
+        isHost: agoraConfig.isHost
+      });
+      
+    } catch (error) {
+      console.error("RTM 초기화 실패:", error);
+    }
+  };
+
+  // 참가자 강퇴
+  const kickParticipant = async (participantId: string) => {
+    console.log("🔍 강퇴 권한 체크:", {
+      rtmChannel: !!rtmChannel,
+      rtmConnected,
+      isHost: agoraConfig.isHost,
+      agoraConfig
+    });
+    
+    if (!rtmChannel || !agoraConfig.isHost) {
+      console.log("강퇴 권한이 없습니다. RTM Channel:", !!rtmChannel, "isHost:", agoraConfig.isHost);
+      toast({
+        title: "권한 없음",
+        description: `강퇴 권한이 없습니다. RTM 연결: ${!!rtmChannel}, 호스트: ${agoraConfig.isHost}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const message = JSON.stringify({
+        type: 'kick',
+        targetUid: participantId,
+        timestamp: Date.now()
+      });
+      
+      await rtmChannel.sendMessage({ text: message });
+      
+      // 로컬에서 참가자 제거
+      setParticipants(prev => prev.filter(p => p.id !== participantId));
+      
+      toast({
+        title: "참가자 강퇴",
+        description: `참가자가 성공적으로 강퇴되었습니다.`,
+      });
+      
+    } catch (error) {
+      console.error("참가자 강퇴 실패:", error);
+      toast({
+        title: "강퇴 실패",
+        description: "참가자 강퇴에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // 참가자 음소거
+  const muteParticipant = async (participantId: string, mediaType: 'audio' | 'video') => {
+    console.log("🔍 음소거 권한 체크:", {
+      rtmChannel: !!rtmChannel,
+      rtmConnected,
+      isHost: agoraConfig.isHost,
+      agoraConfig
+    });
+    
+    if (!rtmChannel || !agoraConfig.isHost) {
+      console.log("음소거 권한이 없습니다. RTM Channel:", !!rtmChannel, "isHost:", agoraConfig.isHost);
+      toast({
+        title: "권한 없음",
+        description: `음소거 권한이 없습니다. RTM 연결: ${!!rtmChannel}, 호스트: ${agoraConfig.isHost}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const message = JSON.stringify({
+        type: 'mute',
+        targetUid: participantId,
+        mediaType,
+        timestamp: Date.now()
+      });
+      
+      await rtmChannel.sendMessage({ text: message });
+      
+      toast({
+        title: "음소거 요청 전송",
+        description: `참가자의 ${mediaType === 'audio' ? '마이크' : '비디오'}를 음소거 요청했습니다.`,
+      });
+      
+    } catch (error) {
+      console.error("음소거 실패:", error);
+      toast({
+        title: "음소거 실패",
+        description: "참가자 음소거에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // RTM 정리
+  const cleanupRTM = async () => {
+    try {
+      if (rtmChannel) {
+        await rtmChannel.leave();
+      }
+      if (rtmClient) {
+        await rtmClient.logout();
+      }
+      setRtmChannel(null);
+      setRtmClient(null);
+      setRtmConnected(false);
+    } catch (error) {
+      console.error("RTM 정리 실패:", error);
     }
   };
 
@@ -498,6 +855,105 @@ const AgoraMeeting = () => {
     }
   }, [connectionStatus.connected, showVideoStats, client, localVideoTrack]);
 
+  // 볼륨 인디케이터 설정 함수
+  const setupVolumeIndicator = (agoraClient: IAgoraRTCClient, currentLocalUid: string | number) => {
+    try {
+      // 200ms 간격으로 레벨 리포트 (기본값 200ms)
+      // @ts-ignore
+      agoraClient.enableAudioVolumeIndicator?.();
+      console.log("🔈 볼륨 인디케이터 활성화됨");
+    } catch (e) {
+      console.warn("🔈 enableAudioVolumeIndicator 실패 또는 미지원:", e);
+    }
+
+    // 볼륨 이벤트 처리: 각 참가자의 isSpeaking, audioLevel 업데이트
+    agoraClient.on("volume-indicator", (volumes: any[]) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      console.log("🔊 Volume indicator event:", {
+        volumes,
+        currentLocalUid,
+        participantCount: participants.length
+      });
+
+      setParticipants(prev => {
+        // 미리 uid->level 매핑 생성
+        const levelMap = new Map<string, number>();
+        for (const v of volumes || []) {
+          const uidStr = (typeof v?.uid === 'number' ? String(v.uid) : String(v?.uid ?? ''));
+          if (uidStr) {
+            levelMap.set(uidStr, Number(v.level ?? 0));
+            console.log(`🔊 UID ${uidStr} level: ${v.level}`);
+          }
+        }
+
+        const localUidStr = String(currentLocalUid);
+        const threshold = 45; // 말하기로 간주할 임계값
+        const requiredSpeakingCount = 1; // 임계값을 넘으면 즉시 감지 (1로 변경)
+        const maxSilenceCount = 4; // 말하기 상태에서 이 횟수만큼 임계값 미만이면 중지 (더 오래 유지)
+        
+        console.log(`🔊 Local UID: ${localUidStr}, Threshold: ${threshold}`);
+
+        // 현재 카운터 상태 가져오기
+        const currentCounters = speakingCounters;
+        const newCounters = new Map(currentCounters);
+
+        const updatedParticipants = prev.map(p => {
+          let level = 0;
+          
+          if (p.isLocal) {
+            // 로컬 참가자는 currentLocalUid로 매핑
+            level = levelMap.get(localUidStr) ?? 0;
+            console.log(`🔊 Local participant level: ${level} (from UID ${localUidStr})`);
+          } else {
+            // 원격 참가자는 p.id로 매핑
+            level = levelMap.get(p.id) ?? 0;
+            console.log(`🔊 Remote participant ${p.id} level: ${level}`);
+          }
+          
+          const participantKey = p.isLocal ? 'local' : p.id;
+          const currentCounter = currentCounters.get(participantKey) || 0;
+          const isAboveThreshold = level >= threshold;
+          
+          let newCounter = currentCounter;
+          let isSpeaking = p.isSpeaking || false; // 현재 상태 유지
+          
+          if (isAboveThreshold) {
+            // 임계값 이상: 카운터 증가
+            newCounter = Math.min(currentCounter + 1, requiredSpeakingCount);
+            if (newCounter >= requiredSpeakingCount) {
+              isSpeaking = true;
+            }
+          } else {
+            // 임계값 미만: 현재 말하고 있다면 감소, 아니면 0으로 리셋
+            if (isSpeaking) {
+              newCounter = Math.max(currentCounter - 1, -maxSilenceCount);
+              if (newCounter <= -maxSilenceCount) {
+                isSpeaking = false;
+                newCounter = 0;
+              }
+            } else {
+              newCounter = 0;
+            }
+          }
+          
+          newCounters.set(participantKey, newCounter);
+          
+          const normalized = Math.max(0, Math.min(1, level / 100));
+          
+          if (p.isLocal || level > 0) {
+            console.log(`🔊 Participant ${p.name} (${p.isLocal ? 'local' : 'remote'}): level=${level}, counter=${newCounter}, speaking=${isSpeaking}`);
+          }
+          
+          return { ...p, isSpeaking, audioLevel: normalized };
+        });
+
+        // 카운터 상태 업데이트
+        setSpeakingCounters(newCounters);
+        
+        return updatedParticipants;
+      });
+    });
+  };
+
   // Agora 클라이언트 초기화
   useEffect(() => {
     const agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
@@ -516,7 +972,8 @@ const AgoraMeeting = () => {
             isVideoOn: user.hasVideo,
             isAudioOn: user.hasAudio,
             isScreenSharing: false,
-            isLocal: false
+            isLocal: false,
+            isHost: false
           }];
         }
         return prev;
@@ -606,14 +1063,21 @@ const AgoraMeeting = () => {
       // 토큰이 있으면 사용, 없으면 null (테스트 모드)
       const token = agoraConfig.token || null;
       const uid = parseInt(agoraConfig.uid) || 0;
-
-      await client.join(agoraConfig.appId, agoraConfig.channelName, token, uid);
+      const joinedUid = await client.join(agoraConfig.appId, agoraConfig.channelName, token, uid);
+      setLocalAgoraUid(joinedUid);
       
       setConnectionStatus({ connected: true, connecting: false });
       setConnectionStartTime(new Date());
 
       // 오디오/비디오 트랙 생성 및 발행 먼저 수행
-      await createAndPublishTracks(uid);
+      await createAndPublishTracks(typeof joinedUid === 'number' ? joinedUid : uid);
+
+      // 볼륨 인디케이터 설정 (트랙 생성 후)
+      setupVolumeIndicator(client, joinedUid);
+
+      // RTM 클라이언트 초기화 (모든 참가자)
+      console.log("🔄 RTM 초기화 시도 중...", { isHost: agoraConfig.isHost });
+      await initRTMClient();
 
       toast({
         title: "연결 성공",
@@ -658,11 +1122,12 @@ const AgoraMeeting = () => {
       // 로컬 참가자를 타일뷰에 추가
       setParticipants(prev => [{
         id: "local",
-        name: `UID: ${uid}`,
+        name: agoraConfig.participantName || `UID: ${uid}`,
         isVideoOn: true,
         isAudioOn: true,
         isScreenSharing: false,
         isLocal: true,
+        isHost: agoraConfig.isHost || false,
         videoElement: localVideoElement
       }, ...prev.filter(p => p.id !== "local")]);
 
@@ -698,6 +1163,9 @@ const AgoraMeeting = () => {
           virtualBackgroundProcessor.release();
         }
       } catch {}
+
+      // RTM 정리
+      await cleanupRTM();
 
       // 통계 수집 중지
       if (statsInterval) {
@@ -952,6 +1420,96 @@ const AgoraMeeting = () => {
                       showVideoStats={showVideoStats}
                     />
                   </div>
+
+                  {/* 호스트인 경우 참가자 관리 UI 추가 */}
+                  {agoraConfig.isHost && participants.length > 1 && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium flex items-center gap-2">
+                          <Users className="w-4 h-4" />
+                          참가자 관리 ({participants.filter(p => !p.isLocal).length}명)
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={rtmConnected ? "default" : "destructive"} className="text-xs">
+                            RTM {rtmConnected ? "연결됨" : "연결 안됨"}
+                          </Badge>
+                          {!rtmConnected && (
+                            <Button
+                              onClick={initRTMClient}
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-6"
+                            >
+                              RTM 재연결
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {participants
+                          .filter(p => !p.isLocal)
+                          .map((participant) => (
+                            <div
+                              key={participant.id}
+                              className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1">
+                                  {participant.isHost && (
+                                    <Crown className="w-4 h-4 text-yellow-500" />
+                                  )}
+                                  <span className="font-medium">{participant.name}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {participant.isVideoOn ? (
+                                    <Video className="w-3 h-3 text-green-500" />
+                                  ) : (
+                                    <VideoOff className="w-3 h-3 text-red-500" />
+                                  )}
+                                  {participant.isAudioOn ? (
+                                    <Mic className="w-3 h-3 text-green-500" />
+                                  ) : (
+                                    <MicOff className="w-3 h-3 text-red-500" />
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => muteParticipant(participant.id, 'audio')}
+                                    className="text-orange-600"
+                                  >
+                                    <MicOff className="mr-2 h-4 w-4" />
+                                    마이크 음소거
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => muteParticipant(participant.id, 'video')}
+                                    className="text-orange-600"
+                                  >
+                                    <VideoOff className="mr-2 h-4 w-4" />
+                                    비디오 끄기
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => kickParticipant(participant.id)}
+                                    className="text-destructive"
+                                  >
+                                    <UserX className="mr-2 h-4 w-4" />
+                                    강퇴하기
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* 미디어 컨트롤 */}
                   <div className="flex items-center justify-center gap-2 mt-4">

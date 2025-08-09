@@ -1,13 +1,14 @@
 import { SignJWT } from 'jose';
 
-// Agora Token Generation
+// Agora Token Generation with Host Role Support
 export const generateAgoraToken = async (
   appId: string,
   appCertificate: string,
   channelName: string,
   uid: string,
   role: 'publisher' | 'subscriber' = 'publisher',
-  expirationTimeInSeconds: number = 3600
+  expirationTimeInSeconds: number = 3600,
+  isHost: boolean = false
 ): Promise<string> => {
   try {
     const now = Math.floor(Date.now() / 1000);
@@ -15,11 +16,31 @@ export const generateAgoraToken = async (
     
     const secret = new TextEncoder().encode(appCertificate);
     
-    const token = await new SignJWT({
+    // Host는 항상 publisher 권한을 가져야 함
+    const tokenRole = isHost ? 1 : (role === 'publisher' ? 1 : 2);
+    
+    const payload: any = {
       channel: channelName,
       uid,
-      role: role === 'publisher' ? 1 : 2
-    })
+      role: tokenRole
+    };
+
+    // Host 권한 표시를 위한 커스텀 클레임 추가
+    if (isHost) {
+      payload.isHost = true;
+      payload.privileges = {
+        canKickOut: true,
+        canMuteOthers: true,
+        canManageRoom: true
+      };
+      console.log('Generating Agora HOST token with admin privileges');
+    } else {
+      console.log('Generating Agora PARTICIPANT token with standard privileges');
+    }
+    
+    console.log('Agora token payload:', { channelName, uid, isHost, role: tokenRole });
+    
+    const token = await new SignJWT(payload)
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuer(appId)
       .setIssuedAt(now)
@@ -174,6 +195,45 @@ export const generatePlanetKitToken = async (
   } catch (error) {
     console.error('PlanetKit token generation error:', error);
     throw new Error(`Failed to generate PlanetKit token: ${error}`);
+  }
+};
+
+// Agora RTM Token Generation (브라우저 호환)
+export const generateAgoraRTMToken = async (
+  appId: string,
+  appCertificate: string,
+  uid: string,
+  expirationTimeInSeconds: number = 3600
+): Promise<string> => {
+  try {
+    if (!appId || !appCertificate) {
+      throw new Error('App ID and App Certificate are required for RTM token generation');
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + expirationTimeInSeconds;
+    
+    const secret = new TextEncoder().encode(appCertificate);
+    
+    // Agora RTM JWT payload
+    const payload = {
+      iss: appId,
+      exp: exp,
+      iat: now,
+      uid: uid
+    };
+    
+    console.log('Generating Agora RTM token with payload:', payload);
+    
+    const token = await new SignJWT(payload)
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .sign(secret);
+
+    console.log('Generated Agora RTM token length:', token.length);
+    return token;
+  } catch (error) {
+    console.error('Agora RTM token generation error:', error);
+    throw new Error(`Failed to generate Agora RTM token: ${error}`);
   }
 };
 

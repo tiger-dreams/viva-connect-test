@@ -1,9 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import AgoraRTC, { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from "agora-rtc-sdk-ng";
+import AgoraRTM from "agora-rtm-sdk";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator 
+} from "@/components/ui/dropdown-menu";
 import { 
   Video, 
   VideoOff, 
@@ -15,7 +23,10 @@ import {
   PhoneOff,
   Users,
   Signal,
-  Activity
+  Activity,
+  Crown,
+  UserX,
+  MoreVertical
 } from "lucide-react";
 import { SDKType, AgoraConfig, LiveKitConfig, ConnectionStatus, VideoMetrics, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
@@ -62,8 +73,23 @@ const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
   const [agoraClient, setAgoraClient] = useState<IAgoraRTCClient | null>(null);
   const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
   const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
+  
+  // Agora RTM 관련 상태
+  const [rtmClient, setRtmClient] = useState<any>(null);
+  const [rtmChannel, setRtmChannel] = useState<any>(null);
+  const [rtmConnected, setRtmConnected] = useState(false);
 
   const isConfigValid = config.appId && config.channelName;
+
+  // 참가자 목록 변화 모니터링
+  useEffect(() => {
+    console.log('👥 참가자 목록 변화:', participants.map(p => ({
+      id: p.id,
+      name: p.name,
+      video: p.isVideoOn,
+      audio: p.isAudioOn
+    })));
+  }, [participants]);
 
   // 컴포넌트 언마운트 시 리소스 정리
   useEffect(() => {
@@ -81,8 +107,15 @@ const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
         localAudioTrack.close();
       }
       
+      // Agora RTM 정리
+      if (rtmChannel) {
+        rtmChannel.leave().catch(console.error);
+      }
+      if (rtmClient) {
+        rtmClient.logout().catch(console.error);
+      }
     };
-  }, [agoraClient, localVideoTrack, localAudioTrack]);
+  }, [agoraClient, localVideoTrack, localAudioTrack, rtmClient, rtmChannel]);
 
   const handleConnect = async () => {
     if (!isConfigValid) return;
@@ -119,14 +152,143 @@ const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
     }
   };
 
+  // RTM 클라이언트 연결 함수
+  const connectToRTM = async () => {
+    try {
+      console.log('Agora RTM 연결 시작...');
+      
+      // RTM 클라이언트 생성
+      const client = AgoraRTM.createInstance(config.appId);
+      setRtmClient(client);
+      
+      // RTM 로그인 (UID를 사용자 이름으로 사용)
+      const userId = config.participantName || config.uid || 'anonymous';
+      await client.login({ uid: userId });
+      console.log('RTM 로그인 완료:', userId);
+      
+      // 채널 생성 및 참여
+      const channel = client.createChannel(config.channelName);
+      setRtmChannel(channel);
+      
+      // 채널 메시지 이벤트 리스너 등록
+      channel.on('ChannelMessage', ({ text, senderId }: any) => {
+        console.log('채널 메시지 수신:', { text, senderId });
+        try {
+          const data = JSON.parse(text);
+          handleRTMMessage(data, senderId);
+        } catch (error) {
+          console.warn('RTM 메시지 파싱 실패:', error);
+        }
+      });
+      
+      // P2P 메시지 이벤트 리스너 등록
+      client.on('MessageFromPeer', ({ text, peerId }: any) => {
+        console.log('P2P 메시지 수신:', { text, peerId });
+        try {
+          const data = JSON.parse(text);
+          handleRTMMessage(data, peerId);
+        } catch (error) {
+          console.warn('P2P 메시지 파싱 실패:', error);
+        }
+      });
+      
+      // 채널 참여
+      await channel.join();
+      setRtmConnected(true);
+      console.log('RTM 채널 참여 완료');
+      
+      // 호스트 권한 알림
+      if (config.isHost) {
+        console.log('🎯 호스트 모드로 RTM 연결됨 - 참가자 관리 권한 활성화');
+      }
+      
+    } catch (error) {
+      console.error('RTM 연결 실패:', error);
+      toast({
+        title: "RTM 연결 실패",
+        description: "실시간 메시징 연결에 실패했습니다. 참가자 관리 기능이 제한될 수 있습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // RTM 메시지 처리 함수
+  const handleRTMMessage = (data: any, senderId: string) => {
+    console.log('RTM 메시지 처리:', data, 'from:', senderId);
+    
+    switch (data.type) {
+      case 'FORCE_LEAVE':
+        // 강제 퇴장 신호 수신
+        if (data.target === (config.participantName || config.uid)) {
+          console.log('강제 퇴장 신호 수신:', data);
+          toast({
+            title: "퇴장 요청",
+            description: `호스트(${senderId})가 회의에서 퇴장시켰습니다.`,
+            variant: "destructive",
+          });
+          handleDisconnect(); // 즉시 퇴장
+        }
+        break;
+        
+      case 'MUTE_AUDIO':
+        // 음소거 제어 신호
+        if (data.target === (config.participantName || config.uid)) {
+          console.log('음소거 제어 신호 수신:', data);
+          if (data.action === 'mute') {
+            toggleAudio(); // 음소거
+            toast({
+              title: "음소거됨",
+              description: `호스트(${senderId})가 마이크를 음소거했습니다.`,
+            });
+          } else if (data.action === 'unmute') {
+            toggleAudio(); // 음소거 해제
+            toast({
+              title: "음소거 해제됨",
+              description: `호스트(${senderId})가 마이크 음소거를 해제했습니다.`,
+            });
+          }
+        }
+        break;
+        
+      case 'MUTE_VIDEO':
+        // 비디오 제어 신호
+        if (data.target === (config.participantName || config.uid)) {
+          console.log('비디오 제어 신호 수신:', data);
+          if (data.action === 'mute') {
+            toggleVideo(); // 비디오 끄기
+            toast({
+              title: "비디오 꺼짐",
+              description: `호스트(${senderId})가 비디오를 껐습니다.`,
+            });
+          } else if (data.action === 'unmute') {
+            toggleVideo(); // 비디오 켜기
+            toast({
+              title: "비디오 켜짐",
+              description: `호스트(${senderId})가 비디오를 켰습니다.`,
+            });
+          }
+        }
+        break;
+        
+      default:
+        console.log('알 수 없는 RTM 메시지 타입:', data.type);
+    }
+  };
+
   const connectToAgora = async () => {
     try {
       console.log('Agora 연결 시작:', {
         appId: config.appId,
         channelName: config.channelName,
         uid: config.uid,
-        hasToken: !!config.token
+        hasToken: !!config.token,
+        hasAppCertificate: !!config.appCertificate,
+        testMode: !config.appCertificate || !config.token
       });
+
+      if (!config.appCertificate || !config.token) {
+        console.log('🧪 테스트 모드로 연결 시도 - 토큰 없이 진행');
+      }
 
       // 새로운 Agora RTC 클라이언트 생성
       const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
@@ -183,15 +345,26 @@ const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
       setParticipants([
         {
           id: "local",
-          name: `User ${uid}`,
+          name: config.participantName || `User ${uid}`,
           isVideoOn: true,
           isAudioOn: true,
-          isScreenSharing: false
+          isScreenSharing: false,
+          role: config.role,
+          permissions: config.isHost ? {
+            canKickOut: true,
+            canMuteOthers: true,
+            canChangeRole: true,
+            canManageRoom: true
+          } : undefined
         }
       ]);
 
+      // RTC 연결 완료 후 RTM 연결 시작
+      await connectToRTM();
+
       // 원격 사용자 이벤트 리스너
       client.on('user-published', async (user, mediaType) => {
+        console.log('🔵 user-published 이벤트:', { uid: user.uid, mediaType });
         await client.subscribe(user, mediaType);
         
         if (mediaType === 'video' && remoteVideosRef.current) {
@@ -205,26 +378,68 @@ const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
         // 참가자 목록 업데이트
         setParticipants(prev => {
           const existing = prev.find(p => p.id === user.uid.toString());
+          console.log('참가자 목록 업데이트:', { 
+            uid: user.uid, 
+            existing: !!existing, 
+            currentParticipants: prev.length,
+            mediaType 
+          });
+          
           if (existing) {
-            return prev.map(p => 
+            const updated = prev.map(p => 
               p.id === user.uid.toString() 
                 ? { ...p, isVideoOn: !!user.videoTrack, isAudioOn: !!user.audioTrack }
                 : p
             );
+            console.log('기존 참가자 업데이트:', updated);
+            return updated;
           } else {
-            return [...prev, {
+            const newParticipant = {
               id: user.uid.toString(),
               name: `User ${user.uid}`,
               isVideoOn: !!user.videoTrack,
               isAudioOn: !!user.audioTrack,
               isScreenSharing: false
-            }];
+            };
+            const updated = [...prev, newParticipant];
+            console.log('새 참가자 추가:', newParticipant, 'Total:', updated.length);
+            return updated;
           }
         });
       });
 
       client.on('user-unpublished', (user) => {
+        console.log('🔴 user-unpublished 이벤트:', user.uid);
         setParticipants(prev => prev.filter(p => p.id !== user.uid.toString()));
+      });
+
+      client.on('user-joined', (user) => {
+        console.log('🟢 user-joined 이벤트:', user.uid);
+        // 참가자가 채널에 참여했지만 아직 미디어를 발행하지 않은 경우
+        setParticipants(prev => {
+          const existing = prev.find(p => p.id === user.uid.toString());
+          if (!existing) {
+            const newParticipant = {
+              id: user.uid.toString(),
+              name: `User ${user.uid}`,
+              isVideoOn: false, // 아직 미디어 발행 안함
+              isAudioOn: false, // 아직 미디어 발행 안함
+              isScreenSharing: false
+            };
+            console.log('채널 참여자 추가:', newParticipant);
+            return [...prev, newParticipant];
+          }
+          return prev;
+        });
+      });
+
+      client.on('user-left', (user) => {
+        console.log('🟡 user-left 이벤트:', user.uid);
+        setParticipants(prev => {
+          const filtered = prev.filter(p => p.id !== user.uid.toString());
+          console.log('참가자 제거:', user.uid, 'Remaining:', filtered.length);
+          return filtered;
+        });
       });
 
     } catch (error) {
@@ -293,12 +508,191 @@ const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
         packetLoss: 0
       });
 
+      // RTM 연결 해제
+      if (rtmChannel) {
+        await rtmChannel.leave();
+        setRtmChannel(null);
+      }
+      if (rtmClient) {
+        await rtmClient.logout();
+        setRtmClient(null);
+      }
+      setRtmConnected(false);
+
       toast({
         title: "연결 종료",
         description: "Agora 세션에서 나갔습니다.",
       });
     } catch (error) {
       console.error('Disconnect failed:', error);
+    }
+  };
+
+  // 호스트 전용 - 참가자 강제 퇴장
+  const kickParticipant = async (participantId: string, participantName: string) => {
+    if (!rtmClient || !config.isHost) {
+      toast({
+        title: "권한 없음",
+        description: "호스트만 참가자를 강제 퇴장시킬 수 있습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (participantId === 'local') {
+      toast({
+        title: "작업 불가",
+        description: "자신을 강제 퇴장시킬 수 없습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log(`[HOST ACTION] Kicking participant: ${participantName} (${participantId})`);
+      
+      const kickMessage = {
+        type: 'FORCE_LEAVE',
+        target: participantId,
+        reason: 'Host requested removal',
+        timestamp: Date.now(),
+        from: config.participantName || config.uid || 'host'
+      };
+
+      // RTM P2P 메시지로 퇴장 신호 전송
+      await rtmClient.sendMessageToPeer(
+        { text: JSON.stringify(kickMessage) },
+        participantId
+      );
+
+      // 채널에도 브로드캐스트 (다른 참가자들도 알 수 있도록)
+      if (rtmChannel) {
+        await rtmChannel.sendMessage({
+          text: JSON.stringify({
+            type: 'PARTICIPANT_REMOVED',
+            target: participantId,
+            by: config.participantName || config.uid || 'host',
+            timestamp: Date.now()
+          })
+        });
+      }
+
+      toast({
+        title: "퇴장 신호 전송",
+        description: `${participantName} 참가자에게 퇴장 신호를 전송했습니다.`,
+      });
+
+      // 참가자 목록에서 즉시 제거 (UI 반응성)
+      setParticipants(prev => prev.filter(p => p.id !== participantId));
+
+      console.log(`[SUCCESS] Kick signal sent to ${participantName} (${participantId})`);
+    } catch (error) {
+      console.error('Failed to kick participant:', error);
+      toast({
+        title: "강제 퇴장 실패",
+        description: "참가자 강제 퇴장에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // 호스트 전용 - 참가자 음소거 제어
+  const muteParticipant = async (participantId: string, participantName: string, isMuted: boolean) => {
+    if (!rtmClient || !config.isHost) {
+      toast({
+        title: "권한 없음",
+        description: "호스트만 참가자를 음소거/음소거 해제할 수 있습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (participantId === 'local') {
+      toast({
+        title: "작업 불가",
+        description: "자신을 음소거 제어할 수 없습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const muteMessage = {
+        type: 'MUTE_AUDIO',
+        target: participantId,
+        action: isMuted ? 'unmute' : 'mute',
+        timestamp: Date.now(),
+        from: config.participantName || config.uid || 'host'
+      };
+
+      await rtmClient.sendMessageToPeer(
+        { text: JSON.stringify(muteMessage) },
+        participantId
+      );
+
+      toast({
+        title: isMuted ? "음소거 해제 요청" : "음소거 요청",
+        description: `${participantName} 참가자에게 ${isMuted ? '음소거 해제' : '음소거'} 신호를 전송했습니다.`,
+      });
+
+      console.log(`[HOST ACTION] ${isMuted ? 'Unmute' : 'Mute'} signal sent to ${participantName}`);
+    } catch (error) {
+      console.error('Failed to mute participant:', error);
+      toast({
+        title: "음소거 제어 실패",
+        description: "참가자 음소거 제어에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // 호스트 전용 - 참가자 비디오 제어
+  const muteParticipantVideo = async (participantId: string, participantName: string, isVideoOff: boolean) => {
+    if (!rtmClient || !config.isHost) {
+      toast({
+        title: "권한 없음",
+        description: "호스트만 참가자 비디오를 제어할 수 있습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (participantId === 'local') {
+      toast({
+        title: "작업 불가",
+        description: "자신의 비디오를 제어할 수 없습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const muteVideoMessage = {
+        type: 'MUTE_VIDEO',
+        target: participantId,
+        action: isVideoOff ? 'unmute' : 'mute',
+        timestamp: Date.now(),
+        from: config.participantName || config.uid || 'host'
+      };
+
+      await rtmClient.sendMessageToPeer(
+        { text: JSON.stringify(muteVideoMessage) },
+        participantId
+      );
+
+      toast({
+        title: isVideoOff ? "비디오 켜기 요청" : "비디오 끄기 요청",
+        description: `${participantName} 참가자에게 비디오 ${isVideoOff ? '켜기' : '끄기'} 신호를 전송했습니다.`,
+      });
+
+      console.log(`[HOST ACTION] ${isVideoOff ? 'Unmute video' : 'Mute video'} signal sent to ${participantName}`);
+    } catch (error) {
+      console.error('Failed to control participant video:', error);
+      toast({
+        title: "비디오 제어 실패",
+        description: "참가자 비디오 제어에 실패했습니다.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -454,7 +848,10 @@ const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
                 className="flex-1 bg-agora-primary hover:bg-agora-primary/90"
               >
                 <Phone className="w-4 h-4 mr-2" />
-                {connectionStatus.connecting ? "연결 중..." : "회의 참여"}
+                {connectionStatus.connecting 
+                  ? "연결 중..." 
+                  : (!config.appCertificate ? "회의 참여 (테스트 모드)" : "회의 참여")
+                }
               </Button>
             ) : (
               <Button
@@ -470,7 +867,14 @@ const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
 
           {!isConfigValid && (
             <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
-              ⚠️ Agora 설정을 완료하고 토큰을 생성해야 연결할 수 있습니다.
+              ⚠️ App ID와 Channel Name을 입력해야 연결할 수 있습니다.
+            </div>
+          )}
+
+          {isConfigValid && !config.appCertificate && (
+            <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
+              🧪 <strong>테스트 모드</strong>: App Certificate가 없어 토큰 없이 연결합니다. 
+              프로덕션 환경에서는 App Certificate와 토큰을 사용하세요.
             </div>
           )}
 
@@ -599,7 +1003,13 @@ const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
       {connectionStatus.connected && participants.length > 0 && (
         <Card className="bg-card border-border shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">참가자 목록</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Users className="w-4 h-4" />
+              참가자 목록 ({participants.length})
+              {config.isHost && (
+                <Crown className="w-4 h-4 text-yellow-500" title="호스트 권한 활성화됨" />
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -611,7 +1021,12 @@ const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
                     </div>
                     <span className="text-sm font-medium">{participant.name}</span>
                     {participant.id === 'local' && (
-                      <Badge variant="outline" className="text-xs">나</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="outline" className="text-xs">나</Badge>
+                        {config.isHost && (
+                          <Crown className="w-3 h-3 text-yellow-500" title="호스트" />
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
@@ -628,10 +1043,83 @@ const AgoraMeetingArea = ({ config }: { config: AgoraConfig }) => {
                     {participant.isScreenSharing && (
                       <Monitor className="w-3 h-3 text-primary" />
                     )}
+                    
+                    {/* 호스트 컨트롤 - 원격 참가자만 */}
+                    {config.isHost && participant.id !== 'local' && rtmConnected && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-1">
+                            <MoreVertical className="w-3 h-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem 
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => kickParticipant(participant.id, participant.name)}
+                          >
+                            <UserX className="w-4 h-4 mr-2" />
+                            강제 퇴장
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => muteParticipant(participant.id, participant.name, !participant.isAudioOn)}
+                          >
+                            {participant.isAudioOn ? (
+                              <>
+                                <MicOff className="w-4 h-4 mr-2" />
+                                음소거
+                              </>
+                            ) : (
+                              <>
+                                <Mic className="w-4 h-4 mr-2" />
+                                음소거 해제
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => muteParticipantVideo(participant.id, participant.name, !participant.isVideoOn)}
+                          >
+                            {participant.isVideoOn ? (
+                              <>
+                                <VideoOff className="w-4 h-4 mr-2" />
+                                비디오 끄기
+                              </>
+                            ) : (
+                              <>
+                                <Video className="w-4 h-4 mr-2" />
+                                비디오 켜기
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
+            
+            {/* RTM 연결 상태 표시 */}
+            {config.isHost && (
+              <div className="mt-4 pt-3 border-t border-border">
+                <div className="flex items-center gap-2 text-xs">
+                  <div className={`w-2 h-2 rounded-full ${rtmConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className="text-muted-foreground">
+                    RTM 상태: {rtmConnected ? '연결됨' : '연결 안됨'}
+                  </span>
+                  {rtmConnected && (
+                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                      관리 권한 활성화
+                    </Badge>
+                  )}
+                </div>
+                {!rtmConnected && (
+                  <p className="text-xs text-destructive mt-1">
+                    RTM 연결이 필요합니다. 참가자 관리 기능이 제한됩니다.
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

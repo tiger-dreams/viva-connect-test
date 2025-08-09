@@ -5,8 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Key, Shield, Users, Video, X } from "lucide-react";
-import { AgoraConfig } from "@/types/video-sdk";
+import { Copy, Key, Shield, Users, Video, X, Crown, User } from "lucide-react";
+import { AgoraConfig, ParticipantRole } from "@/types/video-sdk";
+import { Checkbox } from "@/components/ui/checkbox";
 import { generateAgoraToken, getTokenExpiration } from "@/utils/token-generator";
 import { useToast } from "@/hooks/use-toast";
 
@@ -53,7 +54,8 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
         config.channelName,
         config.uid || "0",
         role,
-        parseInt(expirationTime)
+        parseInt(expirationTime),
+        config.isHost || false
       );
 
       onConfigChange({ ...config, token });
@@ -161,6 +163,87 @@ export const AgoraConfigPanel = ({ config, onConfigChange }: AgoraConfigPanelPro
               value={config.uid}
               onChange={(e) => handleInputChange("uid", e.target.value)}
             />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="participantName">참가자 이름</Label>
+            <Input
+              id="participantName"
+              placeholder="화상회의에 표시될 이름"
+              value={config.participantName || ""}
+              onChange={(e) => handleInputChange("participantName", e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* 호스트 권한 설정 */}
+        <div className="space-y-4 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <Crown className="w-4 h-4 text-yellow-500" />
+              참가 권한 설정
+            </h4>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isHost"
+                checked={config.isHost || false}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    onConfigChange({ 
+                      ...config, 
+                      isHost: true, 
+                      role: ParticipantRole.HOST 
+                    });
+                  } else {
+                    onConfigChange({ 
+                      ...config, 
+                      isHost: false, 
+                      role: ParticipantRole.PARTICIPANT 
+                    });
+                  }
+                }}
+              />
+              <Label htmlFor="isHost" className="flex items-center gap-2">
+                {config.isHost ? <Crown className="w-4 h-4 text-yellow-500" /> : <User className="w-4 h-4" />}
+                호스트로 참여
+              </Label>
+            </div>
+
+            <div className="text-xs text-muted-foreground pl-6">
+              {config.isHost ? (
+                <div className="space-y-1">
+                  <p className="text-yellow-600 font-medium">🎯 호스트 권한:</p>
+                  <ul className="space-y-0.5 text-muted-foreground">
+                    <li>• 참가자 강제 퇴장 (RTM 메시징)</li>
+                    <li>• 참가자 음소거/영상 끄기 제어</li>
+                    <li>• 채널 관리 권한</li>
+                    <li>• 다른 참가자 역할 변경</li>
+                  </ul>
+                </div>
+              ) : (
+                <p>일반 참가자로 입장하며, 기본적인 화상회의 기능만 사용할 수 있습니다.</p>
+              )}
+            </div>
+
+            {config.isHost && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <Shield className="w-4 h-4 text-yellow-600 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                      호스트 모드 주의사항
+                    </p>
+                    <p className="text-yellow-700 dark:text-yellow-300">
+                      호스트 권한으로 생성된 토큰은 참가자 관리 권한을 포함합니다. 
+                      RTM 메시징을 통해 실시간 참가자 제어가 가능하지만, 토큰 보안에 주의하세요.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
