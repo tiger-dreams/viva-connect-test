@@ -42,31 +42,121 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
   const [callDuration, setCallDuration] = useState<string>("00:00:00");
   const [showDeviceSettings, setShowDeviceSettings] = useState(false);
-  
+  const [currentDevices, setCurrentDevices] = useState<{
+    audioInput?: MediaDeviceInfo;
+    audioOutput?: MediaDeviceInfo;
+    videoInput?: MediaDeviceInfo;
+  }>({});
+  const [devicePermissions, setDevicePermissions] = useState<{
+    microphone: PermissionState | "unknown";
+    camera: PermissionState | "unknown";
+  }>({ microphone: "unknown", camera: "unknown" });
+  const [isWebView, setIsWebView] = useState(false);
+
   // 비디오 엘리먼트 refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const audioElementRef = useRef<HTMLAudioElement>(null);
   const [conference, setConference] = useState<any>(null);
 
+  // WebView 환경 감지 (PlanetKit 5.5+)
+  useEffect(() => {
+    const detectWebView = () => {
+      const userAgent = navigator.userAgent || navigator.vendor;
+      // iOS WebView 감지
+      const isIOSWebView = /(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)/i.test(userAgent);
+      // Android WebView 감지
+      const isAndroidWebView = /Android.*wv\)/i.test(userAgent);
+
+      const detected = isIOSWebView || isAndroidWebView;
+      setIsWebView(detected);
+
+      if (detected) {
+        toast({
+          title: "WebView 환경 감지",
+          description: "화면 공유 및 가상 배경 기능은 WebView에서 지원되지 않습니다.",
+          variant: "default",
+        });
+      }
+    };
+
+    detectWebView();
+  }, []);
+
+  // 디바이스 권한 모니터링 (PlanetKit 5.5+)
+  useEffect(() => {
+    const checkPermissions = async () => {
+      try {
+        // 마이크 권한 확인
+        const micPermission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+        setDevicePermissions(prev => ({ ...prev, microphone: micPermission.state }));
+
+        micPermission.addEventListener('change', () => {
+          setDevicePermissions(prev => ({ ...prev, microphone: micPermission.state }));
+        });
+
+        // 카메라 권한 확인
+        const cameraPermission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        setDevicePermissions(prev => ({ ...prev, camera: cameraPermission.state }));
+
+        cameraPermission.addEventListener('change', () => {
+          setDevicePermissions(prev => ({ ...prev, camera: cameraPermission.state }));
+        });
+      } catch (error) {
+        console.warn('권한 확인 API 지원되지 않음:', error);
+      }
+    };
+
+    checkPermissions();
+  }, []);
+
+  // 현재 사용 중인 미디어 디바이스 정보 조회 (PlanetKit 5.5+)
+  useEffect(() => {
+    const updateCurrentDevices = async () => {
+      if (!connectionStatus.connected || !conference) return;
+
+      try {
+        // PlanetKit 5.5의 새로운 API를 사용하여 현재 디바이스 정보 가져오기
+        if (conference.getCurrentAudioInputDevice) {
+          const audioInput = await conference.getCurrentAudioInputDevice();
+          setCurrentDevices(prev => ({ ...prev, audioInput }));
+        }
+
+        if (conference.getCurrentAudioOutputDevice) {
+          const audioOutput = await conference.getCurrentAudioOutputDevice();
+          setCurrentDevices(prev => ({ ...prev, audioOutput }));
+        }
+
+        if (conference.getCurrentVideoInputDevice) {
+          const videoInput = await conference.getCurrentVideoInputDevice();
+          setCurrentDevices(prev => ({ ...prev, videoInput }));
+        }
+      } catch (error) {
+        console.warn('현재 디바이스 정보 조회 실패:', error);
+      }
+    };
+
+    updateCurrentDevices();
+  }, [connectionStatus.connected, conference]);
+
   // 통화 시간 업데이트
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (connectionStatus.connected && connectionStartTime) {
       interval = setInterval(() => {
         const now = new Date();
         const elapsed = Math.floor((now.getTime() - connectionStartTime.getTime()) / 1000);
-        
+
         const hours = Math.floor(elapsed / 3600);
         const minutes = Math.floor((elapsed % 3600) / 60);
         const seconds = elapsed % 60;
-        
+
         setCallDuration(
           `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
         );
       }, 1000);
     }
-    
+
     return () => {
       if (interval) clearInterval(interval);
     };
@@ -520,6 +610,8 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                   variant={isScreenSharing ? "default" : "outline"}
                   size="sm"
                   className="flex items-center gap-2"
+                  disabled={isWebView}
+                  title={isWebView ? "WebView 환경에서는 화면 공유가 지원되지 않습니다" : ""}
                 >
                   {isScreenSharing ? (
                     <MonitorOff className="w-4 h-4" />
@@ -559,6 +651,93 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
         </Card>
       )}
 
+      {/* 디바이스 및 권한 정보 (PlanetKit 5.5+) */}
+      {connectionStatus.connected && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Settings className="w-4 h-4" />
+              디바이스 및 권한 상태
+              <Badge variant="outline" className="text-xs">PlanetKit 5.5</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs space-y-3">
+            {/* 권한 상태 */}
+            <div className="space-y-2">
+              <div className="font-semibold text-sm">권한 상태</div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground flex items-center gap-2">
+                  <Mic className="w-3 h-3" />
+                  마이크:
+                </span>
+                <Badge variant={devicePermissions.microphone === 'granted' ? 'default' : 'secondary'}>
+                  {devicePermissions.microphone === 'granted' ? '허용됨' :
+                   devicePermissions.microphone === 'denied' ? '거부됨' :
+                   devicePermissions.microphone === 'prompt' ? '대기 중' : '알 수 없음'}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground flex items-center gap-2">
+                  <Video className="w-3 h-3" />
+                  카메라:
+                </span>
+                <Badge variant={devicePermissions.camera === 'granted' ? 'default' : 'secondary'}>
+                  {devicePermissions.camera === 'granted' ? '허용됨' :
+                   devicePermissions.camera === 'denied' ? '거부됨' :
+                   devicePermissions.camera === 'prompt' ? '대기 중' : '알 수 없음'}
+                </Badge>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* 현재 사용 중인 디바이스 */}
+            <div className="space-y-2">
+              <div className="font-semibold text-sm">현재 사용 중인 디바이스</div>
+              {currentDevices.audioInput && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">오디오 입력:</span>
+                  <span className="font-mono text-right max-w-[60%] truncate" title={currentDevices.audioInput.label}>
+                    {currentDevices.audioInput.label || currentDevices.audioInput.deviceId}
+                  </span>
+                </div>
+              )}
+              {currentDevices.audioOutput && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">오디오 출력:</span>
+                  <span className="font-mono text-right max-w-[60%] truncate" title={currentDevices.audioOutput.label}>
+                    {currentDevices.audioOutput.label || currentDevices.audioOutput.deviceId}
+                  </span>
+                </div>
+              )}
+              {currentDevices.videoInput && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">비디오 입력:</span>
+                  <span className="font-mono text-right max-w-[60%] truncate" title={currentDevices.videoInput.label}>
+                    {currentDevices.videoInput.label || currentDevices.videoInput.deviceId}
+                  </span>
+                </div>
+              )}
+              {!currentDevices.audioInput && !currentDevices.audioOutput && !currentDevices.videoInput && (
+                <p className="text-muted-foreground">디바이스 정보를 가져오는 중...</p>
+              )}
+            </div>
+
+            {isWebView && (
+              <>
+                <Separator />
+                <div className="bg-amber-50 dark:bg-amber-950 p-2 rounded border border-amber-200 dark:border-amber-800">
+                  <p className="text-amber-800 dark:text-amber-200 font-medium">⚠️ WebView 환경</p>
+                  <p className="text-amber-700 dark:text-amber-300 mt-1">
+                    화면 공유 및 가상 배경 기능은 지원되지 않습니다.
+                  </p>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Conference 정보 */}
       <Card>
         <CardHeader>
@@ -588,8 +767,11 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
           </div>
           <Separator className="my-2" />
           <p className="text-muted-foreground">
-            LINE Planet PlanetKit을 사용한 화상회의입니다. 
+            LINE Planet PlanetKit 5.5를 사용한 화상회의입니다.
             비디오, 오디오, 화면공유 기능을 사용할 수 있습니다.
+          </p>
+          <p className="text-muted-foreground mt-2">
+            <strong>최소 브라우저 요구사항:</strong> Safari 16.4+ (Desktop/iOS)
           </p>
         </CardContent>
       </Card>

@@ -33,10 +33,10 @@ npm run preview
 ### Tech Stack
 - **Frontend**: Vite + React 18 + TypeScript
 - **Styling**: Tailwind CSS + shadcn/ui components (complete component library)
-- **Video SDKs**: 
+- **Video SDKs**:
   - Agora Web SDK 4.24.0 (`agora-rtc-sdk-ng`)
   - LiveKit Client 2.15.4 (`livekit-client`)
-  - LINE PlanetKit 5.3.0 (`@line/planet-kit`)
+  - LINE PlanetKit 5.5.0 (`@line/planet-kit`)
 - **Token Generation**: Client-side JWT using `jose` library with role-based permissions
 - **State Management**: React hooks + localStorage for persistence + Context API
 - **Routing**: React Router DOM with multiple page layouts
@@ -154,13 +154,16 @@ const participantToken = await generateLiveKitToken(
 
 ### Recent Major Updates
 
-#### Latest Commit: LiveKit Host/Participant Role System
-- Implemented comprehensive role-based access control
-- Added participant kickout functionality for hosts
-- Enhanced token generation with permission-based JWT claims
-- UI indicators for host privileges (crown icons, management dropdowns)
+#### Latest Update: PlanetKit 5.5 Integration (November 2025)
+- **Media Device Information APIs**: Query current audio/video device info during active calls
+- **Device Permission Monitoring**: Real-time microphone/camera permission state tracking
+- **WebView Support (Beta)**: iOS and Android WebView environment compatibility
+  - Note: Screen share and virtual background features not supported in WebView
+- **Browser Requirements Updated**: Minimum Safari version increased to 16.4 (Desktop/iOS)
+- **Enhanced UI**: Added device status panel with permission states and current device display
 
 #### Previous Updates
+- **LiveKit Host/Participant Role System**: Role-based access control with kickout functionality
 - **AI Agent Integration**: OpenAI Realtime API voice agents
 - **Video Statistics**: Comprehensive WebRTC metrics collection
 - **PlanetKit Integration**: LINE's video SDK support

@@ -22,11 +22,11 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* 기존 페이지 (호환성 유지) */}
-            <Route path="/" element={<Index />} />
-            
-            {/* 새로운 페이지 구조 */}
-            <Route path="/setup" element={<SetupPage />} />
+            {/* 새로운 페이지 구조 (기본 페이지) */}
+            <Route path="/" element={<SetupPage />} />
+
+            {/* 기존 페이지 (레거시 UI 호환성 유지) */}
+            <Route path="/legacy" element={<Index />} />
             
             {/* SDK별 분리된 미팅 페이지 */}
             <Route path="/agora_meeting" element={<AgoraMeeting />} />
