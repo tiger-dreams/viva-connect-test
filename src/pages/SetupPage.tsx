@@ -28,34 +28,34 @@ const SetupPage = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* 헤더 */}
-      <div className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <h1 className="text-3xl font-bold text-primary">
-                Video SDK 테스트 도구
+      {/* 헤더 - 모바일 최적화 */}
+      <div className="border-b border-border bg-card sticky top-0 z-50">
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+            <div className="space-y-0.5 sm:space-y-1">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">
+                Video SDK 테스트
               </h1>
-              <p className="text-muted-foreground">
-                Agora, LiveKit, PlanetKit을 테스트하고 디버깅하는 개발자 도구
+              <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+                Agora, LiveKit, PlanetKit 테스트 도구
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30 text-xs">
                 <Activity className="w-3 h-3 mr-1" />
-                개발 모드
+                개발
               </Badge>
-              <Badge variant="outline" className="bg-accent/20 text-accent border-accent/30">
+              <Badge variant="outline" className="bg-accent/20 text-accent border-accent/30 text-xs">
                 <Zap className="w-3 h-3 mr-1" />
-                실시간 테스트
+                실시간
               </Badge>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6">
-        <div className="max-w-2xl mx-auto space-y-6">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
+        <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
           {/* 프로젝트 정보 */}
           <Card className="bg-card border-border shadow-sm">
             <CardHeader className="pb-3">
@@ -79,7 +79,7 @@ const SetupPage = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">PlanetKit:</span>
-                <span>5.3.0</span>
+                <span>5.5.0</span>
               </div>
               <Separator className="my-2" />
               <p className="text-muted-foreground">
@@ -112,13 +112,13 @@ const SetupPage = () => {
             />
           )}
 
-          {/* 참여하기 버튼 */}
+          {/* 참여하기 버튼 - 모바일 최적화 */}
           <Card className="bg-card border-border shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+            <CardHeader className="pb-3 sm:pb-6">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                 화상회의 참여
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 설정을 완료하고 화상회의에 참여하세요
               </CardDescription>
             </CardHeader>
@@ -126,7 +126,7 @@ const SetupPage = () => {
               <Button
                 onClick={handleJoinMeeting}
                 disabled={!isConfigured}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 sm:h-14 text-base sm:text-lg font-semibold touch-manipulation"
                 size="lg"
               >
                 {isConfigured ? (
