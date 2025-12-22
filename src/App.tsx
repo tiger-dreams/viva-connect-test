@@ -24,6 +24,7 @@ const App = () => (
           <Routes>
             {/* 새로운 페이지 구조 (기본 페이지) */}
             <Route path="/" element={<SetupPage />} />
+            <Route path="/setup" element={<SetupPage />} />
 
             {/* 기존 페이지 (레거시 UI 호환성 유지) */}
             <Route path="/legacy" element={<Index />} />
