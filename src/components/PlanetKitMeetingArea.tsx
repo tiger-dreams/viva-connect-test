@@ -63,6 +63,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   const audioElementRef = useRef<HTMLAudioElement>(null);
   const blurCanvasRef = useRef<HTMLCanvasElement>(null);
   const [conference, setConference] = useState<any>(null);
+  const virtualBackgroundRef = useRef<any>(null); // VirtualBackground 인스턴스 저장
   // 원격 참가자 비디오 엘리먼트 맵
   const remoteVideoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
 
@@ -327,25 +328,40 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
               // 가상 배경 기능 등록 (Safari는 미지원)
               const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-              if (!isSafari && !isWebView && planetKitConference && typeof planetKitConference.registerVirtualBackground === 'function') {
+              if (!isSafari && !isWebView && planetKitConference && typeof planetKitConference.registerVirtualBackground === 'function' && localVideoRef.current) {
                 console.log('🎨 가상 배경 기능 등록 시도 중...');
                 try {
-                  const registerResult = planetKitConference.registerVirtualBackground();
-                  // Promise인지 확인하고 await
-                  if (registerResult && typeof registerResult.then === 'function') {
-                    await registerResult;
+                  // 환경에 맞는 PlanetKit 모듈 선택
+                  const PlanetKit = config.environment === 'real' ? PlanetKitReal : PlanetKitEval;
+
+                  // VirtualBackground 인스턴스 생성
+                  if (PlanetKit.VirtualBackground) {
+                    const virtualBackground = new PlanetKit.VirtualBackground({
+                      videoElement: localVideoRef.current
+                    });
+                    virtualBackgroundRef.current = virtualBackground;
+                    console.log('✅ VirtualBackground 인스턴스 생성됨');
+
+                    // VirtualBackground 인스턴스를 파라미터로 전달하여 등록
+                    const registerResult = planetKitConference.registerVirtualBackground(virtualBackground);
+                    // Promise인지 확인하고 await
+                    if (registerResult && typeof registerResult.then === 'function') {
+                      await registerResult;
+                    }
+
+                    // 등록 후 고정 시간 대기 (isVirtualBackgroundRegistered가 신뢰할 수 없음)
+                    console.log('⏳ 가상 배경 초기화 대기 중 (3초)...');
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+
+                    console.log('✅ 가상 배경 기능 등록 완료 (시간 기반)');
+                    setIsVirtualBackgroundReady(true);
+                    toast({
+                      title: "가상 배경 준비 완료",
+                      description: "배경 블러 기능을 사용할 수 있습니다.",
+                    });
+                  } else {
+                    throw new Error('VirtualBackground 클래스를 사용할 수 없습니다');
                   }
-
-                  // 등록 후 고정 시간 대기 (isVirtualBackgroundRegistered가 신뢰할 수 없음)
-                  console.log('⏳ 가상 배경 초기화 대기 중 (3초)...');
-                  await new Promise(resolve => setTimeout(resolve, 3000));
-
-                  console.log('✅ 가상 배경 기능 등록 완료 (시간 기반)');
-                  setIsVirtualBackgroundReady(true);
-                  toast({
-                    title: "가상 배경 준비 완료",
-                    description: "배경 블러 기능을 사용할 수 있습니다.",
-                  });
                 } catch (err: any) {
                   console.error('❌ 가상 배경 등록 실패:', err);
                   setIsVirtualBackgroundReady(false);
@@ -872,24 +888,39 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
             });
 
             try {
-              if (typeof conference.registerVirtualBackground === 'function') {
-                const registerResult = conference.registerVirtualBackground();
+              if (typeof conference.registerVirtualBackground === 'function' && localVideoRef.current) {
+                // 환경에 맞는 PlanetKit 모듈 선택
+                const PlanetKit = config.environment === 'real' ? PlanetKitReal : PlanetKitEval;
 
-                // Promise인지 확인하고 await
-                if (registerResult && typeof registerResult.then === 'function') {
-                  await registerResult;
+                // VirtualBackground 인스턴스 생성
+                if (PlanetKit.VirtualBackground) {
+                  const virtualBackground = new PlanetKit.VirtualBackground({
+                    videoElement: localVideoRef.current
+                  });
+                  virtualBackgroundRef.current = virtualBackground;
+                  console.log('✅ VirtualBackground 인스턴스 생성됨 (자동 등록)');
+
+                  // VirtualBackground 인스턴스를 파라미터로 전달하여 등록
+                  const registerResult = conference.registerVirtualBackground(virtualBackground);
+
+                  // Promise인지 확인하고 await
+                  if (registerResult && typeof registerResult.then === 'function') {
+                    await registerResult;
+                  }
+
+                  // 등록 후 고정 시간 대기 (isVirtualBackgroundRegistered가 신뢰할 수 없음)
+                  console.log('⏳ 가상 배경 초기화 대기 중 (3초)...');
+                  await new Promise(resolve => setTimeout(resolve, 3000));
+
+                  setIsVirtualBackgroundReady(true);
+                  console.log('✅ 가상 배경 자동 등록 완료 (시간 기반)');
+                  toast({
+                    title: "등록 완료",
+                    description: "배경 블러 기능이 준비되었습니다.",
+                  });
+                } else {
+                  throw new Error('VirtualBackground 클래스를 사용할 수 없습니다');
                 }
-
-                // 등록 후 고정 시간 대기 (isVirtualBackgroundRegistered가 신뢰할 수 없음)
-                console.log('⏳ 가상 배경 초기화 대기 중 (3초)...');
-                await new Promise(resolve => setTimeout(resolve, 3000));
-
-                setIsVirtualBackgroundReady(true);
-                console.log('✅ 가상 배경 자동 등록 완료 (시간 기반)');
-                toast({
-                  title: "등록 완료",
-                  description: "배경 블러 기능이 준비되었습니다.",
-                });
               } else {
                 throw new Error('registerVirtualBackground 메서드를 사용할 수 없습니다');
               }
