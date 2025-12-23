@@ -42,6 +42,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isBlurEnabled, setIsBlurEnabled] = useState(false);
+  const [isVirtualBackgroundReady, setIsVirtualBackgroundReady] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
   const [callDuration, setCallDuration] = useState<string>("00:00:00");
@@ -328,6 +329,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 planetKitConference.registerVirtualBackground()
                   .then(() => {
                     console.log('✅ 가상 배경 기능 등록 완료');
+                    setIsVirtualBackgroundReady(true);
                     toast({
                       title: "가상 배경 준비 완료",
                       description: "배경 블러 기능을 사용할 수 있습니다.",
@@ -335,11 +337,19 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                   })
                   .catch((err: any) => {
                     console.error('❌ 가상 배경 등록 실패:', err);
+                    setIsVirtualBackgroundReady(false);
+                    toast({
+                      title: "가상 배경 등록 실패",
+                      description: "배경 블러 기능을 사용할 수 없습니다.",
+                      variant: "destructive",
+                    });
                   });
               } else if (isSafari) {
                 console.log('⚠️ Safari에서는 가상 배경 기능을 지원하지 않습니다');
+                setIsVirtualBackgroundReady(false);
               } else if (isWebView) {
                 console.log('⚠️ WebView에서는 가상 배경 기능을 지원하지 않습니다');
+                setIsVirtualBackgroundReady(false);
               }
             }, 500);
 
@@ -498,6 +508,50 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                     ...p,
                     isVideoOn: videoStatus.state === 'enabled'
                   };
+                }
+                return p;
+              }));
+            });
+          },
+
+          // 비디오 일시정지 이벤트
+          evtPeersVideoPaused: (peerInfoArray: any) => {
+            console.log('📹❌ Peers video paused:', peerInfoArray);
+            const peers = Array.isArray(peerInfoArray) ? peerInfoArray : [peerInfoArray];
+
+            peers.forEach((peerInfo: any) => {
+              const peerId = peerInfo.userId || peerInfo.peerId || peerInfo.id;
+              console.log(`📹❌ Peer ${peerId} 비디오 일시정지됨`);
+
+              setParticipants(prev => prev.map(p => {
+                if (p.id === peerId) {
+                  // 비디오 엘리먼트 숨기기
+                  if (p.videoElement) {
+                    p.videoElement.style.display = 'none';
+                  }
+                  return { ...p, isVideoOn: false };
+                }
+                return p;
+              }));
+            });
+          },
+
+          // 비디오 재개 이벤트
+          evtPeersVideoResumed: (peerInfoArray: any) => {
+            console.log('📹✅ Peers video resumed:', peerInfoArray);
+            const peers = Array.isArray(peerInfoArray) ? peerInfoArray : [peerInfoArray];
+
+            peers.forEach((peerInfo: any) => {
+              const peerId = peerInfo.userId || peerInfo.peerId || peerInfo.id;
+              console.log(`📹✅ Peer ${peerId} 비디오 재개됨`);
+
+              setParticipants(prev => prev.map(p => {
+                if (p.id === peerId) {
+                  // 비디오 엘리먼트 표시
+                  if (p.videoElement) {
+                    p.videoElement.style.display = 'block';
+                  }
+                  return { ...p, isVideoOn: true };
                 }
                 return p;
               }));
@@ -798,17 +852,14 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
       if (conference) {
         if (newBlurState) {
-          // 블러 활성화
-          if (typeof conference.isVirtualBackgroundRegistered === 'function') {
-            const isRegistered = await conference.isVirtualBackgroundRegistered();
-            if (!isRegistered) {
-              toast({
-                title: "등록 필요",
-                description: "가상 배경 기능이 아직 등록되지 않았습니다. 잠시 후 다시 시도하세요.",
-                variant: "destructive",
-              });
-              return;
-            }
+          // 블러 활성화 - isVirtualBackgroundReady 상태 확인
+          if (!isVirtualBackgroundReady) {
+            toast({
+              title: "등록 필요",
+              description: "가상 배경 기능이 아직 등록되지 않았습니다. 잠시 후 다시 시도하세요.",
+              variant: "destructive",
+            });
+            return;
           }
 
           if (typeof conference.startVirtualBackgroundBlur === 'function') {
