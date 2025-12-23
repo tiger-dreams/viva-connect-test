@@ -19,24 +19,18 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
   const [selectedSDK, setSelectedSDK] = useState<SDKType>('planetkit'); // Default to PlanetKit
 
   // PlanetKit: 환경 변수에서 설정 로드
-  const getDefaultPlanetKitConfig = (env: 'eval' | 'real' = 'eval'): PlanetKitConfig => ({
-    serviceId: env === 'eval'
-      ? import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || ''
-      : import.meta.env.VITE_PLANETKIT_REAL_SERVICE_ID || '',
-    apiKey: env === 'eval'
-      ? import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || ''
-      : import.meta.env.VITE_PLANETKIT_REAL_API_KEY || '',
-    apiSecret: env === 'eval'
-      ? import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || ''
-      : import.meta.env.VITE_PLANETKIT_REAL_API_SECRET || '',
+  const getDefaultPlanetKitConfig = (): PlanetKitConfig => ({
+    serviceId: import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || '',
+    apiKey: import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || '',
+    apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || '',
     userId: '', // LINE 프로필에서 자동으로 설정됨
-    roomId: 'planet-room-' + Date.now().toString().slice(-6), // 고유한 룸 ID 생성
+    roomId: '', // 사용자가 선택하도록 빈 값으로 시작
     accessToken: '',
-    environment: env
+    environment: '' // 사용자가 선택하도록 빈 값으로 시작
   });
 
   const [planetKitConfig, setPlanetKitConfig] = useState<PlanetKitConfig>(
-    getDefaultPlanetKitConfig('eval')
+    getDefaultPlanetKitConfig()
   );
 
   // localStorage에서 설정 복원

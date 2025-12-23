@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Copy, Key, Users, Hash, Trash2, Eye, EyeOff, Lock, Server } from "lucide-react";
+import { Copy, Key, Users, Hash, Trash2, Eye, EyeOff, Lock, Server, Globe } from "lucide-react";
 import { PlanetKitConfig } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
 import { generatePlanetKitToken } from "@/utils/token-generator";
@@ -21,6 +21,25 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
   const [isGenerating, setIsGenerating] = useState(false);
   const [showAccessToken, setShowAccessToken] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+
+  // 환경 변경 시 Service ID, API Key, API Secret 자동 업데이트
+  useEffect(() => {
+    if (config.environment === 'eval') {
+      onConfigChange({
+        ...config,
+        serviceId: import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || config.serviceId,
+        apiKey: import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || config.apiKey,
+        apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || config.apiSecret,
+      });
+    } else if (config.environment === 'real') {
+      onConfigChange({
+        ...config,
+        serviceId: import.meta.env.VITE_PLANETKIT_REAL_SERVICE_ID || config.serviceId,
+        apiKey: import.meta.env.VITE_PLANETKIT_REAL_API_KEY || config.apiKey,
+        apiSecret: import.meta.env.VITE_PLANETKIT_REAL_API_SECRET || config.apiSecret,
+      });
+    }
+  }, [config.environment]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -39,6 +58,24 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
   };
 
   const generateAccessToken = async () => {
+    if (!config.environment) {
+      toast({
+        title: "환경 선택 필요",
+        description: "Evaluation 또는 Real 환경을 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!config.roomId) {
+      toast({
+        title: "Room 선택 필요",
+        description: "참여할 Room을 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!config.serviceId || !config.apiKey || !config.userId) {
       toast({
         title: "필수 정보 누락",
@@ -139,13 +176,22 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
               </Label>
             </div>
           </RadioGroup>
-          <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
-            <p className="text-blue-800 dark:text-blue-200">
-              {config.environment === 'eval'
-                ? '📍 Evaluation 환경: voipnx-saturn.line-apps-rc.com (WebSocket이 제한될 수 있음)'
-                : '📍 Real 환경: voipnx-saturn.line-apps.com (안정적인 연결)'}
-            </p>
-          </div>
+          {config.environment && (
+            <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
+              <p className="text-blue-800 dark:text-blue-200">
+                {config.environment === 'eval'
+                  ? '📍 Evaluation 환경: voipnx-saturn.line-apps-rc.com (WebSocket이 제한될 수 있음)'
+                  : '📍 Real 환경: voipnx-saturn.line-apps.com (안정적인 연결)'}
+              </p>
+            </div>
+          )}
+          {!config.environment && (
+            <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950 p-2 rounded border border-amber-200 dark:border-amber-800">
+              <p className="text-amber-800 dark:text-amber-200">
+                ⚠️ 환경을 선택해주세요
+              </p>
+            </div>
+          )}
         </div>
 
         <Separator />
@@ -237,21 +283,56 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
           </p>
         </div>
 
-        {/* Room ID */}
-        <div className="space-y-2">
-          <Label htmlFor="roomId" className="flex items-center gap-2">
-            <Hash className="w-4 h-4" />
-            Room ID
+        {/* Room Selection */}
+        <div className="space-y-3 p-4 bg-muted/30 rounded-lg border border-border">
+          <Label className="flex items-center gap-2 text-base font-semibold">
+            <Globe className="w-4 h-4" />
+            Room 선택
           </Label>
-          <Input
-            id="roomId"
-            placeholder="룸 ID를 입력하세요"
+          <RadioGroup
             value={config.roomId}
-            onChange={(e) => onConfigChange({ ...config, roomId: e.target.value })}
-            className="font-mono"
-          />
+            onValueChange={(value) => onConfigChange({ ...config, roomId: value })}
+            className="grid grid-cols-2 gap-3"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="japan" id="room-japan" />
+              <Label htmlFor="room-japan" className="flex-1 cursor-pointer">
+                <div className="flex flex-col">
+                  <span className="font-medium">🇯🇵 Japan</span>
+                  <span className="text-xs text-muted-foreground">일본 룸</span>
+                </div>
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="korea" id="room-korea" />
+              <Label htmlFor="room-korea" className="flex-1 cursor-pointer">
+                <div className="flex flex-col">
+                  <span className="font-medium">🇰🇷 Korea</span>
+                  <span className="text-xs text-muted-foreground">한국 룸</span>
+                </div>
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="taiwan" id="room-taiwan" />
+              <Label htmlFor="room-taiwan" className="flex-1 cursor-pointer">
+                <div className="flex flex-col">
+                  <span className="font-medium">🇹🇼 Taiwan</span>
+                  <span className="text-xs text-muted-foreground">대만 룸</span>
+                </div>
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="thailand" id="room-thailand" />
+              <Label htmlFor="room-thailand" className="flex-1 cursor-pointer">
+                <div className="flex flex-col">
+                  <span className="font-medium">🇹🇭 Thailand</span>
+                  <span className="text-xs text-muted-foreground">태국 룸</span>
+                </div>
+              </Label>
+            </div>
+          </RadioGroup>
           <p className="text-xs text-muted-foreground">
-            참여할 화상회의 룸의 ID입니다.
+            같은 Room을 선택한 사용자들과 화상회의를 진행할 수 있습니다.
           </p>
         </div>
 
@@ -345,7 +426,15 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">환경:</span>
-              <span className="font-mono font-semibold">{config.environment === 'eval' ? 'Evaluation' : 'Real'}</span>
+              <span className="font-mono font-semibold">
+                {config.environment === 'eval' ? 'Evaluation' : config.environment === 'real' ? 'Real' : '미선택'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Room:</span>
+              <span className="font-mono font-semibold">
+                {config.roomId ? config.roomId.charAt(0).toUpperCase() + config.roomId.slice(1) : '미선택'}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Service ID:</span>
@@ -362,10 +451,6 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
             <div className="flex justify-between">
               <span className="text-muted-foreground">User ID:</span>
               <span className="font-mono">{config.userId || "미설정"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Room ID:</span>
-              <span className="font-mono">{config.roomId || "미설정"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Token:</span>
