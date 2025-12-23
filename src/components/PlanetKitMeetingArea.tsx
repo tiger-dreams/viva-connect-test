@@ -618,19 +618,22 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
     if (connectionStatus.connected) {
       try {
         const newAudioState = !isAudioOn;
-        
-        // 실제 PlanetKit의 경우
-        if (conference && conference.setAudioEnabled) {
-          await conference.setAudioEnabled(newAudioState);
+
+        // PlanetKit API: muteMyAudio(isMuted) - true면 음소거, false면 음소거 해제
+        if (conference && typeof conference.muteMyAudio === 'function') {
+          console.log(`🎤 오디오 상태 변경: ${newAudioState ? '켜짐' : '음소거'} (muteMyAudio(${!newAudioState}))`);
+          await conference.muteMyAudio(!newAudioState);  // newAudioState가 true면 뮤트 해제(false), false면 뮤트(true)
+        } else {
+          console.warn('⚠️ conference.muteMyAudio 메서드가 없습니다');
         }
-        
+
         setIsAudioOn(newAudioState);
-        
+
         // 로컬 참가자 상태 업데이트
-        setParticipants(prev => prev.map(p => 
+        setParticipants(prev => prev.map(p =>
           p.id === "local" ? { ...p, isAudioOn: newAudioState } : p
         ));
-        
+
         toast({
           title: newAudioState ? "마이크 켜짐" : "음소거",
           description: newAudioState ? "마이크가 활성화되었습니다." : "마이크가 음소거되었습니다.",
@@ -651,19 +654,35 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
     if (connectionStatus.connected) {
       try {
         const newVideoState = !isVideoOn;
-        
-        // 실제 PlanetKit의 경우
-        if (conference && conference.setVideoEnabled) {
-          await conference.setVideoEnabled(newVideoState);
+
+        // PlanetKit API: pauseMyVideo() / resumeMyVideo()
+        if (conference) {
+          if (newVideoState) {
+            // 비디오 켜기
+            if (typeof conference.resumeMyVideo === 'function') {
+              console.log('📹 비디오 켜기: resumeMyVideo()');
+              await conference.resumeMyVideo();
+            } else {
+              console.warn('⚠️ conference.resumeMyVideo 메서드가 없습니다');
+            }
+          } else {
+            // 비디오 끄기
+            if (typeof conference.pauseMyVideo === 'function') {
+              console.log('📹 비디오 끄기: pauseMyVideo()');
+              await conference.pauseMyVideo();
+            } else {
+              console.warn('⚠️ conference.pauseMyVideo 메서드가 없습니다');
+            }
+          }
         }
-        
+
         setIsVideoOn(newVideoState);
-        
+
         // 로컬 참가자 상태 업데이트
-        setParticipants(prev => prev.map(p => 
+        setParticipants(prev => prev.map(p =>
           p.id === "local" ? { ...p, isVideoOn: newVideoState } : p
         ));
-        
+
         toast({
           title: newVideoState ? "비디오 켜짐" : "비디오 꺼짐",
           description: newVideoState ? "카메라가 활성화되었습니다." : "카메라가 비활성화되었습니다.",
