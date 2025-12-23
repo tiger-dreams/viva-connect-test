@@ -123,15 +123,21 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
 
         // 새 비디오 엘리먼트 추가
         if (!videoContainer.contains(participant.videoElement)) {
-          participant.videoElement.style.display = 'block';
           participant.videoElement.style.width = '100%';
           participant.videoElement.style.height = '100%';
           participant.videoElement.style.objectFit = 'cover';
           participant.videoElement.style.borderRadius = '8px';
           videoContainer.appendChild(participant.videoElement);
           console.log(`✅ 비디오 엘리먼트 DOM에 추가됨 for ${participant.id}`, participant.videoElement);
+        }
+
+        // 비디오 on/off 상태에 따라 표시/숨김 처리
+        if (participant.isVideoOn) {
+          participant.videoElement.style.display = 'block';
+          console.log(`📹 비디오 표시: ${participant.id}`);
         } else {
-          console.log(`ℹ️ 비디오 엘리먼트 이미 존재 for ${participant.id}`);
+          participant.videoElement.style.display = 'none';
+          console.log(`📹 비디오 숨김: ${participant.id}`);
         }
       } else if (!participant.videoElement) {
         console.warn(`⚠️ 참가자 ${participant.id}에 videoElement 없음`);

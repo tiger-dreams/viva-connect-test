@@ -286,6 +286,13 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
             setConnectionStatus({ connected: true, connecting: false });
             setConnectionStartTime(new Date());
 
+            // 로컬 비디오 미러링 활성화
+            if (planetKitConference && typeof planetKitConference.setVideoMirror === 'function') {
+              planetKitConference.setVideoMirror(true)
+                .then(() => console.log('🪞 비디오 미러링 활성화됨'))
+                .catch((err: any) => console.error('❌ 비디오 미러링 실패:', err));
+            }
+
             setParticipants([{
               id: "local",
               name: config.userId,
@@ -503,6 +510,33 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                   return {
                     ...p,
                     isVideoOn: videoStatus.state === 'enabled'
+                  };
+                }
+                return p;
+              }));
+            });
+          },
+
+          evtPeersAudioUpdated: (audioUpdateInfo: any) => {
+            console.log('🎤 참가자 오디오 업데이트:', audioUpdateInfo);
+
+            // audioUpdateInfo는 배열 형태: [{peer: {...}, audioStatus: {...}}]
+            const updates = Array.isArray(audioUpdateInfo) ? audioUpdateInfo : [];
+
+            updates.forEach((update: any) => {
+              const peer = update.peer || {};
+              // PlanetKit은 userId 필드를 사용
+              const peerId = peer.userId || peer.peerId || peer.id;
+              const audioStatus = update.audioStatus || {};
+
+              console.log(`🎤 Peer ${peerId} 오디오 상태:`, audioStatus);
+
+              // 참가자의 오디오 상태 업데이트
+              setParticipants(prev => prev.map(p => {
+                if (p.id === peerId) {
+                  return {
+                    ...p,
+                    isAudioOn: audioStatus.state === 'enabled'
                   };
                 }
                 return p;
