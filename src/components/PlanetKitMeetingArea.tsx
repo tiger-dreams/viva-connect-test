@@ -16,10 +16,7 @@ import {
   WifiOff,
   Clock,
   Users,
-  Monitor,
-  MonitorOff,
   Settings,
-  Sparkles,
 } from "lucide-react";
 import { PlanetKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
@@ -40,9 +37,6 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   });
   const [isAudioOn, setIsAudioOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [isBlurEnabled, setIsBlurEnabled] = useState(false);
-  const [isVirtualBackgroundReady, setIsVirtualBackgroundReady] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
   const [callDuration, setCallDuration] = useState<string>("00:00:00");
@@ -61,9 +55,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   // 비디오 엘리먼트 refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const audioElementRef = useRef<HTMLAudioElement>(null);
-  const blurCanvasRef = useRef<HTMLCanvasElement>(null);
   const [conference, setConference] = useState<any>(null);
-  const virtualBackgroundRef = useRef<any>(null); // VirtualBackground 인스턴스 저장
   // 원격 참가자 비디오 엘리먼트 맵
   const remoteVideoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
 
@@ -82,7 +74,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
       if (detected) {
         toast({
           title: "WebView 환경 감지",
-          description: "화면 공유 및 가상 배경 기능은 WebView에서 지원되지 않습니다.",
+          description: "WebView 환경에서 실행 중입니다.",
           variant: "default",
         });
       }
@@ -186,7 +178,6 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
         name: config.userId,
         isVideoOn: true,
         isAudioOn: true,
-        isScreenSharing: false,
         videoElement: localVideoRef.current || undefined
       }]);
 
@@ -196,18 +187,16 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
           id: "mock-peer-1",
           name: "Demo User 1",
           isVideoOn: true,
-          isAudioOn: true,
-          isScreenSharing: false
+          isAudioOn: true
         }]);
       }, 3000);
 
       setTimeout(() => {
         setParticipants(prev => [...prev, {
-          id: "mock-peer-2", 
+          id: "mock-peer-2",
           name: "Demo User 2",
           isVideoOn: Math.random() > 0.5, // 랜덤하게 비디오 on/off
-          isAudioOn: true,
-          isScreenSharing: false
+          isAudioOn: true
         }]);
       }, 5000);
 
@@ -296,11 +285,10 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               name: config.userId,
               isVideoOn: true,
               isAudioOn: true,
-              isScreenSharing: false,
               videoElement: localVideoRef.current || undefined
             }]);
 
-            // 로컬 비디오 미러링 활성화 및 가상 배경 등록 (비디오 엘리먼트가 완전히 렌더링된 후 호출)
+            // 로컬 비디오 미러링 활성화 (비디오 엘리먼트가 완전히 렌더링된 후 호출)
             setTimeout(async () => {
               // 비디오 미러링 적용
               if (planetKitConference && typeof planetKitConference.setVideoMirror === 'function' && localVideoRef.current) {
@@ -326,29 +314,6 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 }
               }
 
-              // 가상 배경 기능 등록 (파라미터 없이 시도)
-              const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-              if (!isSafari && !isWebView && planetKitConference && typeof planetKitConference.registerVirtualBackground === 'function') {
-                console.log('🎨 가상 배경 기능 등록 시도 중 (파라미터 없음)...');
-                try {
-                  // 파라미터 없이 호출 시도
-                  const registerResult = planetKitConference.registerVirtualBackground();
-                  if (registerResult && typeof registerResult.then === 'function') {
-                    await registerResult;
-                  }
-                  console.log('✅ 가상 배경 기능 등록 완료');
-                  setIsVirtualBackgroundReady(true);
-                } catch (err: any) {
-                  console.error('❌ 가상 배경 등록 실패:', err);
-                  setIsVirtualBackgroundReady(false);
-                }
-              } else if (isSafari) {
-                console.log('⚠️ Safari에서는 가상 배경 기능을 지원하지 않습니다');
-                setIsVirtualBackgroundReady(false);
-              } else if (isWebView) {
-                console.log('⚠️ WebView에서는 가상 배경 기능을 지원하지 않습니다');
-                setIsVirtualBackgroundReady(false);
-              }
             }, 500);
 
             toast({
@@ -472,7 +437,6 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                   name: peerName,
                   isVideoOn: peer.videoState === 'enabled',
                   isAudioOn: peer.audioState === 'enabled',
-                  isScreenSharing: false,
                   videoElement: videoElement
                 };
               });
@@ -483,7 +447,6 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 name: config.userId,
                 isVideoOn: isVideoOn,
                 isAudioOn: isAudioOn,
-                isScreenSharing: isScreenSharing,
                 videoElement: localVideoRef.current || undefined
               };
 
@@ -780,114 +743,6 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
     }
   };
 
-  // 화면 공유 토글
-  const toggleScreenShare = async () => {
-    if (connectionStatus.connected) {
-      try {
-        const newScreenShareState = !isScreenSharing;
-        
-        // 실제 PlanetKit의 경우
-        if (conference && conference.setScreenShareEnabled) {
-          await conference.setScreenShareEnabled(newScreenShareState);
-        }
-        
-        setIsScreenSharing(newScreenShareState);
-        
-        // 로컬 참가자 상태 업데이트
-        setParticipants(prev => prev.map(p => 
-          p.id === "local" ? { ...p, isScreenSharing: newScreenShareState } : p
-        ));
-        
-        toast({
-          title: newScreenShareState ? "화면 공유 시작" : "화면 공유 종료",
-          description: newScreenShareState ? "화면 공유가 시작되었습니다." : "화면 공유가 종료되었습니다.",
-        });
-      } catch (error) {
-        console.error('화면 공유 토글 실패:', error);
-        toast({
-          title: "화면 공유 실패",
-          description: "화면 공유 상태 변경에 실패했습니다.",
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
-  // 배경 블러 토글
-  const toggleBlur = async () => {
-    if (!connectionStatus.connected) {
-      toast({
-        title: "연결 필요",
-        description: "회의에 참여한 후 배경 블러를 사용할 수 있습니다.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Safari 체크
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    if (isSafari) {
-      toast({
-        title: "지원되지 않음",
-        description: "Safari 브라우저는 가상 배경 기능을 지원하지 않습니다.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // WebView 체크
-    if (isWebView) {
-      toast({
-        title: "지원되지 않음",
-        description: "WebView 환경에서는 가상 배경 기능을 지원하지 않습니다.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const newBlurState = !isBlurEnabled;
-
-      if (conference) {
-        if (newBlurState) {
-          // 블러 활성화 - startVirtualBackgroundBlur 직접 호출
-          if (typeof conference.startVirtualBackgroundBlur === 'function') {
-            console.log('🎨 배경 블러 활성화 중...');
-            // Canvas와 blurRadius 전달
-            await conference.startVirtualBackgroundBlur(blurCanvasRef.current, 15);
-            setIsBlurEnabled(true);
-            toast({
-              title: "블러 활성화",
-              description: "배경 블러 효과가 적용되었습니다.",
-            });
-          } else {
-            throw new Error('startVirtualBackgroundBlur 메서드를 사용할 수 없습니다');
-          }
-        } else {
-          // 블러 비활성화
-          if (typeof conference.stopVirtualBackground === 'function') {
-            console.log('🎨 배경 블러 비활성화 중...');
-            await conference.stopVirtualBackground();
-            setIsBlurEnabled(false);
-            toast({
-              title: "블러 비활성화",
-              description: "배경 블러 효과가 해제되었습니다.",
-            });
-          } else {
-            throw new Error('stopVirtualBackground 메서드를 사용할 수 없습니다');
-          }
-        }
-      }
-    } catch (error) {
-      console.error('배경 블러 토글 실패:', error);
-      toast({
-        title: "블러 제어 실패",
-        description: error instanceof Error ? error.message : "배경 블러 상태 변경에 실패했습니다.",
-        variant: "destructive",
-      });
-    }
-  };
-
   // 컴포넌트 언마운트 시 정리 (의존성 배열 제거 - 진짜 언마운트 시에만 실행)
   useEffect(() => {
     return () => {
@@ -1045,40 +900,6 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 </Button>
 
                 <Button
-                  onClick={toggleScreenShare}
-                  variant={isScreenSharing ? "default" : "outline"}
-                  size="sm"
-                  className="flex items-center gap-2"
-                  disabled={isWebView}
-                  title={isWebView ? "WebView 환경에서는 화면 공유가 지원되지 않습니다" : ""}
-                >
-                  {isScreenSharing ? (
-                    <MonitorOff className="w-4 h-4" />
-                  ) : (
-                    <Monitor className="w-4 h-4" />
-                  )}
-                  {isScreenSharing ? "공유 중지" : "화면 공유"}
-                </Button>
-
-                <Button
-                  onClick={toggleBlur}
-                  variant={isBlurEnabled ? "default" : "outline"}
-                  size="sm"
-                  className="flex items-center gap-2"
-                  disabled={isWebView || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)}
-                  title={
-                    isWebView
-                      ? "WebView 환경에서는 배경 블러가 지원되지 않습니다"
-                      : /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-                        ? "Safari 브라우저는 배경 블러를 지원하지 않습니다"
-                        : ""
-                  }
-                >
-                  <Sparkles className="w-4 h-4" />
-                  {isBlurEnabled ? "블러 해제" : "배경 블러"}
-                </Button>
-
-                <Button
                   onClick={() => setShowDeviceSettings(!showDeviceSettings)}
                   variant="ghost"
                   size="sm"
@@ -1179,18 +1000,6 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 <p className="text-muted-foreground">디바이스 정보를 가져오는 중...</p>
               )}
             </div>
-
-            {isWebView && (
-              <>
-                <Separator />
-                <div className="bg-amber-50 dark:bg-amber-950 p-2 rounded border border-amber-200 dark:border-amber-800">
-                  <p className="text-amber-800 dark:text-amber-200 font-medium">⚠️ WebView 환경</p>
-                  <p className="text-amber-700 dark:text-amber-300 mt-1">
-                    화면 공유 및 가상 배경 기능은 지원되지 않습니다.
-                  </p>
-                </div>
-              </>
-            )}
           </CardContent>
         </Card>
       )}
@@ -1225,20 +1034,13 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
           <Separator className="my-2" />
           <p className="text-muted-foreground">
             LINE Planet PlanetKit 5.5를 사용한 화상회의입니다.
-            비디오, 오디오, 화면공유 기능을 사용할 수 있습니다.
+            비디오, 오디오 기능을 사용할 수 있습니다.
           </p>
           <p className="text-muted-foreground mt-2">
             <strong>최소 브라우저 요구사항:</strong> Safari 16.4+ (Desktop/iOS)
           </p>
         </CardContent>
       </Card>
-
-      {/* 배경 블러용 숨겨진 Canvas 엘리먼트 */}
-      <canvas
-        ref={blurCanvasRef}
-        style={{ display: 'none' }}
-        aria-hidden="true"
-      />
     </div>
   );
 };
