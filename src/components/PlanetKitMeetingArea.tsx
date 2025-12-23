@@ -383,9 +383,13 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               const videoElement = document.createElement('video');
               videoElement.autoplay = true;
               videoElement.playsInline = true;
+              videoElement.muted = false; // 원격 참가자는 음소거 안 함
               videoElement.style.width = '100%';
               videoElement.style.height = '100%';
               videoElement.style.objectFit = 'cover';
+              videoElement.style.backgroundColor = '#000';
+
+              console.log(`🎬 비디오 엘리먼트 생성됨 for Peer ${peerId}:`, videoElement);
 
               // PlanetKit에 비디오 요청
               if (planetKitConference && typeof planetKitConference.requestPeerVideo === 'function') {
@@ -398,6 +402,18 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
                   // 비디오 엘리먼트 저장
                   remoteVideoElementsRef.current.set(peerId, videoElement);
+                  console.log(`💾 Peer ${peerId} 비디오 엘리먼트 Map에 저장됨. Map 크기:`, remoteVideoElementsRef.current.size);
+
+                  // 비디오 엘리먼트가 스트림을 받을 때 로그
+                  videoElement.onloadedmetadata = () => {
+                    console.log(`🎥 Peer ${peerId} 비디오 메타데이터 로드됨`);
+                  };
+                  videoElement.onplay = () => {
+                    console.log(`▶️ Peer ${peerId} 비디오 재생 시작`);
+                  };
+                  videoElement.onerror = (err) => {
+                    console.error(`❌ Peer ${peerId} 비디오 에러:`, err);
+                  };
                 } catch (err) {
                   console.error(`❌ Peer ${peerId} 비디오 요청 실패:`, err);
                 }
@@ -425,10 +441,17 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 const peerId = peer.userId || peer.peerId || peer.id || peer.myId || `peer-${index}`;
                 const peerName = peer.displayName || peer.peerName || peer.userId || `User ${index}`;
 
-                console.log(`📋 추가된 Peer ${index}:`, { peerId, peerName, peer });
-
                 // 원격 참가자의 비디오 엘리먼트 가져오기
                 const videoElement = remoteVideoElementsRef.current.get(peerId);
+
+                console.log(`📋 추가된 Peer ${index}:`, {
+                  peerId,
+                  peerName,
+                  hasVideoElement: !!videoElement,
+                  videoElement: videoElement,
+                  videoElementSrcObject: videoElement?.srcObject,
+                  peer
+                });
 
                 return {
                   id: peerId,

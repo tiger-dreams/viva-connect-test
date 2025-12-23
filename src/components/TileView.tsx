@@ -104,11 +104,20 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
     visibleParticipants.forEach((participant, index) => {
       const tileElement = containerRef.current?.querySelector(`[data-participant-id="${participant.id}"]`);
       const videoContainer = tileElement?.querySelector('.video-container') as HTMLDivElement;
-      
+
+      console.log(`🔲 TileView 참가자 ${participant.id}:`, {
+        hasTileElement: !!tileElement,
+        hasVideoContainer: !!videoContainer,
+        hasVideoElement: !!participant.videoElement,
+        videoElementSrcObject: participant.videoElement?.srcObject,
+        participant
+      });
+
       if (videoContainer && participant.videoElement) {
         // 기존 비디오 엘리먼트 정리
         const existingVideo = videoContainer.querySelector('video');
         if (existingVideo && existingVideo !== participant.videoElement) {
+          console.log(`🗑️ 기존 비디오 엘리먼트 제거 for ${participant.id}`);
           videoContainer.removeChild(existingVideo);
         }
 
@@ -120,7 +129,12 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
           participant.videoElement.style.objectFit = 'cover';
           participant.videoElement.style.borderRadius = '8px';
           videoContainer.appendChild(participant.videoElement);
+          console.log(`✅ 비디오 엘리먼트 DOM에 추가됨 for ${participant.id}`, participant.videoElement);
+        } else {
+          console.log(`ℹ️ 비디오 엘리먼트 이미 존재 for ${participant.id}`);
         }
+      } else if (!participant.videoElement) {
+        console.warn(`⚠️ 참가자 ${participant.id}에 videoElement 없음`);
       }
     });
   }, [visibleParticipants]);
