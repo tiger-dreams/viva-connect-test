@@ -62,32 +62,18 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
   // 표시할 참가자 선택 (최대 4명까지, 4명 이상시 로컬 + 랜덤 3명)
   const visibleParticipants = sortedParticipants.slice(0, maxVisibleTiles);
 
-  // 참가자 수에 따른 그리드 레이아웃 결정
+  // 참가자 수에 따른 그리드 레이아웃 결정 (모바일 최적화)
   const getGridLayout = (count: number) => {
     switch (count) {
       case 1:
-        return "grid-cols-1 grid-rows-1"; // 1x1
+        return "grid-cols-1 grid-rows-1"; // 1x1 전체 화면
       case 2:
-        return "grid-cols-2 grid-rows-1"; // 2x1
+        return "grid-cols-1 grid-rows-2"; // 세로 2분할
       case 3:
         return "grid-cols-2 grid-rows-2"; // 2x2 (3개 타일)
       case 4:
       default:
         return "grid-cols-2 grid-rows-2"; // 2x2
-    }
-  };
-
-  // 개별 타일 크기 결정
-  const getTileSize = (count: number) => {
-    switch (count) {
-      case 1:
-        return "aspect-video"; // 16:9 비율
-      case 2:
-        return "aspect-video"; // 16:9 비율
-      case 3:
-      case 4:
-      default:
-        return "aspect-square"; // 1:1 비율 (정사각형)
     }
   };
 
@@ -142,19 +128,17 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
   }
 
   const gridLayout = getGridLayout(visibleParticipants.length);
-  const tileSize = getTileSize(visibleParticipants.length);
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={`grid gap-2 w-full h-full ${gridLayout}`}
-      style={{ minHeight: "400px" }}
     >
       {visibleParticipants.map((participant, index) => (
         <div
           key={participant.id}
           data-participant-id={participant.id}
-          className={`relative bg-black rounded-lg overflow-hidden ${tileSize} ${getTileSpan(index, visibleParticipants.length)} ${participant.isSpeaking ? 'ring-2 ring-emerald-400' : ''}`}
+          className={`relative bg-black rounded-lg overflow-hidden ${getTileSpan(index, visibleParticipants.length)} ${participant.isSpeaking ? 'ring-2 ring-emerald-400' : ''}`}
         >
           {/* 비디오 컨테이너 */}
           <div className="video-container w-full h-full relative">
