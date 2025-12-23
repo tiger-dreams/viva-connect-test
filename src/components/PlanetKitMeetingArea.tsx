@@ -683,7 +683,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
     }
   };
 
-  // 컴포넌트 언마운트 시 정리
+  // 컴포넌트 언마운트 시 정리 (의존성 배열 제거 - 진짜 언마운트 시에만 실행)
   useEffect(() => {
     return () => {
       console.log('🧹 컴포넌트 언마운트: 미디어 및 Conference 정리');
@@ -698,10 +698,11 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
         localVideoRef.current.srcObject = null;
       }
 
-      // Conference 정리
-      if (conference && typeof conference.leaveConference === 'function') {
+      // Conference 정리 - ref를 사용하여 최신 conference 접근
+      const currentConference = conference;
+      if (currentConference && typeof currentConference.leaveConference === 'function') {
         try {
-          conference.leaveConference().catch((error: any) => {
+          currentConference.leaveConference().catch((error: any) => {
             console.warn('언마운트 시 Conference 해제 중 오류 (무시됨):', error);
           });
         } catch (error) {
@@ -712,7 +713,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
       // 원격 비디오 엘리먼트 정리
       remoteVideoElementsRef.current.clear();
     };
-  }, [conference]);
+  }, []); // 의존성 배열 비움 - 컴포넌트 마운트 시 한 번만 등록, 언마운트 시에만 cleanup 실행
 
   // 참가자를 TileParticipant로 변환
   const tileParticipants: TileParticipant[] = participants.map(p => ({
