@@ -223,14 +223,14 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
     // 개발 모드 확인을 최우선으로 (PlanetKit 코드 실행 전에)
     const isDevelopmentMode = config.serviceId === 'planetkit' || config.serviceId.includes('dev') || config.serviceId.includes('test');
-    
+
     console.log('PlanetKit 연결 모드 체크:', {
       serviceId: config.serviceId,
       isDevelopmentMode,
       userId: config.userId,
       roomId: config.roomId
     });
-    
+
     if (isDevelopmentMode) {
       console.log('🔧 개발 모드 활성화됨. 실제 PlanetKit 서버 연결 건너뛰기');
       toast({
@@ -243,6 +243,31 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
     // 실제 PlanetKit 연결 (프로덕션 모드에서만 실행)
     console.log('🚀 실제 PlanetKit Conference 연결 시도');
     setConnectionStatus({ connected: false, connecting: true });
+
+    // 명시적으로 로컬 미디어 스트림 획득 (PlanetKit 연결 전)
+    try {
+      console.log('📹 로컬 미디어 스트림 획득 시작...');
+      const localStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      });
+
+      // 로컬 비디오 엘리먼트에 스트림 연결
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStream;
+        await localVideoRef.current.play();
+        console.log('✅ 로컬 비디오 스트림 연결 완료');
+      }
+    } catch (mediaError) {
+      console.error('❌ 미디어 권한 획득 실패:', mediaError);
+      toast({
+        title: "카메라/마이크 권한 필요",
+        description: "카메라와 마이크 권한을 허용해주세요.",
+        variant: "destructive",
+      });
+      setConnectionStatus({ connected: false, connecting: false });
+      return;
+    }
 
     try {
       const attemptJoin = async (PlanetKitModule: any, envLabel: 'eval' | 'real') => {
