@@ -59,6 +59,8 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const audioElementRef = useRef<HTMLAudioElement>(null);
   const [conference, setConference] = useState<any>(null);
+  // 원격 참가자 비디오 엘리먼트 맵
+  const remoteVideoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
 
   // WebView 환경 감지 (PlanetKit 5.5+)
   useEffect(() => {
@@ -179,7 +181,8 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
         name: config.userId,
         isVideoOn: true,
         isAudioOn: true,
-        isScreenSharing: false
+        isScreenSharing: false,
+        videoElement: localVideoRef.current || undefined
       }]);
 
       // 2명의 가상 참가자 추가 (화상회의)
@@ -279,7 +282,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
         const conferenceDelegate = {
           evtConnected: () => {
-            console.log('PlanetKit Conference 연결됨');
+            console.log('✅ PlanetKit Conference 연결됨');
             setConnectionStatus({ connected: true, connecting: false });
             setConnectionStartTime(new Date());
 
@@ -288,7 +291,8 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               name: config.userId,
               isVideoOn: true,
               isAudioOn: true,
-              isScreenSharing: false
+              isScreenSharing: false,
+              videoElement: localVideoRef.current || undefined
             }]);
 
             toast({
@@ -311,16 +315,29 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
           },
 
           evtPeerListUpdated: (peerUpdateInfo: any) => {
-            console.log('참가자 목록 업데이트:', peerUpdateInfo);
+            console.log('📋 참가자 목록 업데이트:', peerUpdateInfo);
 
             const peerList = peerUpdateInfo.peerList || peerUpdateInfo || [];
-            const remoteParticipants = peerList.map((peer: any, index: number) => ({
-              id: peer.peerId || peer.myId || `peer-${index}`,
-              name: peer.peerName || peer.myId || `User ${index}`,
-              isVideoOn: Math.random() > 0.3,
-              isAudioOn: true,
-              isScreenSharing: false
-            }));
+            console.log('📋 Peer 리스트:', peerList);
+
+            const remoteParticipants = peerList.map((peer: any, index: number) => {
+              const peerId = peer.peerId || peer.myId || `peer-${index}`;
+              const peerName = peer.peerName || peer.myId || `User ${index}`;
+
+              console.log(`📋 Peer ${index}:`, { peerId, peerName, peer });
+
+              // 원격 참가자의 비디오 엘리먼트 가져오기
+              const videoElement = remoteVideoElementsRef.current.get(peerId);
+
+              return {
+                id: peerId,
+                name: peerName,
+                isVideoOn: peer.isVideoEnabled !== false, // 비디오 상태
+                isAudioOn: peer.isAudioEnabled !== false, // 오디오 상태
+                isScreenSharing: false,
+                videoElement: videoElement
+              };
+            });
 
             setParticipants([
               {
@@ -328,10 +345,35 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 name: config.userId,
                 isVideoOn: isVideoOn,
                 isAudioOn: isAudioOn,
-                isScreenSharing: isScreenSharing
+                isScreenSharing: isScreenSharing,
+                videoElement: localVideoRef.current || undefined
               },
               ...remoteParticipants
             ]);
+          },
+
+          evtPeersVideoUpdated: (videoUpdateInfo: any) => {
+            console.log('🎥 참가자 비디오 업데이트:', videoUpdateInfo);
+
+            // videoUpdateInfo는 { peerId: HTMLVideoElement } 형태의 객체
+            const peers = videoUpdateInfo.peers || videoUpdateInfo || {};
+
+            Object.entries(peers).forEach(([peerId, videoElement]: [string, any]) => {
+              console.log(`🎥 Peer ${peerId} 비디오 엘리먼트 업데이트:`, videoElement);
+
+              if (videoElement instanceof HTMLVideoElement) {
+                // 비디오 엘리먼트를 맵에 저장
+                remoteVideoElementsRef.current.set(peerId, videoElement);
+
+                // 참가자 목록 업데이트 (비디오 엘리먼트 포함)
+                setParticipants(prev => prev.map(p => {
+                  if (p.id === peerId) {
+                    return { ...p, videoElement: videoElement };
+                  }
+                  return p;
+                }));
+              }
+            });
           }
         };
 
@@ -518,6 +560,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
+      // Conference 정리
       if (conference && typeof conference.leaveConference === 'function') {
         try {
           conference.leaveConference().catch((error: any) => {
@@ -527,13 +570,15 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
           console.warn('언마운트 시 Conference 해제 중 동기 오류 (무시됨):', error);
         }
       }
+
+      // 원격 비디오 엘리먼트 정리
+      remoteVideoElementsRef.current.clear();
     };
   }, [conference]);
 
   // 참가자를 TileParticipant로 변환
   const tileParticipants: TileParticipant[] = participants.map(p => ({
     ...p,
-    videoElement: p.id === "local" ? localVideoRef.current || undefined : undefined,
     isLocal: p.id === "local"
   }));
 
