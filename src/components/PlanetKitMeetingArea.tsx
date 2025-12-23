@@ -19,6 +19,7 @@ import {
   Monitor,
   MonitorOff,
   Settings,
+  Sparkles,
 } from "lucide-react";
 import { PlanetKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
@@ -40,6 +41,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   const [isAudioOn, setIsAudioOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isBlurEnabled, setIsBlurEnabled] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
   const [callDuration, setCallDuration] = useState<string>("00:00:00");
@@ -58,6 +60,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   // 비디오 엘리먼트 refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const audioElementRef = useRef<HTMLAudioElement>(null);
+  const blurCanvasRef = useRef<HTMLCanvasElement>(null);
   const [conference, setConference] = useState<any>(null);
   // 원격 참가자 비디오 엘리먼트 맵
   const remoteVideoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
@@ -295,8 +298,9 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               videoElement: localVideoRef.current || undefined
             }]);
 
-            // 로컬 비디오 미러링 활성화 (비디오 엘리먼트가 완전히 렌더링된 후 호출)
+            // 로컬 비디오 미러링 활성화 및 가상 배경 등록 (비디오 엘리먼트가 완전히 렌더링된 후 호출)
             setTimeout(() => {
+              // 비디오 미러링 적용
               if (planetKitConference && typeof planetKitConference.setVideoMirror === 'function' && localVideoRef.current) {
                 console.log('🪞 비디오 미러링 시도 중...', localVideoRef.current);
                 planetKitConference.setVideoMirror(true, localVideoRef.current)
@@ -315,12 +319,27 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                       variant: "destructive",
                     });
                   });
-              } else {
-                console.warn('⚠️ 비디오 미러링 조건 미충족:', {
-                  hasConference: !!planetKitConference,
-                  hasMethod: planetKitConference && typeof planetKitConference.setVideoMirror === 'function',
-                  hasVideoElement: !!localVideoRef.current
-                });
+              }
+
+              // 가상 배경 기능 등록 (Safari는 미지원)
+              const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+              if (!isSafari && !isWebView && planetKitConference && typeof planetKitConference.registerVirtualBackground === 'function') {
+                console.log('🎨 가상 배경 기능 등록 시도 중...');
+                planetKitConference.registerVirtualBackground()
+                  .then(() => {
+                    console.log('✅ 가상 배경 기능 등록 완료');
+                    toast({
+                      title: "가상 배경 준비 완료",
+                      description: "배경 블러 기능을 사용할 수 있습니다.",
+                    });
+                  })
+                  .catch((err: any) => {
+                    console.error('❌ 가상 배경 등록 실패:', err);
+                  });
+              } else if (isSafari) {
+                console.log('⚠️ Safari에서는 가상 배경 기능을 지원하지 않습니다');
+              } else if (isWebView) {
+                console.log('⚠️ WebView에서는 가상 배경 기능을 지원하지 않습니다');
               }
             }, 500);
 
@@ -742,6 +761,92 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
     }
   };
 
+  // 배경 블러 토글
+  const toggleBlur = async () => {
+    if (!connectionStatus.connected) {
+      toast({
+        title: "연결 필요",
+        description: "회의에 참여한 후 배경 블러를 사용할 수 있습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Safari 체크
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    if (isSafari) {
+      toast({
+        title: "지원되지 않음",
+        description: "Safari 브라우저는 가상 배경 기능을 지원하지 않습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // WebView 체크
+    if (isWebView) {
+      toast({
+        title: "지원되지 않음",
+        description: "WebView 환경에서는 가상 배경 기능을 지원하지 않습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const newBlurState = !isBlurEnabled;
+
+      if (conference) {
+        if (newBlurState) {
+          // 블러 활성화
+          if (typeof conference.isVirtualBackgroundRegistered === 'function') {
+            const isRegistered = await conference.isVirtualBackgroundRegistered();
+            if (!isRegistered) {
+              toast({
+                title: "등록 필요",
+                description: "가상 배경 기능이 아직 등록되지 않았습니다. 잠시 후 다시 시도하세요.",
+                variant: "destructive",
+              });
+              return;
+            }
+          }
+
+          if (typeof conference.startVirtualBackgroundBlur === 'function') {
+            console.log('🎨 배경 블러 활성화 중...');
+            await conference.startVirtualBackgroundBlur(blurCanvasRef.current, 15);
+            setIsBlurEnabled(true);
+            toast({
+              title: "블러 활성화",
+              description: "배경 블러 효과가 적용되었습니다.",
+            });
+          } else {
+            throw new Error('startVirtualBackgroundBlur 메서드를 사용할 수 없습니다');
+          }
+        } else {
+          // 블러 비활성화
+          if (typeof conference.stopVirtualBackground === 'function') {
+            console.log('🎨 배경 블러 비활성화 중...');
+            await conference.stopVirtualBackground();
+            setIsBlurEnabled(false);
+            toast({
+              title: "블러 비활성화",
+              description: "배경 블러 효과가 해제되었습니다.",
+            });
+          } else {
+            throw new Error('stopVirtualBackground 메서드를 사용할 수 없습니다');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('배경 블러 토글 실패:', error);
+      toast({
+        title: "블러 제어 실패",
+        description: error instanceof Error ? error.message : "배경 블러 상태 변경에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // 컴포넌트 언마운트 시 정리 (의존성 배열 제거 - 진짜 언마운트 시에만 실행)
   useEffect(() => {
     return () => {
@@ -915,6 +1020,24 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 </Button>
 
                 <Button
+                  onClick={toggleBlur}
+                  variant={isBlurEnabled ? "default" : "outline"}
+                  size="sm"
+                  className="flex items-center gap-2"
+                  disabled={isWebView || /^((?!chrome|android).)*safari/i.test(navigator.userAgent)}
+                  title={
+                    isWebView
+                      ? "WebView 환경에서는 배경 블러가 지원되지 않습니다"
+                      : /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+                        ? "Safari 브라우저는 배경 블러를 지원하지 않습니다"
+                        : ""
+                  }
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {isBlurEnabled ? "블러 해제" : "배경 블러"}
+                </Button>
+
+                <Button
                   onClick={() => setShowDeviceSettings(!showDeviceSettings)}
                   variant="ghost"
                   size="sm"
@@ -1068,6 +1191,13 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
           </p>
         </CardContent>
       </Card>
+
+      {/* 배경 블러용 숨겨진 Canvas 엘리먼트 */}
+      <canvas
+        ref={blurCanvasRef}
+        style={{ display: 'none' }}
+        aria-hidden="true"
+      />
     </div>
   );
 };
