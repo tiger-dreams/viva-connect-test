@@ -23,8 +23,9 @@ import {
 import { PlanetKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
 import { TileView, TileParticipant } from "@/components/TileView";
-// Evaluation 환경: planet-kit-eval, Real 환경: planet-kit
-import * as PlanetKit from "@line/planet-kit/dist/planet-kit-eval";
+// Real 환경 사용 (기본 빌드)
+// Evaluation 환경은 외부 WebSocket 접속이 제한될 수 있음
+import * as PlanetKit from "@line/planet-kit";
 
 interface PlanetKitMeetingAreaProps {
   config: PlanetKitConfig;
