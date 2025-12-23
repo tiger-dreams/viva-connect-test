@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Activity, LogIn, User, Video, Server, Hash } from "lucide-react";
+import { Activity, LogIn, User, Video, Server, Hash, Settings } from "lucide-react";
 import { useVideoSDK } from "@/contexts/VideoSDKContext";
 import { useLiff } from "@/contexts/LiffContext";
 import { useToast } from "@/hooks/use-toast";
@@ -16,8 +16,9 @@ import { generatePlanetKitToken } from "@/utils/token-generator";
 const SetupPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isLoggedIn, isInitialized, profile, error: liffError, login } = useLiff();
+  const { isLoggedIn, isInitialized, needsLiffId, liffId, profile, error: liffError, login, initializeLiff } = useLiff();
   const { planetKitConfig, setPlanetKitConfig, isConfigured } = useVideoSDK();
+  const [liffIdInput, setLiffIdInput] = useState('');
 
   // LIFF 로그인 후 자동으로 User ID 설정
   useEffect(() => {
@@ -74,6 +75,76 @@ const SetupPage = () => {
       navigate('/planetkit_meeting');
     }
   };
+
+  // LIFF ID 입력 필요
+  if (needsLiffId) {
+    const handleLiffIdSubmit = async () => {
+      if (!liffIdInput.trim()) {
+        toast({
+          title: "LIFF ID 입력 필요",
+          description: "LIFF ID를 입력해주세요.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        await initializeLiff(liffIdInput.trim());
+        toast({
+          title: "LIFF 초기화 성공",
+          description: "LIFF가 성공적으로 초기화되었습니다.",
+        });
+      } catch (error) {
+        toast({
+          title: "LIFF 초기화 실패",
+          description: error instanceof Error ? error.message : "LIFF 초기화에 실패했습니다.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Settings className="w-8 h-8 text-primary" />
+            </div>
+            <CardTitle>LIFF 설정</CardTitle>
+            <CardDescription>
+              LINE LIFF ID를 입력하여 앱을 시작하세요
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="liffId">LIFF ID</Label>
+              <Input
+                id="liffId"
+                value={liffIdInput}
+                onChange={(e) => setLiffIdInput(e.target.value)}
+                placeholder="예: 2008742005-3DHkWzkg"
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                LINE Developers Console에서 발급받은 LIFF ID를 입력하세요.
+              </p>
+            </div>
+            <Button onClick={handleLiffIdSubmit} className="w-full h-12 text-lg" size="lg">
+              초기화
+            </Button>
+            <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded border border-blue-200 dark:border-blue-800">
+              <p className="text-blue-800 dark:text-blue-200 font-medium mb-2">
+                💡 환경 변수로 설정하기 (권장)
+              </p>
+              <p className="text-blue-700 dark:text-blue-300">
+                Vercel 환경 변수에 <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">VITE_LIFF_ID</code>를 추가하면 자동으로 로드됩니다.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // LIFF 초기화 중
   if (!isInitialized) {

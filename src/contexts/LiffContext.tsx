@@ -5,6 +5,8 @@ interface LiffContextType {
   isLoggedIn: boolean;
   isInClient: boolean;
   isInitialized: boolean;
+  liffId: string | null;
+  needsLiffId: boolean;
   profile: {
     userId: string;
     displayName: string;
@@ -14,6 +16,8 @@ interface LiffContextType {
   error: string | null;
   login: () => Promise<void>;
   logout: () => void;
+  setLiffId: (id: string) => void;
+  initializeLiff: (id: string) => Promise<void>;
 }
 
 const LiffContext = createContext<LiffContextType | undefined>(undefined);
@@ -26,51 +30,86 @@ export const LiffProvider = ({ children }: LiffProviderProps) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isInClient, setIsInClient] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [liffId, setLiffIdState] = useState<string | null>(null);
+  const [needsLiffId, setNeedsLiffId] = useState(false);
   const [profile, setProfile] = useState<LiffContextType['profile']>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const initLiff = async () => {
-      const liffId = import.meta.env.VITE_LIFF_ID;
+  // LIFF 초기화 함수 (외부에서도 호출 가능)
+  const initializeLiff = async (id: string) => {
+    if (!id) {
+      setError('LIFF ID가 필요합니다.');
+      return;
+    }
 
-      if (!liffId) {
-        setError('LIFF ID가 설정되지 않았습니다. .env 파일에 VITE_LIFF_ID를 설정해주세요.');
-        setIsInitialized(true);
+    try {
+      console.log('LIFF 초기화 시작:', id);
+      setError(null);
+
+      await liff.init({ liffId: id });
+
+      setIsInClient(liff.isInClient());
+      setIsInitialized(true);
+      setLiffIdState(id);
+      setNeedsLiffId(false);
+
+      // localStorage에 저장
+      localStorage.setItem('liffId', id);
+
+      // 이미 로그인되어 있는지 확인
+      if (liff.isLoggedIn()) {
+        console.log('✅ 이미 LIFF에 로그인되어 있습니다');
+        setIsLoggedIn(true);
+
+        // 프로필 가져오기
+        const userProfile = await liff.getProfile();
+        console.log('LINE 사용자 프로필:', userProfile);
+        setProfile({
+          userId: userProfile.userId,
+          displayName: userProfile.displayName,
+          pictureUrl: userProfile.pictureUrl,
+          statusMessage: userProfile.statusMessage
+        });
+      } else {
+        console.log('❌ LIFF에 로그인되어 있지 않습니다');
+      }
+    } catch (err) {
+      console.error('LIFF 초기화 실패:', err);
+      setError(err instanceof Error ? err.message : 'LIFF 초기화 실패');
+      setIsInitialized(true);
+    }
+  };
+
+  // LIFF ID 설정
+  const setLiffId = (id: string) => {
+    setLiffIdState(id);
+    localStorage.setItem('liffId', id);
+  };
+
+  // 최초 로드 시 LIFF 초기화 시도
+  useEffect(() => {
+    const autoInitLiff = async () => {
+      // 1. 환경 변수에서 LIFF ID 확인
+      let id = import.meta.env.VITE_LIFF_ID;
+
+      // 2. 없으면 localStorage에서 확인
+      if (!id) {
+        id = localStorage.getItem('liffId');
+      }
+
+      // 3. 둘 다 없으면 사용자 입력 필요
+      if (!id) {
+        console.log('⚠️ LIFF ID가 설정되지 않았습니다. 사용자 입력이 필요합니다.');
+        setNeedsLiffId(true);
+        setIsInitialized(true); // 초기화는 완료된 것으로 표시 (LIFF ID 입력 대기)
         return;
       }
 
-      try {
-        console.log('LIFF 초기화 시작:', liffId);
-        await liff.init({ liffId });
-
-        setIsInClient(liff.isInClient());
-        setIsInitialized(true);
-
-        // 이미 로그인되어 있는지 확인
-        if (liff.isLoggedIn()) {
-          console.log('✅ 이미 LIFF에 로그인되어 있습니다');
-          setIsLoggedIn(true);
-
-          // 프로필 가져오기
-          const userProfile = await liff.getProfile();
-          console.log('LINE 사용자 프로필:', userProfile);
-          setProfile({
-            userId: userProfile.userId,
-            displayName: userProfile.displayName,
-            pictureUrl: userProfile.pictureUrl,
-            statusMessage: userProfile.statusMessage
-          });
-        } else {
-          console.log('❌ LIFF에 로그인되어 있지 않습니다');
-        }
-      } catch (err) {
-        console.error('LIFF 초기화 실패:', err);
-        setError(err instanceof Error ? err.message : 'LIFF 초기화 실패');
-        setIsInitialized(true);
-      }
+      // 4. LIFF ID가 있으면 자동 초기화
+      await initializeLiff(id);
     };
 
-    initLiff();
+    autoInitLiff();
   }, []);
 
   const login = async () => {
@@ -93,10 +132,14 @@ export const LiffProvider = ({ children }: LiffProviderProps) => {
     isLoggedIn,
     isInClient,
     isInitialized,
+    liffId,
+    needsLiffId,
     profile,
     error,
     login,
-    logout
+    logout,
+    setLiffId,
+    initializeLiff
   };
 
   return (
