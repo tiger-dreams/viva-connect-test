@@ -92,6 +92,8 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
           serviceId: prev.serviceId || saved.serviceId,
           apiKey: prev.apiKey || saved.apiKey,
           apiSecret: prev.apiSecret || saved.apiSecret,
+          // accessToken은 복원하지 않음 (매번 새로 생성 필요)
+          accessToken: ''
         }));
       } catch (error) {
         console.error('Failed to parse PlanetKit config:', error);
