@@ -656,7 +656,6 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="bg-card rounded-lg p-6 max-w-sm w-full space-y-4 border border-border">
             <div className="text-center space-y-2">
-              <div className="text-xs text-green-500 mb-2">✅ 새 모바일 UI 버전</div>
               <h2 className="text-xl font-semibold text-foreground">
                 {config.roomId ? `${config.roomId.charAt(0).toUpperCase() + config.roomId.slice(1)} Room` : 'PlanetKit 회의'}
               </h2>
@@ -713,7 +712,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
           </div>
 
           {/* 비디오 그리드 - 전체 화면 */}
-          <div className="flex-1 pt-[52px] pb-[100px]">
+          <div className="absolute top-[52px] bottom-[100px] left-0 right-0 w-full">
             <TileView participants={tileParticipants} />
           </div>
 
