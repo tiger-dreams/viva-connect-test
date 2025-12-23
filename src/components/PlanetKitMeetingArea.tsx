@@ -326,51 +326,11 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 }
               }
 
-              // 가상 배경 기능 등록 (Safari는 미지원)
+              // 가상 배경 기능 - startVirtualBackgroundBlur 직접 사용 (등록 불필요)
               const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-              if (!isSafari && !isWebView && planetKitConference && typeof planetKitConference.registerVirtualBackground === 'function' && localVideoRef.current) {
-                console.log('🎨 가상 배경 기능 등록 시도 중...');
-                try {
-                  // 환경에 맞는 PlanetKit 모듈 선택
-                  const PlanetKit = config.environment === 'real' ? PlanetKitReal : PlanetKitEval;
-
-                  // VirtualBackground 인스턴스 생성
-                  if (PlanetKit.VirtualBackground) {
-                    const virtualBackground = new PlanetKit.VirtualBackground({
-                      videoElement: localVideoRef.current
-                    });
-                    virtualBackgroundRef.current = virtualBackground;
-                    console.log('✅ VirtualBackground 인스턴스 생성됨');
-
-                    // VirtualBackground 인스턴스를 파라미터로 전달하여 등록
-                    const registerResult = planetKitConference.registerVirtualBackground(virtualBackground);
-                    // Promise인지 확인하고 await
-                    if (registerResult && typeof registerResult.then === 'function') {
-                      await registerResult;
-                    }
-
-                    // 등록 후 고정 시간 대기 (isVirtualBackgroundRegistered가 신뢰할 수 없음)
-                    console.log('⏳ 가상 배경 초기화 대기 중 (3초)...');
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-
-                    console.log('✅ 가상 배경 기능 등록 완료 (시간 기반)');
-                    setIsVirtualBackgroundReady(true);
-                    toast({
-                      title: "가상 배경 준비 완료",
-                      description: "배경 블러 기능을 사용할 수 있습니다.",
-                    });
-                  } else {
-                    throw new Error('VirtualBackground 클래스를 사용할 수 없습니다');
-                  }
-                } catch (err: any) {
-                  console.error('❌ 가상 배경 등록 실패:', err);
-                  setIsVirtualBackgroundReady(false);
-                  toast({
-                    title: "가상 배경 등록 실패",
-                    description: "배경 블러 기능을 사용할 수 없습니다.",
-                    variant: "destructive",
-                  });
-                }
+              if (!isSafari && !isWebView) {
+                console.log('✅ 가상 배경 기능 준비됨 (등록 불필요)');
+                setIsVirtualBackgroundReady(true);
               } else if (isSafari) {
                 console.log('⚠️ Safari에서는 가상 배경 기능을 지원하지 않습니다');
                 setIsVirtualBackgroundReady(false);
@@ -879,66 +839,11 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
       if (conference) {
         if (newBlurState) {
-          // 블러 활성화 - 등록 상태 확인 및 자동 재등록
-          if (!isVirtualBackgroundReady) {
-            console.log('🎨 가상 배경이 등록되지 않음, 자동 등록 시도 중...');
-            toast({
-              title: "가상 배경 등록 중",
-              description: "배경 블러를 사용하기 위해 초기화 중입니다...",
-            });
-
-            try {
-              if (typeof conference.registerVirtualBackground === 'function' && localVideoRef.current) {
-                // 환경에 맞는 PlanetKit 모듈 선택
-                const PlanetKit = config.environment === 'real' ? PlanetKitReal : PlanetKitEval;
-
-                // VirtualBackground 인스턴스 생성
-                if (PlanetKit.VirtualBackground) {
-                  const virtualBackground = new PlanetKit.VirtualBackground({
-                    videoElement: localVideoRef.current
-                  });
-                  virtualBackgroundRef.current = virtualBackground;
-                  console.log('✅ VirtualBackground 인스턴스 생성됨 (자동 등록)');
-
-                  // VirtualBackground 인스턴스를 파라미터로 전달하여 등록
-                  const registerResult = conference.registerVirtualBackground(virtualBackground);
-
-                  // Promise인지 확인하고 await
-                  if (registerResult && typeof registerResult.then === 'function') {
-                    await registerResult;
-                  }
-
-                  // 등록 후 고정 시간 대기 (isVirtualBackgroundRegistered가 신뢰할 수 없음)
-                  console.log('⏳ 가상 배경 초기화 대기 중 (3초)...');
-                  await new Promise(resolve => setTimeout(resolve, 3000));
-
-                  setIsVirtualBackgroundReady(true);
-                  console.log('✅ 가상 배경 자동 등록 완료 (시간 기반)');
-                  toast({
-                    title: "등록 완료",
-                    description: "배경 블러 기능이 준비되었습니다.",
-                  });
-                } else {
-                  throw new Error('VirtualBackground 클래스를 사용할 수 없습니다');
-                }
-              } else {
-                throw new Error('registerVirtualBackground 메서드를 사용할 수 없습니다');
-              }
-            } catch (registerError) {
-              console.error('❌ 가상 배경 자동 등록 실패:', registerError);
-              toast({
-                title: "등록 실패",
-                description: registerError instanceof Error ? registerError.message : "가상 배경 기능을 초기화할 수 없습니다.",
-                variant: "destructive",
-              });
-              return;
-            }
-          }
-
+          // 블러 활성화 - startVirtualBackgroundBlur 직접 호출
           if (typeof conference.startVirtualBackgroundBlur === 'function') {
             console.log('🎨 배경 블러 활성화 중...');
-            // Canvas는 optional - 없이 시도
-            await conference.startVirtualBackgroundBlur(null, 15);
+            // Canvas와 blurRadius 전달
+            await conference.startVirtualBackgroundBlur(blurCanvasRef.current, 15);
             setIsBlurEnabled(true);
             toast({
               title: "블러 활성화",
