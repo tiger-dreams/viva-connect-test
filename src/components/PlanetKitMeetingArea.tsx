@@ -335,12 +335,44 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                   if (registerResult && typeof registerResult.then === 'function') {
                     await registerResult;
                   }
-                  console.log('✅ 가상 배경 기능 등록 완료');
-                  setIsVirtualBackgroundReady(true);
-                  toast({
-                    title: "가상 배경 준비 완료",
-                    description: "배경 블러 기능을 사용할 수 있습니다.",
-                  });
+
+                  // 등록 완료를 폴링으로 확인 (최대 5초 대기)
+                  let isRegistered = false;
+                  const maxAttempts = 10; // 10회 * 500ms = 5초
+
+                  if (typeof planetKitConference.isVirtualBackgroundRegistered === 'function') {
+                    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                      await new Promise(resolve => setTimeout(resolve, 500));
+
+                      const checkResult = planetKitConference.isVirtualBackgroundRegistered();
+                      const registered = checkResult && typeof checkResult.then === 'function'
+                        ? await checkResult
+                        : checkResult;
+
+                      console.log(`🔍 초기 가상 배경 등록 확인 (${attempt + 1}/${maxAttempts}):`, registered);
+
+                      if (registered) {
+                        isRegistered = true;
+                        break;
+                      }
+                    }
+                  } else {
+                    // isVirtualBackgroundRegistered가 없으면 2초 대기 후 등록되었다고 가정
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    isRegistered = true;
+                  }
+
+                  if (isRegistered) {
+                    console.log('✅ 가상 배경 기능 등록 완료 및 확인됨');
+                    setIsVirtualBackgroundReady(true);
+                    toast({
+                      title: "가상 배경 준비 완료",
+                      description: "배경 블러 기능을 사용할 수 있습니다.",
+                    });
+                  } else {
+                    console.warn('⚠️ 가상 배경 등록 시간 초과');
+                    setIsVirtualBackgroundReady(false);
+                  }
                 } catch (err: any) {
                   console.error('❌ 가상 배경 등록 실패:', err);
                   setIsVirtualBackgroundReady(false);
