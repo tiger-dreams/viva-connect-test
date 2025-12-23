@@ -245,99 +245,107 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
     setConnectionStatus({ connected: false, connecting: true });
 
     try {
-      // 환경에 따라 올바른 PlanetKit 모듈 선택
-      const isEvalEnvironment = config.environment === 'eval';
-      const PlanetKit = isEvalEnvironment ? PlanetKitEval : PlanetKitReal;
+      const attemptJoin = async (PlanetKitModule: any, envLabel: 'eval' | 'real') => {
+        console.log(`PlanetKit 환경: ${envLabel} (${envLabel === 'eval' ? 'Evaluation' : 'Real'})`);
 
-      console.log(`PlanetKit 환경: ${config.environment} (${isEvalEnvironment ? 'Evaluation' : 'Real'})`);
+        const planetKitConference = new PlanetKitModule.Conference({
+          logLevel: 'log'
+        });
 
-      // PlanetKit Conference 인스턴스 생성
-      const planetKitConference = new PlanetKit.Conference({
-        logLevel: 'log'
-      });
+        const conferenceDelegate = {
+          evtConnected: () => {
+            console.log('PlanetKit Conference 연결됨');
+            setConnectionStatus({ connected: true, connecting: false });
+            setConnectionStartTime(new Date());
 
-      // 이벤트 델리게이트 객체 정의
-      const conferenceDelegate = {
-        evtConnected: () => {
-          console.log('PlanetKit Conference 연결됨');
-          setConnectionStatus({ connected: true, connecting: false });
-          setConnectionStartTime(new Date());
-          
-          // 로컬 참가자 추가 (화상회의)
-          setParticipants([{
-            id: "local",
-            name: config.userId,
-            isVideoOn: true, // 화상회의 모드
-            isAudioOn: true,
-            isScreenSharing: false
-          }]);
-
-          toast({
-            title: "연결 성공",
-            description: "PlanetKit Conference에 성공적으로 연결되었습니다.",
-          });
-        },
-
-        evtDisconnected: (disconnectDetails: any) => {
-          console.log('PlanetKit Conference 연결 해제:', disconnectDetails);
-          setConnectionStatus({ connected: false, connecting: false });
-          setParticipants([]);
-          setConnectionStartTime(null);
-          setCallDuration("00:00:00");
-          
-          toast({
-            title: "연결 해제",
-            description: "PlanetKit Conference 연결이 해제되었습니다.",
-          });
-        },
-
-        evtPeerListUpdated: (peerUpdateInfo: any) => {
-          console.log('참가자 목록 업데이트:', peerUpdateInfo);
-          
-          // 원격 참가자 목록 업데이트 (실제 구조에 맞게 조정)
-          const peerList = peerUpdateInfo.peerList || peerUpdateInfo || [];
-          const remoteParticipants = peerList.map((peer: any, index: number) => ({
-            id: peer.peerId || peer.myId || `peer-${index}`,
-            name: peer.peerName || peer.myId || `User ${index}`,
-            isVideoOn: Math.random() > 0.3, // 화상회의 모드 (70% 비디오 on)
-            isAudioOn: true,
-            isScreenSharing: false
-          }));
-
-          // 로컬 참가자 + 원격 참가자
-          setParticipants([
-            {
+            setParticipants([{
               id: "local",
               name: config.userId,
-              isVideoOn: isVideoOn, // 현재 비디오 상태 반영
-              isAudioOn: isAudioOn,
-              isScreenSharing: isScreenSharing
-            },
-            ...remoteParticipants
-          ]);
+              isVideoOn: true,
+              isAudioOn: true,
+              isScreenSharing: false
+            }]);
+
+            toast({
+              title: "연결 성공",
+              description: "PlanetKit Conference에 성공적으로 연결되었습니다.",
+            });
+          },
+
+          evtDisconnected: (disconnectDetails: any) => {
+            console.log('PlanetKit Conference 연결 해제:', disconnectDetails);
+            setConnectionStatus({ connected: false, connecting: false });
+            setParticipants([]);
+            setConnectionStartTime(null);
+            setCallDuration("00:00:00");
+
+            toast({
+              title: "연결 해제",
+              description: "PlanetKit Conference 연결이 해제되었습니다.",
+            });
+          },
+
+          evtPeerListUpdated: (peerUpdateInfo: any) => {
+            console.log('참가자 목록 업데이트:', peerUpdateInfo);
+
+            const peerList = peerUpdateInfo.peerList || peerUpdateInfo || [];
+            const remoteParticipants = peerList.map((peer: any, index: number) => ({
+              id: peer.peerId || peer.myId || `peer-${index}`,
+              name: peer.peerName || peer.myId || `User ${index}`,
+              isVideoOn: Math.random() > 0.3,
+              isAudioOn: true,
+              isScreenSharing: false
+            }));
+
+            setParticipants([
+              {
+                id: "local",
+                name: config.userId,
+                isVideoOn: isVideoOn,
+                isAudioOn: isAudioOn,
+                isScreenSharing: isScreenSharing
+              },
+              ...remoteParticipants
+            ]);
+          }
+        };
+
+        const conferenceParams = {
+          myId: config.userId,
+          myServiceId: config.serviceId,
+          roomId: config.roomId,
+          roomServiceId: config.serviceId,
+          accessToken: config.accessToken,
+          mediaType: "video",
+          mediaHtmlElement: {
+            roomAudio: audioElementRef.current,
+            localVideo: localVideoRef.current
+          },
+          delegate: conferenceDelegate
+        };
+
+        console.log('joinConference 파라미터:', conferenceParams);
+
+        await planetKitConference.joinConference(conferenceParams);
+        setConference(planetKitConference);
+      };
+
+      const isEvalEnvironment = config.environment === 'eval';
+
+      if (isEvalEnvironment) {
+        try {
+          await attemptJoin(PlanetKitEval, 'eval');
+        } catch (evalError) {
+          console.warn('Evaluation 환경 연결 실패. Real 환경으로 재시도합니다.', evalError);
+          toast({
+            title: "Evaluation 연결 실패",
+            description: "네트워크/정책상 Evaluation WebSocket이 막혔을 수 있어 Real 환경으로 재시도합니다.",
+          });
+          await attemptJoin(PlanetKitReal, 'real');
         }
-      };
-
-      // Conference 참여 (올바른 파라미터 구조 사용)
-      const conferenceParams = {
-        myId: config.userId,
-        myServiceId: config.serviceId,
-        roomId: config.roomId,
-        roomServiceId: config.serviceId, // roomServiceId 추가
-        accessToken: config.accessToken,
-        mediaType: "video", // 화상회의 모드로 변경
-        mediaHtmlElement: {
-          roomAudio: audioElementRef.current,
-          localVideo: localVideoRef.current // 로컬 비디오 엘리먼트 추가
-        },
-        delegate: conferenceDelegate
-      };
-
-      console.log('joinConference 파라미터:', conferenceParams);
-      
-      await planetKitConference.joinConference(conferenceParams);
-
-      setConference(planetKitConference);
+      } else {
+        await attemptJoin(PlanetKitReal, 'real');
+      }
 
     } catch (error) {
       console.error("PlanetKit Conference 연결 실패:", error);
