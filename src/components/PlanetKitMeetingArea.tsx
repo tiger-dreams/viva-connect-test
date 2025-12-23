@@ -338,6 +338,36 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
             console.log('📋 추가된 Peer:', addedPeers);
             console.log('📋 제거된 Peer:', removedPeers);
 
+            // 새로 추가된 peer에 대해 비디오 요청
+            addedPeers.forEach((peer: any) => {
+              const peerId = peer.peerId || peer.id || peer.myId;
+              console.log(`📹 Peer ${peerId} 비디오 요청 시작`);
+
+              // 비디오 엘리먼트 생성
+              const videoElement = document.createElement('video');
+              videoElement.autoplay = true;
+              videoElement.playsInline = true;
+              videoElement.style.width = '100%';
+              videoElement.style.height = '100%';
+              videoElement.style.objectFit = 'cover';
+
+              // PlanetKit에 비디오 요청
+              if (planetKitConference && typeof planetKitConference.requestPeerVideo === 'function') {
+                try {
+                  planetKitConference.requestPeerVideo({
+                    peerId: peerId,
+                    videoViewElement: videoElement
+                  });
+                  console.log(`✅ Peer ${peerId} 비디오 요청 완료`);
+
+                  // 비디오 엘리먼트 저장
+                  remoteVideoElementsRef.current.set(peerId, videoElement);
+                } catch (err) {
+                  console.error(`❌ Peer ${peerId} 비디오 요청 실패:`, err);
+                }
+              }
+            });
+
             setParticipants(prev => {
               // 기존 참가자 목록에서 제거된 참가자 삭제
               let updated = prev.filter(p => {
@@ -386,24 +416,26 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
           evtPeersVideoUpdated: (videoUpdateInfo: any) => {
             console.log('🎥 참가자 비디오 업데이트:', videoUpdateInfo);
 
-            // videoUpdateInfo는 { peerId: HTMLVideoElement } 형태의 객체
-            const peers = videoUpdateInfo.peers || videoUpdateInfo || {};
+            // videoUpdateInfo는 배열 형태: [{peer: {...}, videoStatus: {...}}]
+            const updates = Array.isArray(videoUpdateInfo) ? videoUpdateInfo : [];
 
-            Object.entries(peers).forEach(([peerId, videoElement]: [string, any]) => {
-              console.log(`🎥 Peer ${peerId} 비디오 엘리먼트 업데이트:`, videoElement);
+            updates.forEach((update: any) => {
+              const peer = update.peer || {};
+              const peerId = peer.peerId || peer.id;
+              const videoStatus = update.videoStatus || {};
 
-              if (videoElement instanceof HTMLVideoElement) {
-                // 비디오 엘리먼트를 맵에 저장
-                remoteVideoElementsRef.current.set(peerId, videoElement);
+              console.log(`🎥 Peer ${peerId} 비디오 상태:`, videoStatus);
 
-                // 참가자 목록 업데이트 (비디오 엘리먼트 포함)
-                setParticipants(prev => prev.map(p => {
-                  if (p.id === peerId) {
-                    return { ...p, videoElement: videoElement };
-                  }
-                  return p;
-                }));
-              }
+              // 참가자의 비디오 상태 업데이트
+              setParticipants(prev => prev.map(p => {
+                if (p.id === peerId) {
+                  return {
+                    ...p,
+                    isVideoOn: videoStatus.isEnabled !== false
+                  };
+                }
+                return p;
+              }));
             });
           }
         };
