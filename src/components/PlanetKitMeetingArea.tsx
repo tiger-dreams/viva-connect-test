@@ -395,10 +395,11 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               if (planetKitConference && typeof planetKitConference.requestPeerVideo === 'function') {
                 try {
                   planetKitConference.requestPeerVideo({
-                    peerId: peerId,
+                    userId: peerId,  // PlanetKit API는 userId 파라미터를 사용
+                    resolution: 'vga',  // 비디오 해상도 지정 (vga, hd, fhd 등)
                     videoViewElement: videoElement
                   });
-                  console.log(`✅ Peer ${peerId} 비디오 요청 완료`);
+                  console.log(`✅ Peer ${peerId} 비디오 요청 완료 (resolution: vga)`);
 
                   // 비디오 엘리먼트 저장
                   remoteVideoElementsRef.current.set(peerId, videoElement);
