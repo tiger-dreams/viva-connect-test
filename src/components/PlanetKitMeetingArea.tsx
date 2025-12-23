@@ -338,6 +338,40 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
             console.log('📋 추가된 Peer:', addedPeers);
             console.log('📋 제거된 Peer:', removedPeers);
 
+            // 제거된 peer 처리
+            removedPeers.forEach((peer: any) => {
+              const peerId = peer.peerId || peer.id || peer.myId;
+              console.log(`🚪 Peer ${peerId} 제거 시작:`, peer);
+
+              // PlanetKit에 비디오 제거 요청
+              if (planetKitConference && typeof planetKitConference.removePeerVideo === 'function') {
+                try {
+                  planetKitConference.removePeerVideo({ peerId: peerId });
+                  console.log(`✅ Peer ${peerId} 비디오 제거 완료`);
+                } catch (err) {
+                  console.error(`❌ Peer ${peerId} 비디오 제거 실패:`, err);
+                }
+              }
+
+              // 비디오 엘리먼트 정리
+              const videoElement = remoteVideoElementsRef.current.get(peerId);
+              if (videoElement) {
+                // 비디오 엘리먼트의 스트림 정리
+                if (videoElement.srcObject) {
+                  const stream = videoElement.srcObject as MediaStream;
+                  stream.getTracks().forEach(track => track.stop());
+                  videoElement.srcObject = null;
+                }
+                // DOM에서 제거 (부모가 있으면)
+                if (videoElement.parentNode) {
+                  videoElement.parentNode.removeChild(videoElement);
+                }
+                // Map에서 제거
+                remoteVideoElementsRef.current.delete(peerId);
+                console.log(`🗑️ Peer ${peerId} 비디오 엘리먼트 정리 완료`);
+              }
+            });
+
             // 새로 추가된 peer에 대해 비디오 요청
             addedPeers.forEach((peer: any) => {
               const peerId = peer.peerId || peer.id || peer.myId;
@@ -371,9 +405,14 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
             setParticipants(prev => {
               // 기존 참가자 목록에서 제거된 참가자 삭제
               let updated = prev.filter(p => {
-                const isRemoved = removedPeers.some((removedPeer: any) =>
-                  (removedPeer.peerId || removedPeer.id) === p.id
-                );
+                const isRemoved = removedPeers.some((removedPeer: any) => {
+                  const removedPeerId = removedPeer.peerId || removedPeer.id || removedPeer.myId;
+                  const isMatch = removedPeerId === p.id;
+                  if (isMatch) {
+                    console.log(`🔍 참가자 ${p.id} (${p.name}) 제거됨`);
+                  }
+                  return isMatch;
+                });
                 return !isRemoved;
               });
 
@@ -408,8 +447,11 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               };
 
               const remoteParticipants = updated.filter(p => p.id !== "local");
+              const finalList = [localParticipant, ...remoteParticipants, ...newParticipants];
 
-              return [localParticipant, ...remoteParticipants, ...newParticipants];
+              console.log(`📊 최종 참가자 목록 (${finalList.length}명):`, finalList.map(p => `${p.id} (${p.name})`));
+
+              return finalList;
             });
           },
 
