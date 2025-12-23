@@ -7,8 +7,6 @@ import { VideoSDKProvider } from "@/contexts/VideoSDKContext";
 import { LiffProvider } from "@/contexts/LiffContext";
 import Index from "./pages/Index";
 import SetupPage from "./pages/SetupPage";
-import AgoraMeeting from "./pages/AgoraMeeting";
-import LiveKitMeeting from "./pages/LiveKitMeeting";
 import PlanetKitMeeting from "./pages/PlanetKitMeeting";
 import MeetingPage from "./pages/MeetingPage";
 import NotFound from "./pages/NotFound";
@@ -30,12 +28,10 @@ const App = () => (
 
             {/* 기존 페이지 (레거시 UI 호환성 유지) */}
             <Route path="/legacy" element={<Index />} />
-            
-            {/* SDK별 분리된 미팅 페이지 */}
-            <Route path="/agora_meeting" element={<AgoraMeeting />} />
-            <Route path="/livekit_meeting" element={<LiveKitMeeting />} />
+
+            {/* PlanetKit 미팅 페이지 */}
             <Route path="/planetkit_meeting" element={<PlanetKitMeeting />} />
-            
+
             {/* 기존 미팅 페이지 (호환성 유지) */}
             <Route path="/meeting" element={<MeetingPage />} />
             

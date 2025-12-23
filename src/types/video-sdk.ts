@@ -1,19 +1,8 @@
-export type SDKType = 'agora' | 'livekit' | 'planetkit';
-
-export interface AgoraConfig {
-  appId: string;
-  appCertificate: string;
-  channelName: string;
-  uid: string;
-  token?: string;
-  role?: ParticipantRole;
-  isHost?: boolean;
-  participantName?: string; // 참가자 식별용 이름
-}
+export type SDKType = 'planetkit';
 
 export enum ParticipantRole {
   HOST = 'host',
-  MODERATOR = 'moderator', 
+  MODERATOR = 'moderator',
   PARTICIPANT = 'participant'
 }
 
@@ -22,17 +11,6 @@ export interface RolePermissions {
   canMuteOthers: boolean;
   canChangeRole: boolean;
   canManageRoom: boolean;
-}
-
-export interface LiveKitConfig {
-  serverUrl: string;
-  apiKey: string;
-  apiSecret: string;
-  roomName: string;
-  participantName: string;
-  token?: string;
-  role?: ParticipantRole;
-  isHost?: boolean;
 }
 
 export interface PlanetKitConfig {

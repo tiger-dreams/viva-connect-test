@@ -336,94 +336,68 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
           },
 
           evtPeerListUpdated: (peerUpdateInfo: any) => {
-            console.log('📋 참가자 목록 업데이트:', peerUpdateInfo);
-
             // PlanetKit은 addedPeers, removedPeers 배열을 제공
             const addedPeers = peerUpdateInfo.addedPeers || [];
             const removedPeers = peerUpdateInfo.removedPeers || [];
 
-            console.log('📋 추가된 Peer:', addedPeers);
-            console.log('📋 제거된 Peer:', removedPeers);
-
             // 제거된 peer 처리
             removedPeers.forEach((peer: any) => {
-              // PlanetKit은 userId 필드를 사용
               const peerId = peer.userId || peer.peerId || peer.id || peer.myId;
-              console.log(`🚪 Peer ${peerId} 제거 시작:`, peer);
 
               // PlanetKit에 비디오 제거 요청
               if (planetKitConference && typeof planetKitConference.removePeerVideo === 'function') {
                 try {
                   planetKitConference.removePeerVideo({ peerId: peerId });
-                  console.log(`✅ Peer ${peerId} 비디오 제거 완료`);
                 } catch (err) {
-                  console.error(`❌ Peer ${peerId} 비디오 제거 실패:`, err);
+                  console.error(`비디오 제거 실패 (${peerId}):`, err);
                 }
               }
 
               // 비디오 엘리먼트 정리
               const videoElement = remoteVideoElementsRef.current.get(peerId);
               if (videoElement) {
-                // 비디오 엘리먼트의 스트림 정리
                 if (videoElement.srcObject) {
                   const stream = videoElement.srcObject as MediaStream;
                   stream.getTracks().forEach(track => track.stop());
                   videoElement.srcObject = null;
                 }
-                // DOM에서 제거 (부모가 있으면)
                 if (videoElement.parentNode) {
                   videoElement.parentNode.removeChild(videoElement);
                 }
-                // Map에서 제거
                 remoteVideoElementsRef.current.delete(peerId);
-                console.log(`🗑️ Peer ${peerId} 비디오 엘리먼트 정리 완료`);
               }
             });
 
             // 새로 추가된 peer에 대해 비디오 요청
             addedPeers.forEach((peer: any) => {
-              // PlanetKit은 userId 필드를 사용
               const peerId = peer.userId || peer.peerId || peer.id || peer.myId;
-              console.log(`📹 Peer ${peerId} 비디오 요청 시작`, peer);
 
               // 비디오 엘리먼트 생성
               const videoElement = document.createElement('video');
               videoElement.autoplay = true;
               videoElement.playsInline = true;
-              videoElement.muted = false; // 원격 참가자는 음소거 안 함
+              videoElement.muted = false;
               videoElement.style.width = '100%';
               videoElement.style.height = '100%';
               videoElement.style.objectFit = 'cover';
               videoElement.style.backgroundColor = '#000';
 
-              console.log(`🎬 비디오 엘리먼트 생성됨 for Peer ${peerId}:`, videoElement);
-
               // PlanetKit에 비디오 요청
               if (planetKitConference && typeof planetKitConference.requestPeerVideo === 'function') {
                 try {
                   planetKitConference.requestPeerVideo({
-                    userId: peerId,  // PlanetKit API는 userId 파라미터를 사용
-                    resolution: 'vga',  // 비디오 해상도 지정 (vga, hd, fhd 등)
+                    userId: peerId,
+                    resolution: 'vga',
                     videoViewElement: videoElement
                   });
-                  console.log(`✅ Peer ${peerId} 비디오 요청 완료 (resolution: vga)`);
 
-                  // 비디오 엘리먼트 저장
                   remoteVideoElementsRef.current.set(peerId, videoElement);
-                  console.log(`💾 Peer ${peerId} 비디오 엘리먼트 Map에 저장됨. Map 크기:`, remoteVideoElementsRef.current.size);
 
-                  // 비디오 엘리먼트가 스트림을 받을 때 로그
-                  videoElement.onloadedmetadata = () => {
-                    console.log(`🎥 Peer ${peerId} 비디오 메타데이터 로드됨`);
-                  };
-                  videoElement.onplay = () => {
-                    console.log(`▶️ Peer ${peerId} 비디오 재생 시작`);
-                  };
                   videoElement.onerror = (err) => {
-                    console.error(`❌ Peer ${peerId} 비디오 에러:`, err);
+                    console.error(`비디오 에러 (${peerId}):`, err);
                   };
                 } catch (err) {
-                  console.error(`❌ Peer ${peerId} 비디오 요청 실패:`, err);
+                  console.error(`비디오 요청 실패 (${peerId}):`, err);
                 }
               }
             });
@@ -432,34 +406,17 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               // 기존 참가자 목록에서 제거된 참가자 삭제
               let updated = prev.filter(p => {
                 const isRemoved = removedPeers.some((removedPeer: any) => {
-                  // PlanetKit은 userId 필드를 사용
                   const removedPeerId = removedPeer.userId || removedPeer.peerId || removedPeer.id || removedPeer.myId;
-                  const isMatch = removedPeerId === p.id;
-                  if (isMatch) {
-                    console.log(`🔍 참가자 ${p.id} (${p.name}) 제거됨`);
-                  }
-                  return isMatch;
+                  return removedPeerId === p.id;
                 });
                 return !isRemoved;
               });
 
               // 새로 추가된 참가자 추가
               const newParticipants = addedPeers.map((peer: any, index: number) => {
-                // PlanetKit은 userId 필드를 사용
                 const peerId = peer.userId || peer.peerId || peer.id || peer.myId || `peer-${index}`;
                 const peerName = peer.displayName || peer.peerName || peer.userId || `User ${index}`;
-
-                // 원격 참가자의 비디오 엘리먼트 가져오기
                 const videoElement = remoteVideoElementsRef.current.get(peerId);
-
-                console.log(`📋 추가된 Peer ${index}:`, {
-                  peerId,
-                  peerName,
-                  hasVideoElement: !!videoElement,
-                  videoElement: videoElement,
-                  videoElementSrcObject: videoElement?.srcObject,
-                  peer
-                });
 
                 return {
                   id: peerId,
@@ -482,29 +439,18 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               };
 
               const remoteParticipants = updated.filter(p => p.id !== "local");
-              const finalList = [localParticipant, ...remoteParticipants, ...newParticipants];
-
-              console.log(`📊 최종 참가자 목록 (${finalList.length}명):`, finalList.map(p => `${p.id} (${p.name})`));
-
-              return finalList;
+              return [localParticipant, ...remoteParticipants, ...newParticipants];
             });
           },
 
           evtPeersVideoUpdated: (videoUpdateInfo: any) => {
-            console.log('🎥 참가자 비디오 업데이트:', videoUpdateInfo);
-
-            // videoUpdateInfo는 배열 형태: [{peer: {...}, videoStatus: {...}}]
             const updates = Array.isArray(videoUpdateInfo) ? videoUpdateInfo : [];
 
             updates.forEach((update: any) => {
               const peer = update.peer || {};
-              // PlanetKit은 userId 필드를 사용
               const peerId = peer.userId || peer.peerId || peer.id;
               const videoStatus = update.videoStatus || {};
 
-              console.log(`🎥 Peer ${peerId} 비디오 상태:`, videoStatus);
-
-              // 참가자의 비디오 상태 업데이트
               setParticipants(prev => prev.map(p => {
                 if (p.id === peerId) {
                   return {
@@ -518,20 +464,13 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
           },
 
           evtPeersAudioUpdated: (audioUpdateInfo: any) => {
-            console.log('🎤 참가자 오디오 업데이트:', audioUpdateInfo);
-
-            // audioUpdateInfo는 배열 형태: [{peer: {...}, audioStatus: {...}}]
             const updates = Array.isArray(audioUpdateInfo) ? audioUpdateInfo : [];
 
             updates.forEach((update: any) => {
               const peer = update.peer || {};
-              // PlanetKit은 userId 필드를 사용
               const peerId = peer.userId || peer.peerId || peer.id;
               const audioStatus = update.audioStatus || {};
 
-              console.log(`🎤 Peer ${peerId} 오디오 상태:`, audioStatus);
-
-              // 참가자의 오디오 상태 업데이트
               setParticipants(prev => prev.map(p => {
                 if (p.id === peerId) {
                   return {
