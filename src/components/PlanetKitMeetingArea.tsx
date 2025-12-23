@@ -243,9 +243,12 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
     setConnectionStatus({ connected: false, connecting: true });
 
     try {
-      // PlanetKit Conference 인스턴스 생성 (설정 객체는 선택사항)
+      // PlanetKit Conference 인스턴스 생성
+      // Evaluation 환경: https://voipnx-saturn.line-apps-rc.com
+      // Real 환경: https://voipnx-saturn.line-apps.com
       const planetKitConference = new PlanetKit.Conference({
-        logLevel: 'log'
+        logLevel: 'log',
+        serverUrl: 'https://voipnx-saturn.line-apps-rc.com' // Evaluation 환경 사용
       });
 
       // 이벤트 델리게이트 객체 정의
