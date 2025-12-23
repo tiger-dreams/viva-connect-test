@@ -852,14 +852,35 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
       if (conference) {
         if (newBlurState) {
-          // 블러 활성화 - isVirtualBackgroundReady 상태 확인
+          // 블러 활성화 - 등록 상태 확인 및 자동 재등록
           if (!isVirtualBackgroundReady) {
+            console.log('🎨 가상 배경이 등록되지 않음, 자동 등록 시도 중...');
             toast({
-              title: "등록 필요",
-              description: "가상 배경 기능이 아직 등록되지 않았습니다. 잠시 후 다시 시도하세요.",
-              variant: "destructive",
+              title: "가상 배경 등록 중",
+              description: "배경 블러를 사용하기 위해 초기화 중입니다...",
             });
-            return;
+
+            try {
+              if (typeof conference.registerVirtualBackground === 'function') {
+                await conference.registerVirtualBackground();
+                setIsVirtualBackgroundReady(true);
+                console.log('✅ 가상 배경 자동 등록 완료');
+                toast({
+                  title: "등록 완료",
+                  description: "배경 블러 기능이 준비되었습니다.",
+                });
+              } else {
+                throw new Error('registerVirtualBackground 메서드를 사용할 수 없습니다');
+              }
+            } catch (registerError) {
+              console.error('❌ 가상 배경 자동 등록 실패:', registerError);
+              toast({
+                title: "등록 실패",
+                description: "가상 배경 기능을 초기화할 수 없습니다.",
+                variant: "destructive",
+              });
+              return;
+            }
           }
 
           if (typeof conference.startVirtualBackgroundBlur === 'function') {
