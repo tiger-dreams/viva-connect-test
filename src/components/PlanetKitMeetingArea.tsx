@@ -300,50 +300,56 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
             }]);
 
             // 로컬 비디오 미러링 활성화 및 가상 배경 등록 (비디오 엘리먼트가 완전히 렌더링된 후 호출)
-            setTimeout(() => {
+            setTimeout(async () => {
               // 비디오 미러링 적용
               if (planetKitConference && typeof planetKitConference.setVideoMirror === 'function' && localVideoRef.current) {
                 console.log('🪞 비디오 미러링 시도 중...', localVideoRef.current);
-                planetKitConference.setVideoMirror(true, localVideoRef.current)
-                  .then(() => {
-                    console.log('✅ 비디오 미러링 활성화됨');
-                    toast({
-                      title: "미러링 활성화",
-                      description: "로컬 비디오 미러링이 적용되었습니다.",
-                    });
-                  })
-                  .catch((err: any) => {
-                    console.error('❌ 비디오 미러링 실패:', err);
-                    toast({
-                      title: "미러링 실패",
-                      description: `비디오 미러링 적용에 실패했습니다: ${err.message || err}`,
-                      variant: "destructive",
-                    });
+                try {
+                  const mirrorResult = planetKitConference.setVideoMirror(true, localVideoRef.current);
+                  // Promise인지 확인하고 await
+                  if (mirrorResult && typeof mirrorResult.then === 'function') {
+                    await mirrorResult;
+                  }
+                  console.log('✅ 비디오 미러링 활성화됨');
+                  toast({
+                    title: "미러링 활성화",
+                    description: "로컬 비디오 미러링이 적용되었습니다.",
                   });
+                } catch (err: any) {
+                  console.error('❌ 비디오 미러링 실패:', err);
+                  toast({
+                    title: "미러링 실패",
+                    description: `비디오 미러링 적용에 실패했습니다: ${err.message || err}`,
+                    variant: "destructive",
+                  });
+                }
               }
 
               // 가상 배경 기능 등록 (Safari는 미지원)
               const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
               if (!isSafari && !isWebView && planetKitConference && typeof planetKitConference.registerVirtualBackground === 'function') {
                 console.log('🎨 가상 배경 기능 등록 시도 중...');
-                planetKitConference.registerVirtualBackground()
-                  .then(() => {
-                    console.log('✅ 가상 배경 기능 등록 완료');
-                    setIsVirtualBackgroundReady(true);
-                    toast({
-                      title: "가상 배경 준비 완료",
-                      description: "배경 블러 기능을 사용할 수 있습니다.",
-                    });
-                  })
-                  .catch((err: any) => {
-                    console.error('❌ 가상 배경 등록 실패:', err);
-                    setIsVirtualBackgroundReady(false);
-                    toast({
-                      title: "가상 배경 등록 실패",
-                      description: "배경 블러 기능을 사용할 수 없습니다.",
-                      variant: "destructive",
-                    });
+                try {
+                  const registerResult = planetKitConference.registerVirtualBackground();
+                  // Promise인지 확인하고 await
+                  if (registerResult && typeof registerResult.then === 'function') {
+                    await registerResult;
+                  }
+                  console.log('✅ 가상 배경 기능 등록 완료');
+                  setIsVirtualBackgroundReady(true);
+                  toast({
+                    title: "가상 배경 준비 완료",
+                    description: "배경 블러 기능을 사용할 수 있습니다.",
                   });
+                } catch (err: any) {
+                  console.error('❌ 가상 배경 등록 실패:', err);
+                  setIsVirtualBackgroundReady(false);
+                  toast({
+                    title: "가상 배경 등록 실패",
+                    description: "배경 블러 기능을 사용할 수 없습니다.",
+                    variant: "destructive",
+                  });
+                }
               } else if (isSafari) {
                 console.log('⚠️ Safari에서는 가상 배경 기능을 지원하지 않습니다');
                 setIsVirtualBackgroundReady(false);
@@ -862,7 +868,32 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
             try {
               if (typeof conference.registerVirtualBackground === 'function') {
-                await conference.registerVirtualBackground();
+                const registerResult = conference.registerVirtualBackground();
+
+                // Promise인지 확인하고 await
+                if (registerResult && typeof registerResult.then === 'function') {
+                  await registerResult;
+                }
+
+                // 등록 후 초기화 대기 (1초)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // 실제 등록 여부 확인
+                let isRegistered = false;
+                if (typeof conference.isVirtualBackgroundRegistered === 'function') {
+                  const checkResult = conference.isVirtualBackgroundRegistered();
+                  isRegistered = checkResult && typeof checkResult.then === 'function'
+                    ? await checkResult
+                    : checkResult;
+                } else {
+                  // isVirtualBackgroundRegistered가 없으면 등록되었다고 가정
+                  isRegistered = true;
+                }
+
+                if (!isRegistered) {
+                  throw new Error('가상 배경 등록이 완료되지 않았습니다');
+                }
+
                 setIsVirtualBackgroundReady(true);
                 console.log('✅ 가상 배경 자동 등록 완료');
                 toast({
@@ -876,7 +907,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               console.error('❌ 가상 배경 자동 등록 실패:', registerError);
               toast({
                 title: "등록 실패",
-                description: "가상 배경 기능을 초기화할 수 없습니다.",
+                description: registerError instanceof Error ? registerError.message : "가상 배경 기능을 초기화할 수 없습니다.",
                 variant: "destructive",
               });
               return;
