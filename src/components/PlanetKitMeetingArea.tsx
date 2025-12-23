@@ -1,22 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Mic,
   MicOff,
   Video,
   VideoOff,
-  Phone,
   PhoneOff,
   Activity,
-  Wifi,
-  WifiOff,
   Clock,
   Users,
-  Settings,
 } from "lucide-react";
 import { PlanetKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
@@ -27,9 +19,10 @@ import * as PlanetKitEval from "@line/planet-kit/dist/planet-kit-eval";
 
 interface PlanetKitMeetingAreaProps {
   config: PlanetKitConfig;
+  onDisconnect?: () => void;
 }
 
-export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
+export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingAreaProps) => {
   const { toast } = useToast();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     connected: false,
@@ -40,17 +33,6 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
   const [callDuration, setCallDuration] = useState<string>("00:00:00");
-  const [showDeviceSettings, setShowDeviceSettings] = useState(false);
-  const [currentDevices, setCurrentDevices] = useState<{
-    audioInput?: MediaDeviceInfo;
-    audioOutput?: MediaDeviceInfo;
-    videoInput?: MediaDeviceInfo;
-  }>({});
-  const [devicePermissions, setDevicePermissions] = useState<{
-    microphone: PermissionState | "unknown";
-    camera: PermissionState | "unknown";
-  }>({ microphone: "unknown", camera: "unknown" });
-  const [isWebView, setIsWebView] = useState(false);
 
   // 비디오 엘리먼트 refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -58,86 +40,6 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   const [conference, setConference] = useState<any>(null);
   // 원격 참가자 비디오 엘리먼트 맵
   const remoteVideoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
-
-  // WebView 환경 감지 (PlanetKit 5.5+)
-  useEffect(() => {
-    const detectWebView = () => {
-      const userAgent = navigator.userAgent || navigator.vendor;
-      // iOS WebView 감지
-      const isIOSWebView = /(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)/i.test(userAgent);
-      // Android WebView 감지
-      const isAndroidWebView = /Android.*wv\)/i.test(userAgent);
-
-      const detected = isIOSWebView || isAndroidWebView;
-      setIsWebView(detected);
-
-      if (detected) {
-        toast({
-          title: "WebView 환경 감지",
-          description: "WebView 환경에서 실행 중입니다.",
-          variant: "default",
-        });
-      }
-    };
-
-    detectWebView();
-  }, []);
-
-  // 디바이스 권한 모니터링 (PlanetKit 5.5+)
-  useEffect(() => {
-    const checkPermissions = async () => {
-      try {
-        // 마이크 권한 확인
-        const micPermission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-        setDevicePermissions(prev => ({ ...prev, microphone: micPermission.state }));
-
-        micPermission.addEventListener('change', () => {
-          setDevicePermissions(prev => ({ ...prev, microphone: micPermission.state }));
-        });
-
-        // 카메라 권한 확인
-        const cameraPermission = await navigator.permissions.query({ name: 'camera' as PermissionName });
-        setDevicePermissions(prev => ({ ...prev, camera: cameraPermission.state }));
-
-        cameraPermission.addEventListener('change', () => {
-          setDevicePermissions(prev => ({ ...prev, camera: cameraPermission.state }));
-        });
-      } catch (error) {
-        console.warn('권한 확인 API 지원되지 않음:', error);
-      }
-    };
-
-    checkPermissions();
-  }, []);
-
-  // 현재 사용 중인 미디어 디바이스 정보 조회 (PlanetKit 5.5+)
-  useEffect(() => {
-    const updateCurrentDevices = async () => {
-      if (!connectionStatus.connected || !conference) return;
-
-      try {
-        // PlanetKit 5.5의 새로운 API를 사용하여 현재 디바이스 정보 가져오기
-        if (conference.getCurrentAudioInputDevice) {
-          const audioInput = await conference.getCurrentAudioInputDevice();
-          setCurrentDevices(prev => ({ ...prev, audioInput }));
-        }
-
-        if (conference.getCurrentAudioOutputDevice) {
-          const audioOutput = await conference.getCurrentAudioOutputDevice();
-          setCurrentDevices(prev => ({ ...prev, audioOutput }));
-        }
-
-        if (conference.getCurrentVideoInputDevice) {
-          const videoInput = await conference.getCurrentVideoInputDevice();
-          setCurrentDevices(prev => ({ ...prev, videoInput }));
-        }
-      } catch (error) {
-        console.warn('현재 디바이스 정보 조회 실패:', error);
-      }
-    };
-
-    updateCurrentDevices();
-  }, [connectionStatus.connected, conference]);
 
   // 통화 시간 업데이트
   useEffect(() => {
@@ -166,12 +68,12 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   // 개발 모드 연결 시뮬레이션
   const connectMockConference = async () => {
     setConnectionStatus({ connected: false, connecting: true });
-    
+
     // 연결 시뮬레이션 (2초 지연)
     setTimeout(() => {
       setConnectionStatus({ connected: true, connecting: false });
       setConnectionStartTime(new Date());
-      
+
       // 로컬 참가자 추가 (화상회의)
       setParticipants([{
         id: "local",
@@ -300,17 +202,8 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                     await mirrorResult;
                   }
                   console.log('✅ 비디오 미러링 활성화됨');
-                  toast({
-                    title: "미러링 활성화",
-                    description: "로컬 비디오 미러링이 적용되었습니다.",
-                  });
                 } catch (err: any) {
                   console.error('❌ 비디오 미러링 실패:', err);
-                  toast({
-                    title: "미러링 실패",
-                    description: `비디오 미러링 적용에 실패했습니다: ${err.message || err}`,
-                    variant: "destructive",
-                  });
                 }
               }
 
@@ -477,12 +370,10 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
           // 비디오 일시정지 이벤트
           evtPeersVideoPaused: (peerInfoArray: any) => {
-            console.log('📹❌ Peers video paused:', peerInfoArray);
             const peers = Array.isArray(peerInfoArray) ? peerInfoArray : [peerInfoArray];
 
             peers.forEach((peerInfo: any) => {
               const peerId = peerInfo.userId || peerInfo.peerId || peerInfo.id;
-              console.log(`📹❌ Peer ${peerId} 비디오 일시정지됨`);
 
               setParticipants(prev => prev.map(p => {
                 if (p.id === peerId) {
@@ -499,12 +390,10 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
           // 비디오 재개 이벤트
           evtPeersVideoResumed: (peerInfoArray: any) => {
-            console.log('📹✅ Peers video resumed:', peerInfoArray);
             const peers = Array.isArray(peerInfoArray) ? peerInfoArray : [peerInfoArray];
 
             peers.forEach((peerInfo: any) => {
               const peerId = peerInfo.userId || peerInfo.peerId || peerInfo.id;
-              console.log(`📹✅ Peer ${peerId} 비디오 재개됨`);
 
               setParticipants(prev => prev.map(p => {
                 if (p.id === peerId) {
@@ -521,12 +410,10 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
           // 마이크 음소거 이벤트
           evtPeersMicMuted: (peerInfoArray: any) => {
-            console.log('🔇 Peers mic muted:', peerInfoArray);
             const peers = Array.isArray(peerInfoArray) ? peerInfoArray : [peerInfoArray];
 
             peers.forEach((peerInfo: any) => {
               const peerId = peerInfo.userId || peerInfo.peerId || peerInfo.id;
-              console.log(`🔇 Peer ${peerId} 음소거됨`);
 
               setParticipants(prev => prev.map(p => {
                 if (p.id === peerId) {
@@ -539,12 +426,10 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
           // 마이크 음소거 해제 이벤트
           evtPeersMicUnmuted: (peerInfoArray: any) => {
-            console.log('🔊 Peers mic unmuted:', peerInfoArray);
             const peers = Array.isArray(peerInfoArray) ? peerInfoArray : [peerInfoArray];
 
             peers.forEach((peerInfo: any) => {
               const peerId = peerInfo.userId || peerInfo.peerId || peerInfo.id;
-              console.log(`🔊 Peer ${peerId} 음소거 해제됨`);
 
               setParticipants(prev => prev.map(p => {
                 if (p.id === peerId) {
@@ -604,10 +489,10 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
     } catch (error) {
       console.error("PlanetKit Conference 연결 실패:", error);
-      setConnectionStatus({ 
-        connected: false, 
-        connecting: false, 
-        error: error instanceof Error ? error.message : '연결 실패' 
+      setConnectionStatus({
+        connected: false,
+        connecting: false,
+        error: error instanceof Error ? error.message : '연결 실패'
       });
       toast({
         title: "연결 실패",
@@ -653,6 +538,11 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
         title: "통화 종료",
         description: "미디어 장치가 해제되었습니다.",
       });
+
+      // 페이지 리디렉션
+      if (onDisconnect) {
+        setTimeout(() => onDisconnect(), 500);
+      }
     } catch (error) {
       console.error('Conference 연결 해제 오류:', error);
     }
@@ -666,10 +556,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
         // PlanetKit API: muteMyAudio(isMuted) - true면 음소거, false면 음소거 해제
         if (conference && typeof conference.muteMyAudio === 'function') {
-          console.log(`🎤 오디오 상태 변경: ${newAudioState ? '켜짐' : '음소거'} (muteMyAudio(${!newAudioState}))`);
-          await conference.muteMyAudio(!newAudioState);  // newAudioState가 true면 뮤트 해제(false), false면 뮤트(true)
-        } else {
-          console.warn('⚠️ conference.muteMyAudio 메서드가 없습니다');
+          await conference.muteMyAudio(!newAudioState);
         }
 
         setIsAudioOn(newAudioState);
@@ -678,18 +565,8 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
         setParticipants(prev => prev.map(p =>
           p.id === "local" ? { ...p, isAudioOn: newAudioState } : p
         ));
-
-        toast({
-          title: newAudioState ? "마이크 켜짐" : "음소거",
-          description: newAudioState ? "마이크가 활성화되었습니다." : "마이크가 음소거되었습니다.",
-        });
       } catch (error) {
         console.error('마이크 토글 실패:', error);
-        toast({
-          title: "마이크 제어 실패",
-          description: "마이크 상태 변경에 실패했습니다.",
-          variant: "destructive",
-        });
       }
     }
   };
@@ -703,20 +580,12 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
         // PlanetKit API: pauseMyVideo() / resumeMyVideo()
         if (conference) {
           if (newVideoState) {
-            // 비디오 켜기
             if (typeof conference.resumeMyVideo === 'function') {
-              console.log('📹 비디오 켜기: resumeMyVideo()');
               await conference.resumeMyVideo();
-            } else {
-              console.warn('⚠️ conference.resumeMyVideo 메서드가 없습니다');
             }
           } else {
-            // 비디오 끄기
             if (typeof conference.pauseMyVideo === 'function') {
-              console.log('📹 비디오 끄기: pauseMyVideo()');
               await conference.pauseMyVideo();
-            } else {
-              console.warn('⚠️ conference.pauseMyVideo 메서드가 없습니다');
             }
           }
         }
@@ -727,38 +596,27 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
         setParticipants(prev => prev.map(p =>
           p.id === "local" ? { ...p, isVideoOn: newVideoState } : p
         ));
-
-        toast({
-          title: newVideoState ? "비디오 켜짐" : "비디오 꺼짐",
-          description: newVideoState ? "카메라가 활성화되었습니다." : "카메라가 비활성화되었습니다.",
-        });
       } catch (error) {
         console.error('비디오 토글 실패:', error);
-        toast({
-          title: "비디오 제어 실패",
-          description: "카메라 상태 변경에 실패했습니다.",
-          variant: "destructive",
-        });
       }
     }
   };
 
-  // 컴포넌트 언마운트 시 정리 (의존성 배열 제거 - 진짜 언마운트 시에만 실행)
+  // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
       console.log('🧹 컴포넌트 언마운트: 미디어 및 Conference 정리');
 
-      // 로컬 미디어 스트림 정리 (카메라/마이크 끄기)
+      // 로컬 미디어 스트림 정리
       if (localVideoRef.current && localVideoRef.current.srcObject) {
         const stream = localVideoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => {
-          console.log(`🛑 미디어 트랙 정지 (언마운트): ${track.kind}`);
           track.stop();
         });
         localVideoRef.current.srcObject = null;
       }
 
-      // Conference 정리 - ref를 사용하여 최신 conference 접근
+      // Conference 정리
       const currentConference = conference;
       if (currentConference && typeof currentConference.leaveConference === 'function') {
         try {
@@ -773,7 +631,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
       // 원격 비디오 엘리먼트 정리
       remoteVideoElementsRef.current.clear();
     };
-  }, []); // 의존성 배열 비움 - 컴포넌트 마운트 시 한 번만 등록, 언마운트 시에만 cleanup 실행
+  }, []);
 
   // 참가자를 TileParticipant로 변환
   const tileParticipants: TileParticipant[] = participants.map(p => ({
@@ -782,269 +640,131 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   }));
 
   return (
-    <div className="space-y-4">
+    <div className="h-screen w-screen flex flex-col bg-black">
       {/* 숨겨진 미디어 엘리먼트들 */}
       <audio ref={audioElementRef} autoPlay playsInline />
-      <video 
-        ref={localVideoRef} 
-        autoPlay 
-        playsInline 
-        muted 
+      <video
+        ref={localVideoRef}
+        autoPlay
+        playsInline
+        muted
         style={{ display: 'none' }}
       />
 
-      {/* 연결 상태 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-600/20 rounded-lg flex items-center justify-center">
-                {connectionStatus.connected ? (
-                  <Wifi className="w-4 h-4 text-blue-600" />
-                ) : (
-                  <WifiOff className="w-4 h-4 text-muted-foreground" />
-                )}
-              </div>
-              연결 상태
-              <Badge variant={connectionStatus.connected ? "default" : "secondary"} 
-                     className={connectionStatus.connected ? "bg-blue-600 text-white" : ""}>
-                {connectionStatus.connecting
-                  ? "연결 중..."
-                  : connectionStatus.connected
-                  ? "연결됨"
-                  : "연결 대기"}
-              </Badge>
+      {/* 연결 전: 중앙 연결 카드 */}
+      {!connectionStatus.connected && (
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg p-6 max-w-sm w-full space-y-4 border border-border">
+            <div className="text-center space-y-2">
+              <h2 className="text-xl font-semibold text-foreground">
+                {config.roomId ? `${config.roomId.charAt(0).toUpperCase() + config.roomId.slice(1)} Room` : 'PlanetKit 회의'}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {connectionStatus.connecting ? '연결 중입니다...' : '회의에 참여하시겠습니까?'}
+              </p>
             </div>
-            
-            {connectionStatus.connected && (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="w-4 h-4" />
-                  <span className="font-mono">{callDuration}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="w-4 h-4" />
-                  <span>{participants.length}명</span>
-                </div>
+
+            {connectionStatus.error && (
+              <div className="text-sm text-destructive p-3 bg-destructive/10 rounded-md">
+                오류: {connectionStatus.error}
               </div>
             )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {connectionStatus.error && (
-            <div className="text-sm text-destructive mb-4 p-3 bg-destructive/10 rounded-md">
-              오류: {connectionStatus.error}
+
+            <Button
+              onClick={connectToConference}
+              disabled={connectionStatus.connecting}
+              className="w-full h-12 text-base bg-blue-600 hover:bg-blue-700"
+            >
+              {connectionStatus.connecting ? (
+                <>
+                  <Activity className="w-5 h-5 mr-2 animate-spin" />
+                  연결 중...
+                </>
+              ) : (
+                <>참여하기</>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 연결 후: 전체 화면 레이아웃 */}
+      {connectionStatus.connected && (
+        <>
+          {/* 상단 상태 바 */}
+          <div className="fixed top-0 left-0 right-0 z-20 bg-black/70 backdrop-blur-sm border-b border-white/10">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-3 text-white">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4" />
+                  <span className="text-sm font-mono">{callDuration}</span>
+                </div>
+                <div className="w-px h-4 bg-white/20" />
+                <div className="flex items-center gap-1.5">
+                  <Users className="w-4 h-4" />
+                  <span className="text-sm">{participants.length}</span>
+                </div>
+              </div>
+              <div className="text-xs text-white/70">
+                {config.roomId ? config.roomId.toUpperCase() : 'PlanetKit'}
+              </div>
             </div>
-          )}
-          
-          <div className="flex gap-2">
-            {!connectionStatus.connected ? (
+          </div>
+
+          {/* 비디오 그리드 - 전체 화면 */}
+          <div className="flex-1 pt-[52px] pb-[100px]">
+            <TileView participants={tileParticipants} />
+          </div>
+
+          {/* 하단 컨트롤 */}
+          <div className="fixed bottom-0 left-0 right-0 z-20 bg-black/70 backdrop-blur-sm border-t border-white/10">
+            <div className="flex items-center justify-center gap-4 px-4 py-6">
+              {/* 비디오 토글 */}
               <Button
-                onClick={connectToConference}
-                disabled={connectionStatus.connecting}
-                className="bg-blue-600 hover:bg-blue-600/90 text-white"
+                onClick={toggleVideo}
+                size="lg"
+                className={`w-14 h-14 rounded-full ${
+                  isVideoOn
+                    ? 'bg-white/20 hover:bg-white/30 text-white'
+                    : 'bg-red-600 hover:bg-red-700 text-white'
+                }`}
               >
-                {connectionStatus.connecting ? (
-                  <>
-                    <Activity className="w-4 h-4 mr-2 animate-spin" />
-                    연결 중...
-                  </>
+                {isVideoOn ? (
+                  <Video className="w-6 h-6" />
                 ) : (
-                  <>
-                    <Phone className="w-4 h-4 mr-2" />
-                    PlanetKit Conference 참여
-                  </>
+                  <VideoOff className="w-6 h-6" />
                 )}
               </Button>
-            ) : (
+
+              {/* 마이크 토글 */}
+              <Button
+                onClick={toggleAudio}
+                size="lg"
+                className={`w-14 h-14 rounded-full ${
+                  isAudioOn
+                    ? 'bg-white/20 hover:bg-white/30 text-white'
+                    : 'bg-red-600 hover:bg-red-700 text-white'
+                }`}
+              >
+                {isAudioOn ? (
+                  <Mic className="w-6 h-6" />
+                ) : (
+                  <MicOff className="w-6 h-6" />
+                )}
+              </Button>
+
+              {/* 연결 해제 */}
               <Button
                 onClick={disconnect}
-                variant="destructive"
-                className="flex items-center gap-2"
+                size="lg"
+                className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 text-white"
               >
-                <PhoneOff className="w-4 h-4" />
-                연결 해제
+                <PhoneOff className="w-6 h-6" />
               </Button>
-            )}
-          </div>
-
-          {connectionStatus.connected && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <div className="flex items-center justify-center gap-2 flex-wrap">
-                <Button
-                  onClick={toggleVideo}
-                  variant={isVideoOn ? "default" : "outline"}
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  {isVideoOn ? (
-                    <Video className="w-4 h-4" />
-                  ) : (
-                    <VideoOff className="w-4 h-4" />
-                  )}
-                  {isVideoOn ? "비디오 끄기" : "비디오 켜기"}
-                </Button>
-
-                <Button
-                  onClick={toggleAudio}
-                  variant={isAudioOn ? "default" : "outline"}
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  {isAudioOn ? (
-                    <Mic className="w-4 h-4" />
-                  ) : (
-                    <MicOff className="w-4 h-4" />
-                  )}
-                  {isAudioOn ? "음소거" : "음소거 해제"}
-                </Button>
-
-                <Button
-                  onClick={() => setShowDeviceSettings(!showDeviceSettings)}
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <Settings className="w-4 h-4" />
-                  설정
-                </Button>
-              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 비디오 참가자 타일 뷰 */}
-      {connectionStatus.connected && participants.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Video className="w-5 h-5" />
-              화상회의 ({participants.length}명)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TileView participants={tileParticipants} />
-          </CardContent>
-        </Card>
+          </div>
+        </>
       )}
-
-      {/* 디바이스 및 권한 정보 (PlanetKit 5.5+) */}
-      {connectionStatus.connected && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Settings className="w-4 h-4" />
-              디바이스 및 권한 상태
-              <Badge variant="outline" className="text-xs">PlanetKit 5.5</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs space-y-3">
-            {/* 권한 상태 */}
-            <div className="space-y-2">
-              <div className="font-semibold text-sm">권한 상태</div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground flex items-center gap-2">
-                  <Mic className="w-3 h-3" />
-                  마이크:
-                </span>
-                <Badge variant={devicePermissions.microphone === 'granted' ? 'default' : 'secondary'}>
-                  {devicePermissions.microphone === 'granted' ? '허용됨' :
-                   devicePermissions.microphone === 'denied' ? '거부됨' :
-                   devicePermissions.microphone === 'prompt' ? '대기 중' : '알 수 없음'}
-                </Badge>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground flex items-center gap-2">
-                  <Video className="w-3 h-3" />
-                  카메라:
-                </span>
-                <Badge variant={devicePermissions.camera === 'granted' ? 'default' : 'secondary'}>
-                  {devicePermissions.camera === 'granted' ? '허용됨' :
-                   devicePermissions.camera === 'denied' ? '거부됨' :
-                   devicePermissions.camera === 'prompt' ? '대기 중' : '알 수 없음'}
-                </Badge>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* 현재 사용 중인 디바이스 */}
-            <div className="space-y-2">
-              <div className="font-semibold text-sm">현재 사용 중인 디바이스</div>
-              {currentDevices.audioInput && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">오디오 입력:</span>
-                  <span className="font-mono text-right max-w-[60%] truncate" title={currentDevices.audioInput.label}>
-                    {currentDevices.audioInput.label || currentDevices.audioInput.deviceId}
-                  </span>
-                </div>
-              )}
-              {currentDevices.audioOutput && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">오디오 출력:</span>
-                  <span className="font-mono text-right max-w-[60%] truncate" title={currentDevices.audioOutput.label}>
-                    {currentDevices.audioOutput.label || currentDevices.audioOutput.deviceId}
-                  </span>
-                </div>
-              )}
-              {currentDevices.videoInput && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">비디오 입력:</span>
-                  <span className="font-mono text-right max-w-[60%] truncate" title={currentDevices.videoInput.label}>
-                    {currentDevices.videoInput.label || currentDevices.videoInput.deviceId}
-                  </span>
-                </div>
-              )}
-              {!currentDevices.audioInput && !currentDevices.audioOutput && !currentDevices.videoInput && (
-                <p className="text-muted-foreground">디바이스 정보를 가져오는 중...</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Conference 정보 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Activity className="w-4 h-4" />
-            Conference 정보
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-xs space-y-2">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Service ID:</span>
-            <span className="font-mono">{config.serviceId}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">User ID:</span>
-            <span className="font-mono">{config.userId}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Display Name:</span>
-            <span className="font-mono">{config.displayName || config.userId}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Room ID:</span>
-            <span className="font-mono">{config.roomId}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">연결 상태:</span>
-            <span className={connectionStatus.connected ? "text-green-600" : "text-muted-foreground"}>
-              {connectionStatus.connected ? "연결됨" : "연결 안됨"}
-            </span>
-          </div>
-          <Separator className="my-2" />
-          <p className="text-muted-foreground">
-            LINE Planet PlanetKit 5.5를 사용한 화상회의입니다.
-            비디오, 오디오 기능을 사용할 수 있습니다.
-          </p>
-          <p className="text-muted-foreground mt-2">
-            <strong>최소 브라우저 요구사항:</strong> Safari 16.4+ (Desktop/iOS)
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 };
