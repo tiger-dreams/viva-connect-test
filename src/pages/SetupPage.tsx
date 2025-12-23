@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Activity, LogIn, User, Video, Server, Hash, Settings } from "lucide-react";
+import { Activity, LogIn, User, Video, Server, Hash, Settings, Globe } from "lucide-react";
 import { useVideoSDK } from "@/contexts/VideoSDKContext";
 import { useLiff } from "@/contexts/LiffContext";
 import { useToast } from "@/hooks/use-toast";
@@ -41,6 +41,24 @@ const SetupPage = () => {
       roomId: planetKitConfig.roomId,
       environment: planetKitConfig.environment
     });
+
+    if (!planetKitConfig.environment) {
+      toast({
+        title: "환경 선택 필요",
+        description: "Evaluation 또는 Real 환경을 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!planetKitConfig.roomId) {
+      toast({
+        title: "Room 선택 필요",
+        description: "참여할 Room을 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (!planetKitConfig.serviceId || !planetKitConfig.apiKey || !planetKitConfig.userId) {
       const missing = [];
@@ -324,34 +342,86 @@ const SetupPage = () => {
                   </Label>
                 </div>
               </RadioGroup>
-              <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
-                <p className="text-blue-800 dark:text-blue-200">
-                  {planetKitConfig.environment === 'eval'
-                    ? '📍 Evaluation: voipnx-saturn.line-apps-rc.com'
-                    : '📍 Real: voipnx-saturn.line-apps.com'}
-                </p>
-              </div>
+              {planetKitConfig.environment && (
+                <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
+                  <p className="text-blue-800 dark:text-blue-200">
+                    {planetKitConfig.environment === 'eval'
+                      ? '📍 Evaluation: voipnx-saturn.line-apps-rc.com'
+                      : '📍 Real: voipnx-saturn.line-apps.com'}
+                  </p>
+                </div>
+              )}
+              {!planetKitConfig.environment && (
+                <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950 p-2 rounded border border-amber-200 dark:border-amber-800">
+                  <p className="text-amber-800 dark:text-amber-200">
+                    ⚠️ 환경을 선택해주세요
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* 룸 ID */}
+          {/* Room 선택 */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <Hash className="w-4 h-4" />
-                룸 ID
+                <Globe className="w-4 h-4" />
+                Room 선택
               </CardTitle>
               <CardDescription className="text-xs">
-                참여할 화상회의 룸의 ID를 입력하세요
+                같은 Room을 선택한 사용자들과 화상회의를 진행할 수 있습니다
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Input
+            <CardContent className="space-y-3">
+              <RadioGroup
                 value={planetKitConfig.roomId}
-                onChange={(e) => setPlanetKitConfig({ ...planetKitConfig, roomId: e.target.value })}
-                placeholder="예: planet-room-123"
-                className="font-mono"
-              />
+                onValueChange={(value) => setPlanetKitConfig({ ...planetKitConfig, roomId: value, accessToken: '' })}
+                className="grid grid-cols-2 gap-3"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="japan" id="room-japan" />
+                  <Label htmlFor="room-japan" className="flex-1 cursor-pointer">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🇯🇵 Japan</span>
+                      <span className="text-xs text-muted-foreground">일본 룸</span>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="korea" id="room-korea" />
+                  <Label htmlFor="room-korea" className="flex-1 cursor-pointer">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🇰🇷 Korea</span>
+                      <span className="text-xs text-muted-foreground">한국 룸</span>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="taiwan" id="room-taiwan" />
+                  <Label htmlFor="room-taiwan" className="flex-1 cursor-pointer">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🇹🇼 Taiwan</span>
+                      <span className="text-xs text-muted-foreground">대만 룸</span>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="thailand" id="room-thailand" />
+                  <Label htmlFor="room-thailand" className="flex-1 cursor-pointer">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🇹🇭 Thailand</span>
+                      <span className="text-xs text-muted-foreground">태국 룸</span>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+              {!planetKitConfig.roomId && (
+                <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950 p-2 rounded border border-amber-200 dark:border-amber-800">
+                  <p className="text-amber-800 dark:text-amber-200">
+                    ⚠️ Room을 선택해주세요
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -365,7 +435,13 @@ const SetupPage = () => {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">환경:</span>
                   <span className="font-mono font-semibold">
-                    {planetKitConfig.environment === 'eval' ? 'Evaluation' : 'Real'}
+                    {planetKitConfig.environment === 'eval' ? 'Evaluation' : planetKitConfig.environment === 'real' ? 'Real' : '미선택'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Room:</span>
+                  <span className="font-mono font-semibold">
+                    {planetKitConfig.roomId ? planetKitConfig.roomId.charAt(0).toUpperCase() + planetKitConfig.roomId.slice(1) : '미선택'}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -375,10 +451,6 @@ const SetupPage = () => {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">User ID:</span>
                   <span className="font-mono text-xs">{planetKitConfig.userId ? '설정됨' : '미설정'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Room ID:</span>
-                  <span className="font-mono text-xs">{planetKitConfig.roomId || '미설정'}</span>
                 </div>
               </div>
             </CardContent>
