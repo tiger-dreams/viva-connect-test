@@ -326,11 +326,22 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 }
               }
 
-              // 가상 배경 기능 - startVirtualBackgroundBlur 직접 사용 (등록 불필요)
+              // 가상 배경 기능 등록 (파라미터 없이 시도)
               const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-              if (!isSafari && !isWebView) {
-                console.log('✅ 가상 배경 기능 준비됨 (등록 불필요)');
-                setIsVirtualBackgroundReady(true);
+              if (!isSafari && !isWebView && planetKitConference && typeof planetKitConference.registerVirtualBackground === 'function') {
+                console.log('🎨 가상 배경 기능 등록 시도 중 (파라미터 없음)...');
+                try {
+                  // 파라미터 없이 호출 시도
+                  const registerResult = planetKitConference.registerVirtualBackground();
+                  if (registerResult && typeof registerResult.then === 'function') {
+                    await registerResult;
+                  }
+                  console.log('✅ 가상 배경 기능 등록 완료');
+                  setIsVirtualBackgroundReady(true);
+                } catch (err: any) {
+                  console.error('❌ 가상 배경 등록 실패:', err);
+                  setIsVirtualBackgroundReady(false);
+                }
               } else if (isSafari) {
                 console.log('⚠️ Safari에서는 가상 배경 기능을 지원하지 않습니다');
                 setIsVirtualBackgroundReady(false);
