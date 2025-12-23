@@ -44,11 +44,15 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
         // 환경 변수에서 로드한 값과 병합 (환경 변수 우선)
         setPlanetKitConfig(prev => ({
           ...prev,
-          ...saved,
           // Service ID, API Key, API Secret은 환경 변수 우선
           serviceId: prev.serviceId || saved.serviceId,
           apiKey: prev.apiKey || saved.apiKey,
           apiSecret: prev.apiSecret || saved.apiSecret,
+          // userId만 복원 (나머지는 사용자가 선택)
+          userId: saved.userId || prev.userId,
+          // environment와 roomId는 항상 빈 값으로 시작 (사용자가 선택해야 함)
+          environment: '',
+          roomId: '',
           // accessToken은 복원하지 않음 (매번 새로 생성 필요)
           accessToken: ''
         }));
