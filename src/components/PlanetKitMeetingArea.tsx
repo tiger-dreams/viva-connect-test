@@ -875,27 +875,38 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                   await registerResult;
                 }
 
-                // 등록 후 초기화 대기 (1초)
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                // 실제 등록 여부 확인
+                // 등록 완료를 폴링으로 확인 (최대 5초 대기)
                 let isRegistered = false;
+                const maxAttempts = 10; // 10회 * 500ms = 5초
+
                 if (typeof conference.isVirtualBackgroundRegistered === 'function') {
-                  const checkResult = conference.isVirtualBackgroundRegistered();
-                  isRegistered = checkResult && typeof checkResult.then === 'function'
-                    ? await checkResult
-                    : checkResult;
+                  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    const checkResult = conference.isVirtualBackgroundRegistered();
+                    const registered = checkResult && typeof checkResult.then === 'function'
+                      ? await checkResult
+                      : checkResult;
+
+                    console.log(`🔍 가상 배경 등록 확인 (${attempt + 1}/${maxAttempts}):`, registered);
+
+                    if (registered) {
+                      isRegistered = true;
+                      break;
+                    }
+                  }
                 } else {
-                  // isVirtualBackgroundRegistered가 없으면 등록되었다고 가정
+                  // isVirtualBackgroundRegistered가 없으면 2초 대기 후 등록되었다고 가정
+                  await new Promise(resolve => setTimeout(resolve, 2000));
                   isRegistered = true;
                 }
 
                 if (!isRegistered) {
-                  throw new Error('가상 배경 등록이 완료되지 않았습니다');
+                  throw new Error('가상 배경 등록 시간 초과 (5초)');
                 }
 
                 setIsVirtualBackgroundReady(true);
-                console.log('✅ 가상 배경 자동 등록 완료');
+                console.log('✅ 가상 배경 자동 등록 완료 및 확인됨');
                 toast({
                   title: "등록 완료",
                   description: "배경 블러 기능이 준비되었습니다.",
@@ -916,7 +927,8 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
           if (typeof conference.startVirtualBackgroundBlur === 'function') {
             console.log('🎨 배경 블러 활성화 중...');
-            await conference.startVirtualBackgroundBlur(blurCanvasRef.current, 15);
+            // Canvas는 optional - 없이 시도
+            await conference.startVirtualBackgroundBlur(null, 15);
             setIsBlurEnabled(true);
             toast({
               title: "블러 활성화",
