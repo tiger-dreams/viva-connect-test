@@ -337,6 +337,15 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
           await attemptJoin(PlanetKitEval, 'eval');
         } catch (evalError) {
           console.warn('Evaluation 환경 연결 실패. Real 환경으로 재시도합니다.', evalError);
+          if (!config.apiSecret) {
+            toast({
+              title: "Evaluation 연결 실패",
+              description: "Evaluation WebSocket이 막혔을 수 있습니다. Real 환경 재시도를 위해서는 API Secret으로 서명된 프로덕션 토큰이 필요합니다. 설정에서 Real 환경으로 전환 후 API Secret을 입력하고 토큰을 다시 생성해주세요.",
+              variant: "destructive",
+            });
+            throw evalError;
+          }
+
           toast({
             title: "Evaluation 연결 실패",
             description: "네트워크/정책상 Evaluation WebSocket이 막혔을 수 있어 Real 환경으로 재시도합니다.",

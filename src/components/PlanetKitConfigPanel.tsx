@@ -48,6 +48,24 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
       return;
     }
 
+    if (config.environment === 'real' && !config.apiSecret) {
+      toast({
+        title: "필수 정보 누락",
+        description: "Real 환경에서는 API Secret이 필요합니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (config.apiKey.includes('.') || config.apiKey.length > 120) {
+      toast({
+        title: "API Key 형식 확인 필요",
+        description: "입력한 API Key가 JWT/토큰처럼 보입니다. LINE Planet Console의 API Key(공개 키)를 입력했는지 확인해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const token = await generatePlanetKitToken(
