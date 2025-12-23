@@ -5,7 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Key, Users, Hash, Trash2, Eye, EyeOff, Lock } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Copy, Key, Users, Hash, Trash2, Eye, EyeOff, Lock, Server } from "lucide-react";
 import { PlanetKitConfig } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
 import { generatePlanetKitToken } from "@/utils/token-generator";
@@ -90,6 +91,47 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Environment Selection */}
+        <div className="space-y-3 p-4 bg-muted/30 rounded-lg border border-border">
+          <Label className="flex items-center gap-2 text-base font-semibold">
+            <Server className="w-4 h-4" />
+            환경 선택
+          </Label>
+          <RadioGroup
+            value={config.environment}
+            onValueChange={(value: 'eval' | 'real') => onConfigChange({ ...config, environment: value })}
+            className="grid grid-cols-2 gap-3"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="eval" id="env-eval" />
+              <Label htmlFor="env-eval" className="flex-1 cursor-pointer">
+                <div className="flex flex-col">
+                  <span className="font-medium">Evaluation</span>
+                  <span className="text-xs text-muted-foreground">테스트 환경 (-rc)</span>
+                </div>
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="real" id="env-real" />
+              <Label htmlFor="env-real" className="flex-1 cursor-pointer">
+                <div className="flex flex-col">
+                  <span className="font-medium">Real</span>
+                  <span className="text-xs text-muted-foreground">프로덕션 환경</span>
+                </div>
+              </Label>
+            </div>
+          </RadioGroup>
+          <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
+            <p className="text-blue-800 dark:text-blue-200">
+              {config.environment === 'eval'
+                ? '📍 Evaluation 환경: voipnx-saturn.line-apps-rc.com (WebSocket이 제한될 수 있음)'
+                : '📍 Real 환경: voipnx-saturn.line-apps.com (안정적인 연결)'}
+            </p>
+          </div>
+        </div>
+
+        <Separator />
+
         {/* Service ID */}
         <div className="space-y-2">
           <Label htmlFor="serviceId" className="flex items-center gap-2">
@@ -283,6 +325,10 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
         <div className="mt-6 p-3 bg-muted/20 rounded-md">
           <h4 className="font-semibold text-sm mb-2">설정 요약</h4>
           <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">환경:</span>
+              <span className="font-mono font-semibold">{config.environment === 'eval' ? 'Evaluation' : 'Real'}</span>
+            </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Service ID:</span>
               <span className="font-mono">{config.serviceId || "미설정"}</span>

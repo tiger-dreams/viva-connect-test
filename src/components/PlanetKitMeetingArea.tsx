@@ -23,9 +23,7 @@ import {
 import { PlanetKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
 import { TileView, TileParticipant } from "@/components/TileView";
-// Real 환경 사용 (기본 빌드)
-// Evaluation 환경은 외부 WebSocket 접속이 제한될 수 있음
-import * as PlanetKit from "@line/planet-kit";
+// PlanetKit은 동적으로 로드됨 (environment 설정에 따라 Evaluation 또는 Real 빌드)
 
 interface PlanetKitMeetingAreaProps {
   config: PlanetKitConfig;
@@ -245,8 +243,19 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
     setConnectionStatus({ connected: false, connecting: true });
 
     try {
+      // 환경에 따라 동적으로 PlanetKit 모듈 로드
+      const isEvalEnvironment = config.environment === 'eval';
+      const planetKitModulePath = isEvalEnvironment
+        ? '@line/planet-kit/dist/planet-kit-eval'
+        : '@line/planet-kit';
+
+      console.log(`PlanetKit 환경: ${config.environment} (${isEvalEnvironment ? 'Evaluation' : 'Real'})`);
+      console.log(`모듈 경로: ${planetKitModulePath}`);
+
+      // 동적으로 PlanetKit 모듈 로드
+      const PlanetKit = await import(/* @vite-ignore */ planetKitModulePath);
+
       // PlanetKit Conference 인스턴스 생성
-      // 환경은 import 문에서 결정됨: planet-kit-eval (Evaluation) vs planet-kit (Real)
       const planetKitConference = new PlanetKit.Conference({
         logLevel: 'log'
       });

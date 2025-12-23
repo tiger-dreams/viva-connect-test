@@ -40,7 +40,8 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
     apiSecret: '',
     userId: '',
     roomId: 'test-planet-room',
-    accessToken: ''
+    accessToken: '',
+    environment: 'real' // Default to Real environment (Evaluation WebSocket may be blocked)
   });
 
   // localStorage에서 설정 복원

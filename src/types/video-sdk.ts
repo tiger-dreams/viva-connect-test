@@ -42,6 +42,7 @@ export interface PlanetKitConfig {
   userId: string;
   roomId: string;
   accessToken: string;
+  environment: 'eval' | 'real'; // Evaluation vs Real 환경 선택
 }
 
 export interface ConnectionStatus {

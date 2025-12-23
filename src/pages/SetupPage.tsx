@@ -79,7 +79,7 @@ const SetupPage = () => {
               </div> */}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">PlanetKit:</span>
-                <span>5.5.0</span>
+                <span>5.5.1</span>
               </div>
               <Separator className="my-2" />
               <p className="text-muted-foreground">
