@@ -38,6 +38,7 @@ export interface LiveKitConfig {
 export interface PlanetKitConfig {
   serviceId: string;
   apiKey: string;
+  apiSecret: string;
   userId: string;
   roomId: string;
   accessToken: string;

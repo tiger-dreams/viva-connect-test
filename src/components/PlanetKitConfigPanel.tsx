@@ -54,7 +54,8 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
         config.apiKey,
         config.userId,
         config.roomId,
-        3600 // 1시간 유효
+        3600, // 1시간 유효 (사용되지 않음)
+        config.apiSecret || undefined // API Secret 전달
       );
       
       onConfigChange({ ...config, accessToken: token });
@@ -133,7 +134,28 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            LINE Planet 콘솔에서 발급받은 API Key입니다. Access Token 생성에 필요합니다.
+            LINE Planet 콘솔에서 발급받은 API Key입니다. (공개 키)
+          </p>
+        </div>
+
+        {/* API Secret */}
+        <div className="space-y-2">
+          <Label htmlFor="apiSecret" className="flex items-center gap-2">
+            <Key className="w-4 h-4" />
+            API Secret
+          </Label>
+          <div className="relative">
+            <Input
+              id="apiSecret"
+              type="password"
+              placeholder="LINE Planet API Secret을 입력하세요"
+              value={config.apiSecret}
+              onChange={(e) => onConfigChange({ ...config, apiSecret: e.target.value })}
+              className="font-mono"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            LINE Planet 콘솔에서 발급받은 API Secret입니다. (비밀 키 - Access Token 서명용)
           </p>
         </div>
 
@@ -191,19 +213,22 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
           </Button>
 
           <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950 p-3 rounded-md border border-amber-200 dark:border-amber-800">
-            <p className="font-medium text-amber-800 dark:text-amber-200">⚠️ 개발 모드</p>
+            <p className="font-medium text-amber-800 dark:text-amber-200">⚠️ 보안 경고</p>
             <p className="mt-1 text-amber-700 dark:text-amber-300">
-              현재는 임시 토큰을 생성하고 모의 연결로 동작합니다. 
-              Service ID가 'planetkit' 또는 'dev'를 포함하면 개발 모드로 실행됩니다.
+              <strong>API Secret은 반드시 서버에서만 사용해야 합니다!</strong><br/>
+              클라이언트(브라우저)에 API Secret을 노출하면 보안 위험이 있습니다.
             </p>
             <p className="mt-2 text-amber-700 dark:text-amber-300">
-              실제 LINE Planet 서비스를 사용하려면:
+              <strong>프로덕션 환경에서는:</strong>
             </p>
             <ul className="mt-1 text-amber-700 dark:text-amber-300 list-disc list-inside space-y-1">
-              <li>LINE Planet Console에서 발급받은 실제 Service ID 사용</li>
-              <li>서버에서 올바른 Access Token 생성</li>
-              <li>CORS 설정 또는 서버 프록시 구성</li>
+              <li>서버에서 Access Token을 생성하세요</li>
+              <li>클라이언트는 서버 API를 통해 토큰을 받아야 합니다</li>
+              <li>LINE Planet Console에서 도메인 CORS 설정이 필요합니다</li>
             </ul>
+            <p className="mt-2 text-amber-700 dark:text-amber-300 text-xs">
+              💡 개발 모드: Service ID에 'planetkit' 또는 'dev'가 포함되면 모의 연결로 동작합니다.
+            </p>
           </div>
         </div>
 
@@ -265,6 +290,10 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
             <div className="flex justify-between">
               <span className="text-muted-foreground">API Key:</span>
               <span className="font-mono">{config.apiKey ? "설정됨" : "미설정"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">API Secret:</span>
+              <span className="font-mono">{config.apiSecret ? "설정됨" : "미설정"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">User ID:</span>

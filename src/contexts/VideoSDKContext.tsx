@@ -37,6 +37,7 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
   const [planetKitConfig, setPlanetKitConfig] = useState<PlanetKitConfig>({
     serviceId: '',
     apiKey: '',
+    apiSecret: '',
     userId: '',
     roomId: 'test-planet-room',
     accessToken: ''

@@ -154,43 +154,44 @@ export const generateLiveKitToken = async (
 };
 
 // PlanetKit Access Token Generation
+// 참고: https://docs.lineplanet.me/getting-started/essentials/access-token
 export const generatePlanetKitToken = async (
   serviceId: string,
   apiKey: string,
   userId: string,
   roomId: string,
-  expirationTimeInSeconds: number = 3600
+  _expirationTimeInSeconds: number = 3600, // Note: PlanetKit doesn't use exp field per docs
+  apiSecret?: string
 ): Promise<string> => {
   try {
     const now = Math.floor(Date.now() / 1000);
-    const exp = now + expirationTimeInSeconds;
-    
-    // 개발용 임시 secret (실제 환경에서는 서버에서 생성해야 함)
-    const tempSecret = new TextEncoder().encode(`planetkit-dev-${serviceId}`);
-    
-    // PlanetKit Access Token payload (예상 구조)
+
+    // API Secret을 secret으로 사용 (없으면 API Key 사용 - 개발 모드)
+    const secret = new TextEncoder().encode(apiSecret || apiKey);
+
+    // PlanetKit 공식 문서의 필수 필드만 사용
+    // 추가 필드를 넣으면 토큰 크기가 커지므로 금지됨
+    // Note: exp, nbf, room 등의 필드는 의도적으로 제외됨
     const payload = {
-      iss: serviceId,
-      sub: userId,
-      iat: now,
-      exp: exp,
-      nbf: now,
-      room: roomId,
-      permissions: {
-        video: true,
-        audio: true,
-        screenShare: true,
-        chat: true
-      }
+      sub: serviceId,  // Service ID
+      uid: userId,     // User ID
+      iss: apiKey,     // API Key
+      iat: now         // Creation timestamp
     };
-    
+
     console.log('Generating PlanetKit token for:', { serviceId, userId, roomId });
-    
+    console.log('Token payload (official structure):', payload);
+
     const token = await new SignJWT(payload)
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-      .sign(tempSecret);
+      .sign(secret);
 
     console.log('Generated PlanetKit token length:', token.length);
+
+    if (!apiSecret) {
+      console.warn('⚠️ Warning: Using API Key as secret (development mode). For production, use API Secret from server.');
+    }
+
     return token;
   } catch (error) {
     console.error('PlanetKit token generation error:', error);
