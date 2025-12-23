@@ -286,13 +286,6 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
             setConnectionStatus({ connected: true, connecting: false });
             setConnectionStartTime(new Date());
 
-            // 로컬 비디오 미러링 활성화
-            if (planetKitConference && typeof planetKitConference.setVideoMirror === 'function') {
-              planetKitConference.setVideoMirror(true)
-                .then(() => console.log('🪞 비디오 미러링 활성화됨'))
-                .catch((err: any) => console.error('❌ 비디오 미러링 실패:', err));
-            }
-
             setParticipants([{
               id: "local",
               name: config.userId,
@@ -301,6 +294,35 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               isScreenSharing: false,
               videoElement: localVideoRef.current || undefined
             }]);
+
+            // 로컬 비디오 미러링 활성화 (비디오 엘리먼트가 완전히 렌더링된 후 호출)
+            setTimeout(() => {
+              if (planetKitConference && typeof planetKitConference.setVideoMirror === 'function' && localVideoRef.current) {
+                console.log('🪞 비디오 미러링 시도 중...', localVideoRef.current);
+                planetKitConference.setVideoMirror(true, localVideoRef.current)
+                  .then(() => {
+                    console.log('✅ 비디오 미러링 활성화됨');
+                    toast({
+                      title: "미러링 활성화",
+                      description: "로컬 비디오 미러링이 적용되었습니다.",
+                    });
+                  })
+                  .catch((err: any) => {
+                    console.error('❌ 비디오 미러링 실패:', err);
+                    toast({
+                      title: "미러링 실패",
+                      description: `비디오 미러링 적용에 실패했습니다: ${err.message || err}`,
+                      variant: "destructive",
+                    });
+                  });
+              } else {
+                console.warn('⚠️ 비디오 미러링 조건 미충족:', {
+                  hasConference: !!planetKitConference,
+                  hasMethod: planetKitConference && typeof planetKitConference.setVideoMirror === 'function',
+                  hasVideoElement: !!localVideoRef.current
+                });
+              }
+            }, 500);
 
             toast({
               title: "연결 성공",
@@ -463,20 +485,36 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
             });
           },
 
-          evtPeersAudioUpdated: (audioUpdateInfo: any) => {
-            const updates = Array.isArray(audioUpdateInfo) ? audioUpdateInfo : [];
+          // 마이크 음소거 이벤트
+          evtPeersMicMuted: (peerInfoArray: any) => {
+            console.log('🔇 Peers mic muted:', peerInfoArray);
+            const peers = Array.isArray(peerInfoArray) ? peerInfoArray : [peerInfoArray];
 
-            updates.forEach((update: any) => {
-              const peer = update.peer || {};
-              const peerId = peer.userId || peer.peerId || peer.id;
-              const audioStatus = update.audioStatus || {};
+            peers.forEach((peerInfo: any) => {
+              const peerId = peerInfo.userId || peerInfo.peerId || peerInfo.id;
+              console.log(`🔇 Peer ${peerId} 음소거됨`);
 
               setParticipants(prev => prev.map(p => {
                 if (p.id === peerId) {
-                  return {
-                    ...p,
-                    isAudioOn: audioStatus.state === 'enabled'
-                  };
+                  return { ...p, isAudioOn: false };
+                }
+                return p;
+              }));
+            });
+          },
+
+          // 마이크 음소거 해제 이벤트
+          evtPeersMicUnmuted: (peerInfoArray: any) => {
+            console.log('🔊 Peers mic unmuted:', peerInfoArray);
+            const peers = Array.isArray(peerInfoArray) ? peerInfoArray : [peerInfoArray];
+
+            peers.forEach((peerInfo: any) => {
+              const peerId = peerInfo.userId || peerInfo.peerId || peerInfo.id;
+              console.log(`🔊 Peer ${peerId} 음소거 해제됨`);
+
+              setParticipants(prev => prev.map(p => {
+                if (p.id === peerId) {
+                  return { ...p, isAudioOn: true };
                 }
                 return p;
               }));
