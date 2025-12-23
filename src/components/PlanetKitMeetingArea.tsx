@@ -303,6 +303,20 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
           evtDisconnected: (disconnectDetails: any) => {
             console.log('PlanetKit Conference 연결 해제:', disconnectDetails);
+
+            // 로컬 미디어 스트림 정리 (카메라/마이크 끄기)
+            if (localVideoRef.current && localVideoRef.current.srcObject) {
+              const stream = localVideoRef.current.srcObject as MediaStream;
+              stream.getTracks().forEach(track => {
+                console.log(`🛑 미디어 트랙 정지 (evtDisconnected): ${track.kind}`);
+                track.stop();
+              });
+              localVideoRef.current.srcObject = null;
+            }
+
+            // 원격 비디오 엘리먼트 정리
+            remoteVideoElementsRef.current.clear();
+
             setConnectionStatus({ connected: false, connecting: false });
             setParticipants([]);
             setConnectionStartTime(null);
@@ -441,6 +455,17 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   // Conference 연결 해제
   const disconnect = async () => {
     try {
+      // 로컬 미디어 스트림 정리 (카메라/마이크 끄기)
+      if (localVideoRef.current && localVideoRef.current.srcObject) {
+        const stream = localVideoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => {
+          console.log(`🛑 미디어 트랙 정지: ${track.kind} (${track.label})`);
+          track.stop();
+        });
+        localVideoRef.current.srcObject = null;
+      }
+
+      // Conference 연결 해제
       if (conference && typeof conference.leaveConference === 'function') {
         try {
           await conference.leaveConference();
@@ -449,10 +474,20 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
         }
         setConference(null);
       }
+
+      // 원격 비디오 엘리먼트 정리
+      remoteVideoElementsRef.current.clear();
+
+      // 상태 초기화
       setConnectionStatus({ connected: false, connecting: false });
       setParticipants([]);
       setConnectionStartTime(null);
       setCallDuration("00:00:00");
+
+      toast({
+        title: "통화 종료",
+        description: "미디어 장치가 해제되었습니다.",
+      });
     } catch (error) {
       console.error('Conference 연결 해제 오류:', error);
     }
@@ -560,6 +595,18 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
+      console.log('🧹 컴포넌트 언마운트: 미디어 및 Conference 정리');
+
+      // 로컬 미디어 스트림 정리 (카메라/마이크 끄기)
+      if (localVideoRef.current && localVideoRef.current.srcObject) {
+        const stream = localVideoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => {
+          console.log(`🛑 미디어 트랙 정지 (언마운트): ${track.kind}`);
+          track.stop();
+        });
+        localVideoRef.current.srcObject = null;
+      }
+
       // Conference 정리
       if (conference && typeof conference.leaveConference === 'function') {
         try {
