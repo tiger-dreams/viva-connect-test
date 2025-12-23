@@ -18,6 +18,7 @@ export interface PlanetKitConfig {
   apiKey: string;
   apiSecret: string;
   userId: string;
+  displayName: string; // LINE 프로필 표시 이름
   roomId: string;
   accessToken: string;
   environment: 'eval' | 'real' | ''; // Evaluation vs Real 환경 선택 (빈 값 = 미선택)

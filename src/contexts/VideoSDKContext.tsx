@@ -24,6 +24,7 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
     apiKey: import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || '',
     apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || '',
     userId: '', // LINE 프로필에서 자동으로 설정됨
+    displayName: '', // LINE 프로필에서 자동으로 설정됨
     roomId: '', // 사용자가 선택하도록 빈 값으로 시작
     accessToken: '',
     environment: '' // 사용자가 선택하도록 빈 값으로 시작
@@ -48,8 +49,9 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
           serviceId: prev.serviceId || saved.serviceId,
           apiKey: prev.apiKey || saved.apiKey,
           apiSecret: prev.apiSecret || saved.apiSecret,
-          // userId만 복원 (나머지는 사용자가 선택)
+          // userId와 displayName 복원 (나머지는 사용자가 선택)
           userId: saved.userId || prev.userId,
+          displayName: saved.displayName || prev.displayName,
           // environment와 roomId는 항상 빈 값으로 시작 (사용자가 선택해야 함)
           environment: '',
           roomId: '',

@@ -175,7 +175,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
       // 로컬 참가자 추가 (화상회의)
       setParticipants([{
         id: "local",
-        name: config.userId,
+        name: config.displayName || config.userId,
         isVideoOn: true,
         isAudioOn: true,
         videoElement: localVideoRef.current || undefined
@@ -282,7 +282,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
             setParticipants([{
               id: "local",
-              name: config.userId,
+              name: config.displayName || config.userId,
               isVideoOn: true,
               isAudioOn: true,
               videoElement: localVideoRef.current || undefined
@@ -444,7 +444,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               // 로컬 참가자 + 업데이트된 원격 참가자
               const localParticipant = updated.find(p => p.id === "local") || {
                 id: "local",
-                name: config.userId,
+                name: config.displayName || config.userId,
                 isVideoOn: isVideoOn,
                 isAudioOn: isAudioOn,
                 videoElement: localVideoRef.current || undefined
@@ -1020,6 +1020,10 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
           <div className="flex justify-between">
             <span className="text-muted-foreground">User ID:</span>
             <span className="font-mono">{config.userId}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Display Name:</span>
+            <span className="font-mono">{config.displayName || config.userId}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Room ID:</span>

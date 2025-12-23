@@ -20,13 +20,17 @@ const SetupPage = () => {
   const { planetKitConfig, setPlanetKitConfig, isConfigured } = useVideoSDK();
   const [liffIdInput, setLiffIdInput] = useState('');
 
-  // LIFF 로그인 후 자동으로 User ID 설정
+  // LIFF 로그인 후 자동으로 User ID와 Display Name 설정
   useEffect(() => {
     if (isLoggedIn && profile && !planetKitConfig.userId) {
-      console.log('LINE 프로필로 User ID 자동 설정:', profile.userId);
+      console.log('LINE 프로필로 User ID 및 Display Name 자동 설정:', {
+        userId: profile.userId,
+        displayName: profile.displayName
+      });
       setPlanetKitConfig({
         ...planetKitConfig,
-        userId: profile.userId
+        userId: profile.userId,
+        displayName: profile.displayName
       });
     }
   }, [isLoggedIn, profile, planetKitConfig.userId]);
