@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { SDKSelector } from "@/components/SDKSelector";
-import { AgoraConfigPanel } from "@/components/AgoraConfigPanel";
-import { LiveKitConfigPanel } from "@/components/LiveKitConfigPanel";
+// import { SDKSelector } from "@/components/SDKSelector";
+// import { AgoraConfigPanel } from "@/components/AgoraConfigPanel";
+// import { LiveKitConfigPanel } from "@/components/LiveKitConfigPanel";
 import { PlanetKitConfigPanel } from "@/components/PlanetKitConfigPanel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,13 +16,13 @@ const SetupPage = () => {
 
   const handleJoinMeeting = () => {
     if (isConfigured) {
-      if (selectedSDK === 'agora') {
-        navigate('/agora_meeting');
-      } else if (selectedSDK === 'livekit') {
-        navigate('/livekit_meeting');
-      } else if (selectedSDK === 'planetkit') {
+      // if (selectedSDK === 'agora') {
+      //   navigate('/agora_meeting');
+      // } else if (selectedSDK === 'livekit') {
+      //   navigate('/livekit_meeting');
+      // } else if (selectedSDK === 'planetkit') {
         navigate('/planetkit_meeting');
-      }
+      // }
     }
   };
 
@@ -37,7 +37,7 @@ const SetupPage = () => {
                 Video SDK 테스트
               </h1>
               <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-                Agora, LiveKit, PlanetKit 테스트 도구
+                LINE Planet PlanetKit 테스트 도구
               </p>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -67,16 +67,16 @@ const SetupPage = () => {
             <CardContent className="text-xs space-y-2">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">버전:</span>
-                <span>v1.1.0</span>
+                <span>v1.2.0</span>
               </div>
-              <div className="flex justify-between">
+              {/* <div className="flex justify-between">
                 <span className="text-muted-foreground">Agora SDK:</span>
                 <span>4.24.0</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">LiveKit:</span>
                 <span>2.15.4</span>
-              </div>
+              </div> */}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">PlanetKit:</span>
                 <span>5.5.0</span>
@@ -88,29 +88,29 @@ const SetupPage = () => {
             </CardContent>
           </Card>
 
-          {/* SDK 선택 */}
-          <SDKSelector 
-            selectedSDK={selectedSDK} 
+          {/* SDK 선택 - Agora, LiveKit 주석처리 */}
+          {/* <SDKSelector
+            selectedSDK={selectedSDK}
             onSDKChange={setSelectedSDK}
-          />
+          /> */}
 
-          {/* 설정 패널 */}
-          {selectedSDK === 'agora' ? (
-            <AgoraConfigPanel 
-              config={agoraConfig} 
-              onConfigChange={setAgoraConfig} 
+          {/* 설정 패널 - PlanetKit만 표시 */}
+          {/* {selectedSDK === 'agora' ? (
+            <AgoraConfigPanel
+              config={agoraConfig}
+              onConfigChange={setAgoraConfig}
             />
           ) : selectedSDK === 'livekit' ? (
-            <LiveKitConfigPanel 
-              config={liveKitConfig} 
-              onConfigChange={setLiveKitConfig} 
+            <LiveKitConfigPanel
+              config={liveKitConfig}
+              onConfigChange={setLiveKitConfig}
             />
-          ) : (
-            <PlanetKitConfigPanel 
-              config={planetKitConfig} 
-              onConfigChange={setPlanetKitConfig} 
+          ) : ( */}
+            <PlanetKitConfigPanel
+              config={planetKitConfig}
+              onConfigChange={setPlanetKitConfig}
             />
-          )}
+          {/* )} */}
 
           {/* 참여하기 버튼 - 모바일 최적화 */}
           <Card className="bg-card border-border shadow-sm">
@@ -141,12 +141,13 @@ const SetupPage = () => {
               
               {!isConfigured && (
                 <p className="text-xs text-muted-foreground mt-2 text-center">
-                  {selectedSDK === 'agora' 
+                  {/* {selectedSDK === 'agora'
                     ? "App ID를 입력해주세요 (App Certificate는 토큰 생성 시에만 필요합니다)"
                     : selectedSDK === 'livekit'
                       ? "Server URL, API Key, API Secret을 입력하고 토큰을 생성해주세요"
-                      : "Service ID, User ID를 입력하고 Access Token을 생성해주세요"
-                  }
+                      : */}
+                      Service ID, User ID를 입력하고 Access Token을 생성해주세요
+                  {/* } */}
                 </p>
               )}
             </CardContent>
