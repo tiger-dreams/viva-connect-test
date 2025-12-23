@@ -1,163 +1,342 @@
 import { useNavigate } from "react-router-dom";
-// import { SDKSelector } from "@/components/SDKSelector";
-// import { AgoraConfigPanel } from "@/components/AgoraConfigPanel";
-// import { LiveKitConfigPanel } from "@/components/LiveKitConfigPanel";
-import { PlanetKitConfigPanel } from "@/components/PlanetKitConfigPanel";
+import { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Activity, FileText, Zap, ArrowRight } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Activity, LogIn, User, Video, Server, Hash } from "lucide-react";
 import { useVideoSDK } from "@/contexts/VideoSDKContext";
+import { useLiff } from "@/contexts/LiffContext";
+import { useToast } from "@/hooks/use-toast";
+import { generatePlanetKitToken } from "@/utils/token-generator";
 
 const SetupPage = () => {
   const navigate = useNavigate();
-  const { selectedSDK, setSelectedSDK, agoraConfig, setAgoraConfig, liveKitConfig, setLiveKitConfig, planetKitConfig, setPlanetKitConfig, isConfigured } = useVideoSDK();
+  const { toast } = useToast();
+  const { isLoggedIn, isInitialized, profile, error: liffError, login } = useLiff();
+  const { planetKitConfig, setPlanetKitConfig, isConfigured } = useVideoSDK();
 
-  const handleJoinMeeting = () => {
-    if (isConfigured) {
-      // if (selectedSDK === 'agora') {
-      //   navigate('/agora_meeting');
-      // } else if (selectedSDK === 'livekit') {
-      //   navigate('/livekit_meeting');
-      // } else if (selectedSDK === 'planetkit') {
-        navigate('/planetkit_meeting');
-      // }
+  // LIFF 로그인 후 자동으로 User ID 설정
+  useEffect(() => {
+    if (isLoggedIn && profile && !planetKitConfig.userId) {
+      console.log('LINE 프로필로 User ID 자동 설정:', profile.userId);
+      setPlanetKitConfig({
+        ...planetKitConfig,
+        userId: profile.userId
+      });
+    }
+  }, [isLoggedIn, profile, planetKitConfig.userId]);
+
+  const handleGenerateToken = async () => {
+    if (!planetKitConfig.serviceId || !planetKitConfig.apiKey || !planetKitConfig.userId) {
+      toast({
+        title: "설정 누락",
+        description: "필수 설정이 누락되었습니다. 환경 변수를 확인해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const token = await generatePlanetKitToken(
+        planetKitConfig.serviceId,
+        planetKitConfig.apiKey,
+        planetKitConfig.userId,
+        planetKitConfig.roomId,
+        3600,
+        planetKitConfig.apiSecret
+      );
+
+      setPlanetKitConfig({
+        ...planetKitConfig,
+        accessToken: token
+      });
+
+      toast({
+        title: "토큰 생성 완료",
+        description: "이제 화상회의에 참여할 수 있습니다.",
+      });
+    } catch (error) {
+      console.error('토큰 생성 실패:', error);
+      toast({
+        title: "토큰 생성 실패",
+        description: error instanceof Error ? error.message : "토큰 생성 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
     }
   };
 
+  const handleJoinMeeting = () => {
+    if (isConfigured) {
+      navigate('/planetkit_meeting');
+    }
+  };
+
+  // LIFF 초기화 중
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <Activity className="w-12 h-12 mx-auto mb-4 animate-spin text-primary" />
+              <p className="text-muted-foreground">LIFF 초기화 중...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // LIFF 에러
+  if (liffError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-destructive">초기화 실패</CardTitle>
+            <CardDescription>{liffError}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              LIFF 초기화에 실패했습니다. .env 파일에 VITE_LIFF_ID가 올바르게 설정되어 있는지 확인해주세요.
+            </p>
+            <Button onClick={() => window.location.reload()} className="w-full">
+              다시 시도
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // LINE 로그인 필요
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <LogIn className="w-8 h-8 text-primary" />
+            </div>
+            <CardTitle>LINE 로그인</CardTitle>
+            <CardDescription>
+              화상회의에 참여하려면 LINE 로그인이 필요합니다
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={login} className="w-full h-12 text-lg" size="lg">
+              <LogIn className="w-5 h-5 mr-2" />
+              LINE으로 로그인
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // 메인 설정 화면
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* 헤더 - 모바일 최적화 */}
+      {/* 헤더 */}
       <div className="border-b border-border bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
-            <div className="space-y-0.5 sm:space-y-1">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">
-                Video SDK 테스트
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-primary">
+                Planet VoIP Room
               </h1>
-              <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-                LINE Planet PlanetKit 테스트 도구
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                LINE Planet PlanetKit 화상회의
               </p>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30 text-xs">
-                <Activity className="w-3 h-3 mr-1" />
-                개발
-              </Badge>
-              <Badge variant="outline" className="bg-accent/20 text-accent border-accent/30 text-xs">
-                <Zap className="w-3 h-3 mr-1" />
-                실시간
-              </Badge>
-            </div>
+            <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30">
+              <Activity className="w-3 h-3 mr-1" />
+              LIFF
+            </Badge>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
-          {/* 프로젝트 정보 */}
-          <Card className="bg-card border-border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <FileText className="w-4 h-4" />
-                프로젝트 정보
+      <div className="container mx-auto px-4 py-6 max-w-2xl">
+        <div className="space-y-4">
+          {/* 사용자 프로필 */}
+          {profile && (
+            <Card className="bg-gradient-to-r from-primary/5 to-accent/5 border-primary/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  {profile.pictureUrl ? (
+                    <img
+                      src={profile.pictureUrl}
+                      alt={profile.displayName}
+                      className="w-16 h-16 rounded-full border-2 border-primary"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
+                      <User className="w-8 h-8 text-primary" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-lg">{profile.displayName}</h3>
+                    <p className="text-sm text-muted-foreground font-mono">{profile.userId}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 환경 선택 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Server className="w-4 h-4" />
+                환경 선택
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-xs space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">버전:</span>
-                <span>v1.2.0</span>
+            <CardContent className="space-y-3">
+              <RadioGroup
+                value={planetKitConfig.environment}
+                onValueChange={(value: 'eval' | 'real') => {
+                  // 환경 변경 시 해당 환경의 설정으로 업데이트
+                  const newConfig = {
+                    ...planetKitConfig,
+                    environment: value,
+                    serviceId: value === 'eval'
+                      ? import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || ''
+                      : import.meta.env.VITE_PLANETKIT_REAL_SERVICE_ID || '',
+                    apiKey: value === 'eval'
+                      ? import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || ''
+                      : import.meta.env.VITE_PLANETKIT_REAL_API_KEY || '',
+                    apiSecret: value === 'eval'
+                      ? import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || ''
+                      : import.meta.env.VITE_PLANETKIT_REAL_API_SECRET || '',
+                    accessToken: '' // 환경 변경 시 토큰 초기화
+                  };
+                  setPlanetKitConfig(newConfig);
+                }}
+                className="grid grid-cols-2 gap-3"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="eval" id="env-eval" />
+                  <Label htmlFor="env-eval" className="flex-1 cursor-pointer">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Evaluation</span>
+                      <span className="text-xs text-muted-foreground">테스트 환경</span>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="real" id="env-real" />
+                  <Label htmlFor="env-real" className="flex-1 cursor-pointer">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Real</span>
+                      <span className="text-xs text-muted-foreground">프로덕션 환경</span>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+              <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
+                <p className="text-blue-800 dark:text-blue-200">
+                  {planetKitConfig.environment === 'eval'
+                    ? '📍 Evaluation: voipnx-saturn.line-apps-rc.com'
+                    : '📍 Real: voipnx-saturn.line-apps.com'}
+                </p>
               </div>
-              {/* <div className="flex justify-between">
-                <span className="text-muted-foreground">Agora SDK:</span>
-                <span>4.24.0</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">LiveKit:</span>
-                <span>2.15.4</span>
-              </div> */}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">PlanetKit:</span>
-                <span>5.5.1</span>
-              </div>
-              <Separator className="my-2" />
-              <p className="text-muted-foreground">
-                이 도구는 개발자용 테스트 환경입니다. API Key와 Secret은 로컬에만 저장됩니다.
-              </p>
             </CardContent>
           </Card>
 
-          {/* SDK 선택 - Agora, LiveKit 주석처리 */}
-          {/* <SDKSelector
-            selectedSDK={selectedSDK}
-            onSDKChange={setSelectedSDK}
-          /> */}
-
-          {/* 설정 패널 - PlanetKit만 표시 */}
-          {/* {selectedSDK === 'agora' ? (
-            <AgoraConfigPanel
-              config={agoraConfig}
-              onConfigChange={setAgoraConfig}
-            />
-          ) : selectedSDK === 'livekit' ? (
-            <LiveKitConfigPanel
-              config={liveKitConfig}
-              onConfigChange={setLiveKitConfig}
-            />
-          ) : ( */}
-            <PlanetKitConfigPanel
-              config={planetKitConfig}
-              onConfigChange={setPlanetKitConfig}
-            />
-          {/* )} */}
-
-          {/* 참여하기 버튼 - 모바일 최적화 */}
-          <Card className="bg-card border-border shadow-sm">
-            <CardHeader className="pb-3 sm:pb-6">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                화상회의 참여
+          {/* 룸 ID */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Hash className="w-4 h-4" />
+                룸 ID
               </CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                설정을 완료하고 화상회의에 참여하세요
+              <CardDescription className="text-xs">
+                참여할 화상회의 룸의 ID를 입력하세요
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button
-                onClick={handleJoinMeeting}
-                disabled={!isConfigured}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 sm:h-14 text-base sm:text-lg font-semibold touch-manipulation"
-                size="lg"
-              >
-                {isConfigured ? (
-                  <>
-                    화상회의 참여하기
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </>
-                ) : (
-                  "설정을 완료해주세요"
-                )}
-              </Button>
-              
-              {!isConfigured && (
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  {/* {selectedSDK === 'agora'
-                    ? "App ID를 입력해주세요 (App Certificate는 토큰 생성 시에만 필요합니다)"
-                    : selectedSDK === 'livekit'
-                      ? "Server URL, API Key, API Secret을 입력하고 토큰을 생성해주세요"
-                      : */}
-                      Service ID, User ID를 입력하고 Access Token을 생성해주세요
-                  {/* } */}
-                </p>
-              )}
+              <Input
+                value={planetKitConfig.roomId}
+                onChange={(e) => setPlanetKitConfig({ ...planetKitConfig, roomId: e.target.value })}
+                placeholder="예: planet-room-123"
+                className="font-mono"
+              />
             </CardContent>
           </Card>
 
-          {/* 하단 정보 */}
+          {/* 설정 요약 */}
+          <Card className="bg-muted/30">
+            <CardHeader>
+              <CardTitle className="text-sm">설정 요약</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">환경:</span>
+                  <span className="font-mono font-semibold">
+                    {planetKitConfig.environment === 'eval' ? 'Evaluation' : 'Real'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Service ID:</span>
+                  <span className="font-mono text-xs">{planetKitConfig.serviceId ? '설정됨' : '미설정'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">User ID:</span>
+                  <span className="font-mono text-xs">{planetKitConfig.userId ? '설정됨' : '미설정'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Room ID:</span>
+                  <span className="font-mono text-xs">{planetKitConfig.roomId || '미설정'}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 토큰 생성 */}
+          {!planetKitConfig.accessToken ? (
+            <Button
+              onClick={handleGenerateToken}
+              className="w-full h-12 text-base"
+              size="lg"
+            >
+              Access Token 생성
+            </Button>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                <span className="text-sm text-green-800 dark:text-green-200">✓ 토큰 생성 완료</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPlanetKitConfig({ ...planetKitConfig, accessToken: '' })}
+                >
+                  재생성
+                </Button>
+              </div>
+
+              {/* 참여 버튼 */}
+              <Button
+                onClick={handleJoinMeeting}
+                disabled={!isConfigured}
+                className="w-full h-14 text-lg bg-primary hover:bg-primary/90"
+                size="lg"
+              >
+                <Video className="w-5 h-5 mr-2" />
+                화상회의 참여하기
+              </Button>
+            </div>
+          )}
+
+          {/* 안내 메시지 */}
           <div className="text-center text-xs text-muted-foreground">
             <p>
-              💡 이 도구는 테스트용으로만 사용하세요. 
-              실제 프로덕션 환경에서는 서버에서 토큰을 생성하는 것이 안전합니다.
+              💡 이 앱은 LINE Planet PlanetKit Web SDK를 사용한 테스트용 LIFF 앱입니다.
             </p>
           </div>
         </div>

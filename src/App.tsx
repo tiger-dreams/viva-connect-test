@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { VideoSDKProvider } from "@/contexts/VideoSDKContext";
+import { LiffProvider } from "@/contexts/LiffContext";
 import Index from "./pages/Index";
 import SetupPage from "./pages/SetupPage";
 import AgoraMeeting from "./pages/AgoraMeeting";
@@ -16,11 +17,12 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <VideoSDKProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+    <LiffProvider>
+      <VideoSDKProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
           <Routes>
             {/* 새로운 페이지 구조 (기본 페이지) */}
             <Route path="/" element={<SetupPage />} />
@@ -43,6 +45,7 @@ const App = () => (
         </BrowserRouter>
       </TooltipProvider>
     </VideoSDKProvider>
+  </LiffProvider>
   </QueryClientProvider>
 );
 

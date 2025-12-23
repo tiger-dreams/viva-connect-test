@@ -20,13 +20,15 @@ interface VideoSDKProviderProps {
 }
 
 export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
-  const [selectedSDK, setSelectedSDK] = useState<SDKType>('agora');
+  const [selectedSDK, setSelectedSDK] = useState<SDKType>('planetkit'); // Default to PlanetKit
+
   const [agoraConfig, setAgoraConfig] = useState<AgoraConfig>({
     appId: '',
     appCertificate: '',
     channelName: 'test-channel',
     uid: '0'
   });
+
   const [liveKitConfig, setLiveKitConfig] = useState<LiveKitConfig>({
     serverUrl: 'wss://localhost:7880',
     apiKey: '',
@@ -34,15 +36,27 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
     roomName: 'test-room',
     participantName: 'Test User'
   });
-  const [planetKitConfig, setPlanetKitConfig] = useState<PlanetKitConfig>({
-    serviceId: '',
-    apiKey: '',
-    apiSecret: '',
-    userId: '',
-    roomId: 'test-planet-room',
+
+  // PlanetKit: 환경 변수에서 설정 로드
+  const getDefaultPlanetKitConfig = (env: 'eval' | 'real' = 'eval'): PlanetKitConfig => ({
+    serviceId: env === 'eval'
+      ? import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || ''
+      : import.meta.env.VITE_PLANETKIT_REAL_SERVICE_ID || '',
+    apiKey: env === 'eval'
+      ? import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || ''
+      : import.meta.env.VITE_PLANETKIT_REAL_API_KEY || '',
+    apiSecret: env === 'eval'
+      ? import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || ''
+      : import.meta.env.VITE_PLANETKIT_REAL_API_SECRET || '',
+    userId: '', // LINE 프로필에서 자동으로 설정됨
+    roomId: 'planet-room-' + Date.now().toString().slice(-6), // 고유한 룸 ID 생성
     accessToken: '',
-    environment: 'real' // Default to Real environment (Evaluation WebSocket may be blocked)
+    environment: env
   });
+
+  const [planetKitConfig, setPlanetKitConfig] = useState<PlanetKitConfig>(
+    getDefaultPlanetKitConfig('eval')
+  );
 
   // localStorage에서 설정 복원
   useEffect(() => {
@@ -69,7 +83,16 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
 
     if (savedPlanetKitConfig) {
       try {
-        setPlanetKitConfig(JSON.parse(savedPlanetKitConfig));
+        const saved = JSON.parse(savedPlanetKitConfig);
+        // 환경 변수에서 로드한 값과 병합 (환경 변수 우선)
+        setPlanetKitConfig(prev => ({
+          ...prev,
+          ...saved,
+          // Service ID, API Key, API Secret은 환경 변수 우선
+          serviceId: prev.serviceId || saved.serviceId,
+          apiKey: prev.apiKey || saved.apiKey,
+          apiSecret: prev.apiSecret || saved.apiSecret,
+        }));
       } catch (error) {
         console.error('Failed to parse PlanetKit config:', error);
       }
@@ -98,9 +121,9 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
   }, [selectedSDK]);
 
   // 설정이 완료되었는지 확인
-  const isConfigured = 
-    selectedSDK === 'agora' 
-      ? !!(agoraConfig.appId) // Agora는 App ID만 있으면 기본 테스트 가능 (App Certificate는 선택사항)
+  const isConfigured =
+    selectedSDK === 'agora'
+      ? !!(agoraConfig.appId)
       : selectedSDK === 'livekit'
         ? !!(liveKitConfig.serverUrl && liveKitConfig.apiKey && liveKitConfig.apiSecret && liveKitConfig.token)
         : selectedSDK === 'planetkit'
