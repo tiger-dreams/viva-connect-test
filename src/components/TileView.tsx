@@ -114,6 +114,7 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
 
         // 새 비디오 엘리먼트 추가
         if (!videoContainer.contains(participant.videoElement)) {
+          participant.videoElement.style.display = 'block';
           participant.videoElement.style.width = '100%';
           participant.videoElement.style.height = '100%';
           participant.videoElement.style.objectFit = 'cover';
