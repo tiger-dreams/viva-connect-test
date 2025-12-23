@@ -68,7 +68,7 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
       case 1:
         return "grid-cols-1 grid-rows-1"; // 1x1 전체 화면
       case 2:
-        return "grid-cols-1 grid-rows-2"; // 세로 2분할
+        return "grid-cols-1 grid-rows-[1fr_1fr]"; // 세로 2분할 (동일 높이)
       case 3:
         return "grid-cols-2 grid-rows-2"; // 2x2 (3개 타일)
       case 4:
