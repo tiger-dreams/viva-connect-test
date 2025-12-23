@@ -23,7 +23,8 @@ import {
 import { PlanetKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
 import { TileView, TileParticipant } from "@/components/TileView";
-import * as PlanetKit from "@line/planet-kit";
+// Evaluation 환경: planet-kit-eval, Real 환경: planet-kit
+import * as PlanetKit from "@line/planet-kit/dist/planet-kit-eval";
 
 interface PlanetKitMeetingAreaProps {
   config: PlanetKitConfig;
@@ -244,11 +245,9 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
     try {
       // PlanetKit Conference 인스턴스 생성
-      // Evaluation 환경: https://voipnx-saturn.line-apps-rc.com
-      // Real 환경: https://voipnx-saturn.line-apps.com
+      // 환경은 import 문에서 결정됨: planet-kit-eval (Evaluation) vs planet-kit (Real)
       const planetKitConference = new PlanetKit.Conference({
-        logLevel: 'log',
-        serverUrl: 'https://voipnx-saturn.line-apps-rc.com' // Evaluation 환경 사용
+        logLevel: 'log'
       });
 
       // 이벤트 델리게이트 객체 정의
