@@ -340,7 +340,8 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
             // 제거된 peer 처리
             removedPeers.forEach((peer: any) => {
-              const peerId = peer.peerId || peer.id || peer.myId;
+              // PlanetKit은 userId 필드를 사용
+              const peerId = peer.userId || peer.peerId || peer.id || peer.myId;
               console.log(`🚪 Peer ${peerId} 제거 시작:`, peer);
 
               // PlanetKit에 비디오 제거 요청
@@ -374,8 +375,9 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
             // 새로 추가된 peer에 대해 비디오 요청
             addedPeers.forEach((peer: any) => {
-              const peerId = peer.peerId || peer.id || peer.myId;
-              console.log(`📹 Peer ${peerId} 비디오 요청 시작`);
+              // PlanetKit은 userId 필드를 사용
+              const peerId = peer.userId || peer.peerId || peer.id || peer.myId;
+              console.log(`📹 Peer ${peerId} 비디오 요청 시작`, peer);
 
               // 비디오 엘리먼트 생성
               const videoElement = document.createElement('video');
@@ -406,7 +408,8 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
               // 기존 참가자 목록에서 제거된 참가자 삭제
               let updated = prev.filter(p => {
                 const isRemoved = removedPeers.some((removedPeer: any) => {
-                  const removedPeerId = removedPeer.peerId || removedPeer.id || removedPeer.myId;
+                  // PlanetKit은 userId 필드를 사용
+                  const removedPeerId = removedPeer.userId || removedPeer.peerId || removedPeer.id || removedPeer.myId;
                   const isMatch = removedPeerId === p.id;
                   if (isMatch) {
                     console.log(`🔍 참가자 ${p.id} (${p.name}) 제거됨`);
@@ -418,8 +421,9 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
               // 새로 추가된 참가자 추가
               const newParticipants = addedPeers.map((peer: any, index: number) => {
-                const peerId = peer.peerId || peer.id || peer.myId || `peer-${index}`;
-                const peerName = peer.peerName || peer.displayName || peer.myId || `User ${index}`;
+                // PlanetKit은 userId 필드를 사용
+                const peerId = peer.userId || peer.peerId || peer.id || peer.myId || `peer-${index}`;
+                const peerName = peer.displayName || peer.peerName || peer.userId || `User ${index}`;
 
                 console.log(`📋 추가된 Peer ${index}:`, { peerId, peerName, peer });
 
@@ -429,8 +433,8 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 return {
                   id: peerId,
                   name: peerName,
-                  isVideoOn: peer.isVideoEnabled !== false,
-                  isAudioOn: peer.isAudioEnabled !== false,
+                  isVideoOn: peer.videoState === 'enabled',
+                  isAudioOn: peer.audioState === 'enabled',
                   isScreenSharing: false,
                   videoElement: videoElement
                 };
@@ -463,7 +467,8 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
 
             updates.forEach((update: any) => {
               const peer = update.peer || {};
-              const peerId = peer.peerId || peer.id;
+              // PlanetKit은 userId 필드를 사용
+              const peerId = peer.userId || peer.peerId || peer.id;
               const videoStatus = update.videoStatus || {};
 
               console.log(`🎥 Peer ${peerId} 비디오 상태:`, videoStatus);
@@ -473,7 +478,7 @@ export const PlanetKitMeetingArea = ({ config }: PlanetKitMeetingAreaProps) => {
                 if (p.id === peerId) {
                   return {
                     ...p,
-                    isVideoOn: videoStatus.isEnabled !== false
+                    isVideoOn: videoStatus.state === 'enabled'
                   };
                 }
                 return p;
