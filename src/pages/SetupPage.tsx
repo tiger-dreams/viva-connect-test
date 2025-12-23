@@ -32,10 +32,25 @@ const SetupPage = () => {
   }, [isLoggedIn, profile, planetKitConfig.userId]);
 
   const handleGenerateToken = async () => {
+    // 디버깅: 현재 설정 상태 출력
+    console.log('토큰 생성 시도:', {
+      serviceId: planetKitConfig.serviceId,
+      apiKey: planetKitConfig.apiKey ? '설정됨' : '누락',
+      apiSecret: planetKitConfig.apiSecret ? '설정됨' : '누락',
+      userId: planetKitConfig.userId,
+      roomId: planetKitConfig.roomId,
+      environment: planetKitConfig.environment
+    });
+
     if (!planetKitConfig.serviceId || !planetKitConfig.apiKey || !planetKitConfig.userId) {
+      const missing = [];
+      if (!planetKitConfig.serviceId) missing.push('Service ID');
+      if (!planetKitConfig.apiKey) missing.push('API Key');
+      if (!planetKitConfig.userId) missing.push('User ID');
+
       toast({
         title: "설정 누락",
-        description: "필수 설정이 누락되었습니다. 환경 변수를 확인해주세요.",
+        description: `다음 항목이 누락되었습니다: ${missing.join(', ')}`,
         variant: "destructive",
       });
       return;
