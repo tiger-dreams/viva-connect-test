@@ -65,50 +65,6 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
     };
   }, [connectionStatus.connected, connectionStartTime]);
 
-  // 개발 모드 연결 시뮬레이션
-  const connectMockConference = async () => {
-    setConnectionStatus({ connected: false, connecting: true });
-
-    // 연결 시뮬레이션 (2초 지연)
-    setTimeout(() => {
-      setConnectionStatus({ connected: true, connecting: false });
-      setConnectionStartTime(new Date());
-
-      // 로컬 참가자 추가 (화상회의)
-      setParticipants([{
-        id: "local",
-        name: config.displayName || config.userId,
-        isVideoOn: true,
-        isAudioOn: true,
-        videoElement: localVideoRef.current || undefined
-      }]);
-
-      // 2명의 가상 참가자 추가 (화상회의)
-      setTimeout(() => {
-        setParticipants(prev => [...prev, {
-          id: "mock-peer-1",
-          name: "Demo User 1",
-          isVideoOn: true,
-          isAudioOn: true
-        }]);
-      }, 3000);
-
-      setTimeout(() => {
-        setParticipants(prev => [...prev, {
-          id: "mock-peer-2",
-          name: "Demo User 2",
-          isVideoOn: Math.random() > 0.5, // 랜덤하게 비디오 on/off
-          isAudioOn: true
-        }]);
-      }, 5000);
-
-      toast({
-        title: "개발 모드 연결 완료",
-        description: "PlanetKit 개발 모드로 연결되었습니다. (실제 통화 아님)",
-      });
-    }, 2000);
-  };
-
   // PlanetKit Conference 연결
   const connectToConference = async () => {
     if (!config.serviceId || !config.userId || !config.accessToken) {
@@ -120,27 +76,22 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       return;
     }
 
-    // 개발 모드 확인을 최우선으로 (PlanetKit 코드 실행 전에)
-    const isDevelopmentMode = config.serviceId === 'planetkit' || config.serviceId.includes('dev') || config.serviceId.includes('test');
+    if (!config.environment) {
+      toast({
+        title: "환경 선택 필요",
+        description: "Evaluation 또는 Real 환경을 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    console.log('PlanetKit 연결 모드 체크:', {
+    console.log('🚀 PlanetKit Conference 연결 시도:', {
+      environment: config.environment,
       serviceId: config.serviceId,
-      isDevelopmentMode,
       userId: config.userId,
       roomId: config.roomId
     });
 
-    if (isDevelopmentMode) {
-      console.log('🔧 개발 모드 활성화됨. 실제 PlanetKit 서버 연결 건너뛰기');
-      toast({
-        title: "개발 모드",
-        description: "실제 LINE Planet 서버 대신 개발 모드로 실행합니다.",
-      });
-      return await connectMockConference();
-    }
-
-    // 실제 PlanetKit 연결 (프로덕션 모드에서만 실행)
-    console.log('🚀 실제 PlanetKit Conference 연결 시도');
     setConnectionStatus({ connected: false, connecting: true });
 
     // 명시적으로 로컬 미디어 스트림 획득 (PlanetKit 연결 전)
@@ -461,31 +412,9 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
         setConference(planetKitConference);
       };
 
-      const isEvalEnvironment = config.environment === 'eval';
-
-      if (isEvalEnvironment) {
-        try {
-          await attemptJoin(PlanetKitEval, 'eval');
-        } catch (evalError) {
-          console.warn('Evaluation 환경 연결 실패. Real 환경으로 재시도합니다.', evalError);
-          if (!config.apiSecret) {
-            toast({
-              title: "Evaluation 연결 실패",
-              description: "Evaluation WebSocket이 막혔을 수 있습니다. Real 환경 재시도를 위해서는 API Secret으로 서명된 프로덕션 토큰이 필요합니다. 설정에서 Real 환경으로 전환 후 API Secret을 입력하고 토큰을 다시 생성해주세요.",
-              variant: "destructive",
-            });
-            throw evalError;
-          }
-
-          toast({
-            title: "Evaluation 연결 실패",
-            description: "네트워크/정책상 Evaluation WebSocket이 막혔을 수 있어 Real 환경으로 재시도합니다.",
-          });
-          await attemptJoin(PlanetKitReal, 'real');
-        }
-      } else {
-        await attemptJoin(PlanetKitReal, 'real');
-      }
+      // 선택한 환경의 SDK 사용 (Fallback 없음)
+      const PlanetKitModule = config.environment === 'eval' ? PlanetKitEval : PlanetKitReal;
+      await attemptJoin(PlanetKitModule, config.environment);
 
     } catch (error) {
       console.error("PlanetKit Conference 연결 실패:", error);
