@@ -12,13 +12,23 @@ import { useVideoSDK } from "@/contexts/VideoSDKContext";
 import { useLiff } from "@/contexts/LiffContext";
 import { useToast } from "@/hooks/use-toast";
 import { generatePlanetKitToken } from "@/utils/token-generator";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { getTranslations } from "@/utils/translations";
+import { LanguageSelector } from "@/components/LanguageSelector";
 
 const SetupPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const t = getTranslations(language);
   const { isLoggedIn, isInitialized, needsLiffId, liffId, profile, error: liffError, login, initializeLiff } = useLiff();
   const { planetKitConfig, setPlanetKitConfig, isConfigured } = useVideoSDK();
   const [liffIdInput, setLiffIdInput] = useState('');
+
+  // 페이지 타이틀 업데이트
+  useEffect(() => {
+    document.title = language === 'ko' ? 'WebPlanet SDK 테스트' : 'WebPlanet SDK Test';
+  }, [language]);
 
   // LIFF 로그인 후 자동으로 User ID와 Display Name 설정
   useEffect(() => {
@@ -48,8 +58,8 @@ const SetupPage = () => {
 
     if (!planetKitConfig.environment) {
       toast({
-        title: "환경 선택 필요",
-        description: "Evaluation 또는 Real 환경을 선택해주세요.",
+        title: language === 'ko' ? "환경 선택 필요" : "Environment Required",
+        description: language === 'ko' ? "Evaluation 또는 Real 환경을 선택해주세요." : "Please select Evaluation or Real environment.",
         variant: "destructive",
       });
       return;
@@ -57,8 +67,8 @@ const SetupPage = () => {
 
     if (!planetKitConfig.roomId) {
       toast({
-        title: "Room 선택 필요",
-        description: "참여할 Room을 선택해주세요.",
+        title: language === 'ko' ? "Room 선택 필요" : "Room Required",
+        description: language === 'ko' ? "참여할 Room을 선택해주세요." : "Please select a room to join.",
         variant: "destructive",
       });
       return;
@@ -71,8 +81,8 @@ const SetupPage = () => {
       if (!planetKitConfig.userId) missing.push('User ID');
 
       toast({
-        title: "설정 누락",
-        description: `다음 항목이 누락되었습니다: ${missing.join(', ')}`,
+        title: language === 'ko' ? "설정 누락" : "Configuration Missing",
+        description: language === 'ko' ? `다음 항목이 누락되었습니다: ${missing.join(', ')}` : `Missing items: ${missing.join(', ')}`,
         variant: "destructive",
       });
       return;
@@ -94,14 +104,14 @@ const SetupPage = () => {
       });
 
       toast({
-        title: "토큰 생성 완료",
-        description: "이제 화상회의에 참여할 수 있습니다.",
+        title: t.tokenGeneratedSuccess,
+        description: language === 'ko' ? "이제 화상회의에 참여할 수 있습니다." : "You can now join the meeting.",
       });
     } catch (error) {
       console.error('토큰 생성 실패:', error);
       toast({
-        title: "토큰 생성 실패",
-        description: error instanceof Error ? error.message : "토큰 생성 중 오류가 발생했습니다.",
+        title: t.tokenGenerationFailed,
+        description: error instanceof Error ? error.message : (language === 'ko' ? "토큰 생성 중 오류가 발생했습니다." : "An error occurred while generating the token."),
         variant: "destructive",
       });
     }
@@ -118,8 +128,8 @@ const SetupPage = () => {
     const handleLiffIdSubmit = async () => {
       if (!liffIdInput.trim()) {
         toast({
-          title: "LIFF ID 입력 필요",
-          description: "LIFF ID를 입력해주세요.",
+          title: language === 'ko' ? "LIFF ID 입력 필요" : "LIFF ID Required",
+          description: language === 'ko' ? "LIFF ID를 입력해주세요." : "Please enter a LIFF ID.",
           variant: "destructive",
         });
         return;
@@ -128,13 +138,13 @@ const SetupPage = () => {
       try {
         await initializeLiff(liffIdInput.trim());
         toast({
-          title: "LIFF 초기화 성공",
-          description: "LIFF가 성공적으로 초기화되었습니다.",
+          title: language === 'ko' ? "LIFF 초기화 성공" : "LIFF Initialized",
+          description: language === 'ko' ? "LIFF가 성공적으로 초기화되었습니다." : "LIFF has been successfully initialized.",
         });
       } catch (error) {
         toast({
-          title: "LIFF 초기화 실패",
-          description: error instanceof Error ? error.message : "LIFF 초기화에 실패했습니다.",
+          title: language === 'ko' ? "LIFF 초기화 실패" : "LIFF Initialization Failed",
+          description: error instanceof Error ? error.message : (language === 'ko' ? "LIFF 초기화에 실패했습니다." : "Failed to initialize LIFF."),
           variant: "destructive",
         });
       }
@@ -147,9 +157,9 @@ const SetupPage = () => {
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <Settings className="w-8 h-8 text-primary" />
             </div>
-            <CardTitle>LIFF 설정</CardTitle>
+            <CardTitle>{language === 'ko' ? 'LIFF 설정' : 'LIFF Setup'}</CardTitle>
             <CardDescription>
-              LINE LIFF ID를 입력하여 앱을 시작하세요
+              {language === 'ko' ? 'LINE LIFF ID를 입력하여 앱을 시작하세요' : 'Enter LINE LIFF ID to start the app'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -159,22 +169,22 @@ const SetupPage = () => {
                 id="liffId"
                 value={liffIdInput}
                 onChange={(e) => setLiffIdInput(e.target.value)}
-                placeholder="예: 2008742005-3DHkWzkg"
+                placeholder={language === 'ko' ? '예: 2008742005-3DHkWzkg' : 'e.g., 2008742005-3DHkWzkg'}
                 className="font-mono"
               />
               <p className="text-xs text-muted-foreground">
-                LINE Developers Console에서 발급받은 LIFF ID를 입력하세요.
+                {language === 'ko' ? 'LINE Developers Console에서 발급받은 LIFF ID를 입력하세요.' : 'Enter the LIFF ID issued from LINE Developers Console.'}
               </p>
             </div>
             <Button onClick={handleLiffIdSubmit} className="w-full h-12 text-lg" size="lg">
-              초기화
+              {language === 'ko' ? '초기화' : 'Initialize'}
             </Button>
             <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded border border-blue-200 dark:border-blue-800">
               <p className="text-blue-800 dark:text-blue-200 font-medium mb-2">
-                💡 환경 변수로 설정하기 (권장)
+                💡 {language === 'ko' ? '환경 변수로 설정하기 (권장)' : 'Set via Environment Variable (Recommended)'}
               </p>
               <p className="text-blue-700 dark:text-blue-300">
-                Vercel 환경 변수에 <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">VITE_LIFF_ID</code>를 추가하면 자동으로 로드됩니다.
+                {language === 'ko' ? 'Vercel 환경 변수에' : 'Add'} <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">VITE_LIFF_ID</code>{language === 'ko' ? '를 추가하면 자동으로 로드됩니다.' : ' to Vercel environment variables to auto-load.'}
               </p>
             </div>
           </CardContent>
@@ -191,7 +201,7 @@ const SetupPage = () => {
           <CardContent className="pt-6">
             <div className="text-center">
               <Activity className="w-12 h-12 mx-auto mb-4 animate-spin text-primary" />
-              <p className="text-muted-foreground">LIFF 초기화 중...</p>
+              <p className="text-muted-foreground">{language === 'ko' ? 'LIFF 초기화 중...' : 'Initializing LIFF...'}</p>
             </div>
           </CardContent>
         </Card>
@@ -205,15 +215,15 @@ const SetupPage = () => {
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-destructive">초기화 실패</CardTitle>
+            <CardTitle className="text-destructive">{language === 'ko' ? '초기화 실패' : 'Initialization Failed'}</CardTitle>
             <CardDescription>{liffError}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              LIFF 초기화에 실패했습니다. .env 파일에 VITE_LIFF_ID가 올바르게 설정되어 있는지 확인해주세요.
+              {language === 'ko' ? 'LIFF 초기화에 실패했습니다. .env 파일에 VITE_LIFF_ID가 올바르게 설정되어 있는지 확인해주세요.' : 'Failed to initialize LIFF. Please check if VITE_LIFF_ID is correctly set in the .env file.'}
             </p>
             <Button onClick={() => window.location.reload()} className="w-full">
-              다시 시도
+              {language === 'ko' ? '다시 시도' : 'Retry'}
             </Button>
           </CardContent>
         </Card>
@@ -230,15 +240,15 @@ const SetupPage = () => {
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <LogIn className="w-8 h-8 text-primary" />
             </div>
-            <CardTitle>LINE 로그인</CardTitle>
+            <CardTitle>{t.liffLogin}</CardTitle>
             <CardDescription>
-              화상회의에 참여하려면 LINE 로그인이 필요합니다
+              {t.liffLoginDescription}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button onClick={login} className="w-full h-12 text-lg" size="lg">
               <LogIn className="w-5 h-5 mr-2" />
-              LINE으로 로그인
+              {t.loginWithLine}
             </Button>
           </CardContent>
         </Card>
@@ -252,19 +262,22 @@ const SetupPage = () => {
       {/* 헤더 */}
       <div className="border-b border-border bg-card sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1">
               <h1 className="text-xl sm:text-2xl font-bold text-primary">
                 Planet VoIP Room
               </h1>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                LINE Planet PlanetKit 화상회의
+                {t.setupDescription}
               </p>
             </div>
-            <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30">
-              <Activity className="w-3 h-3 mr-1" />
-              LIFF
-            </Badge>
+            <div className="flex items-center gap-2">
+              <LanguageSelector />
+              <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30">
+                <Activity className="w-3 h-3 mr-1" />
+                LIFF
+              </Badge>
+            </div>
           </div>
         </div>
       </div>
@@ -301,7 +314,7 @@ const SetupPage = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Server className="w-4 h-4" />
-                환경 선택
+                {t.environment}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -331,8 +344,8 @@ const SetupPage = () => {
                   <RadioGroupItem value="eval" id="env-eval" />
                   <Label htmlFor="env-eval" className="flex-1 cursor-pointer">
                     <div className="flex flex-col">
-                      <span className="font-medium">Evaluation</span>
-                      <span className="text-xs text-muted-foreground">테스트 환경</span>
+                      <span className="font-medium">{t.evaluationEnv}</span>
+                      <span className="text-xs text-muted-foreground">{language === 'ko' ? '테스트 환경' : 'Testing'}</span>
                     </div>
                   </Label>
                 </div>
@@ -340,8 +353,8 @@ const SetupPage = () => {
                   <RadioGroupItem value="real" id="env-real" />
                   <Label htmlFor="env-real" className="flex-1 cursor-pointer">
                     <div className="flex flex-col">
-                      <span className="font-medium">Real</span>
-                      <span className="text-xs text-muted-foreground">프로덕션 환경</span>
+                      <span className="font-medium">{t.realEnv}</span>
+                      <span className="text-xs text-muted-foreground">{language === 'ko' ? '프로덕션 환경' : 'Production'}</span>
                     </div>
                   </Label>
                 </div>
@@ -370,10 +383,10 @@ const SetupPage = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Globe className="w-4 h-4" />
-                Room 선택
+                {t.room}
               </CardTitle>
               <CardDescription className="text-xs">
-                같은 Room을 선택한 사용자들과 화상회의를 진행할 수 있습니다
+                {t.roomDescription}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -386,8 +399,8 @@ const SetupPage = () => {
                   <RadioGroupItem value="japan" id="room-japan" />
                   <Label htmlFor="room-japan" className="flex-1 cursor-pointer">
                     <div className="flex flex-col">
-                      <span className="font-medium">🇯🇵 Japan</span>
-                      <span className="text-xs text-muted-foreground">일본 룸</span>
+                      <span className="font-medium">🇯🇵 {t.roomJapan}</span>
+                      <span className="text-xs text-muted-foreground">{language === 'ko' ? '일본 룸' : 'Japan Room'}</span>
                     </div>
                   </Label>
                 </div>
@@ -395,8 +408,8 @@ const SetupPage = () => {
                   <RadioGroupItem value="korea" id="room-korea" />
                   <Label htmlFor="room-korea" className="flex-1 cursor-pointer">
                     <div className="flex flex-col">
-                      <span className="font-medium">🇰🇷 Korea</span>
-                      <span className="text-xs text-muted-foreground">한국 룸</span>
+                      <span className="font-medium">🇰🇷 {t.roomKorea}</span>
+                      <span className="text-xs text-muted-foreground">{language === 'ko' ? '한국 룸' : 'Korea Room'}</span>
                     </div>
                   </Label>
                 </div>
@@ -404,8 +417,8 @@ const SetupPage = () => {
                   <RadioGroupItem value="taiwan" id="room-taiwan" />
                   <Label htmlFor="room-taiwan" className="flex-1 cursor-pointer">
                     <div className="flex flex-col">
-                      <span className="font-medium">🇹🇼 Taiwan</span>
-                      <span className="text-xs text-muted-foreground">대만 룸</span>
+                      <span className="font-medium">🇹🇼 {t.roomTaiwan}</span>
+                      <span className="text-xs text-muted-foreground">{language === 'ko' ? '대만 룸' : 'Taiwan Room'}</span>
                     </div>
                   </Label>
                 </div>
@@ -413,8 +426,8 @@ const SetupPage = () => {
                   <RadioGroupItem value="thailand" id="room-thailand" />
                   <Label htmlFor="room-thailand" className="flex-1 cursor-pointer">
                     <div className="flex flex-col">
-                      <span className="font-medium">🇹🇭 Thailand</span>
-                      <span className="text-xs text-muted-foreground">태국 룸</span>
+                      <span className="font-medium">🇹🇭 {t.roomThailand}</span>
+                      <span className="text-xs text-muted-foreground">{language === 'ko' ? '태국 룸' : 'Thailand Room'}</span>
                     </div>
                   </Label>
                 </div>
@@ -432,29 +445,29 @@ const SetupPage = () => {
           {/* 설정 요약 */}
           <Card className="bg-muted/30">
             <CardHeader>
-              <CardTitle className="text-sm">설정 요약</CardTitle>
+              <CardTitle className="text-sm">{t.currentConfig}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">환경:</span>
+                  <span className="text-muted-foreground">{t.environment}:</span>
                   <span className="font-mono font-semibold">
-                    {planetKitConfig.environment === 'eval' ? 'Evaluation' : planetKitConfig.environment === 'real' ? 'Real' : '미선택'}
+                    {planetKitConfig.environment === 'eval' ? 'Evaluation' : planetKitConfig.environment === 'real' ? 'Real' : (language === 'ko' ? '미선택' : 'Not selected')}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Room:</span>
+                  <span className="text-muted-foreground">{t.room}:</span>
                   <span className="font-mono font-semibold">
-                    {planetKitConfig.roomId ? planetKitConfig.roomId.charAt(0).toUpperCase() + planetKitConfig.roomId.slice(1) : '미선택'}
+                    {planetKitConfig.roomId ? planetKitConfig.roomId.charAt(0).toUpperCase() + planetKitConfig.roomId.slice(1) : (language === 'ko' ? '미선택' : 'Not selected')}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Service ID:</span>
-                  <span className="font-mono text-xs">{planetKitConfig.serviceId ? '설정됨' : '미설정'}</span>
+                  <span className="font-mono text-xs">{planetKitConfig.serviceId ? (language === 'ko' ? '설정됨' : 'Set') : (language === 'ko' ? '미설정' : 'Not set')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">User ID:</span>
-                  <span className="font-mono text-xs">{planetKitConfig.userId ? '설정됨' : '미설정'}</span>
+                  <span className="font-mono text-xs">{planetKitConfig.userId ? (language === 'ko' ? '설정됨' : 'Set') : (language === 'ko' ? '미설정' : 'Not set')}</span>
                 </div>
               </div>
             </CardContent>
@@ -467,18 +480,18 @@ const SetupPage = () => {
               className="w-full h-12 text-base"
               size="lg"
             >
-              Access Token 생성
+              {t.generateToken}
             </Button>
           ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
-                <span className="text-sm text-green-800 dark:text-green-200">✓ 토큰 생성 완료</span>
+                <span className="text-sm text-green-800 dark:text-green-200">✓ {t.tokenGenerated}</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setPlanetKitConfig({ ...planetKitConfig, accessToken: '' })}
                 >
-                  재생성
+                  {language === 'ko' ? '재생성' : 'Regenerate'}
                 </Button>
               </div>
 
@@ -490,7 +503,7 @@ const SetupPage = () => {
                 size="lg"
               >
                 <Video className="w-5 h-5 mr-2" />
-                화상회의 참여하기
+                {t.joinMeeting}
               </Button>
             </div>
           )}

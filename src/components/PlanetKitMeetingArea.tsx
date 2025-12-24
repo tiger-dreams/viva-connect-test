@@ -13,6 +13,9 @@ import {
 import { PlanetKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
 import { TileView, TileParticipant } from "@/components/TileView";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { getTranslations } from "@/utils/translations";
+import { LanguageSelector } from "@/components/LanguageSelector";
 // PlanetKit 환경별 빌드 import
 import * as PlanetKitReal from "@line/planet-kit";
 import * as PlanetKitEval from "@line/planet-kit/dist/planet-kit-eval";
@@ -24,6 +27,8 @@ interface PlanetKitMeetingAreaProps {
 
 export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingAreaProps) => {
   const { toast } = useToast();
+  const { language } = useLanguage();
+  const t = getTranslations(language);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     connected: false,
     connecting: false
@@ -40,6 +45,17 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
   const [conference, setConference] = useState<any>(null);
   // 원격 참가자 비디오 엘리먼트 맵
   const remoteVideoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+
+  // 페이지 타이틀 업데이트
+  useEffect(() => {
+    if (connectionStatus.connected) {
+      document.title = language === 'ko'
+        ? `WebPlanet SDK 테스트 - 통화 중`
+        : `WebPlanet SDK Test - In Call`;
+    } else {
+      document.title = language === 'ko' ? 'WebPlanet SDK 테스트' : 'WebPlanet SDK Test';
+    }
+  }, [language, connectionStatus.connected]);
 
   // 통화 시간 업데이트
   useEffect(() => {
@@ -587,16 +603,16 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
           <div className="bg-card rounded-lg p-6 max-w-sm w-full space-y-4 border border-border">
             <div className="text-center space-y-2">
               <h2 className="text-xl font-semibold text-foreground">
-                {config.roomId ? `${config.roomId.charAt(0).toUpperCase() + config.roomId.slice(1)} Room` : 'PlanetKit 회의'}
+                {config.roomId ? `${config.roomId.charAt(0).toUpperCase() + config.roomId.slice(1)} Room` : (language === 'ko' ? 'PlanetKit 회의' : 'PlanetKit Meeting')}
               </h2>
               <p className="text-sm text-muted-foreground">
-                {connectionStatus.connecting ? '연결 중입니다...' : '회의에 참여하시겠습니까?'}
+                {connectionStatus.connecting ? t.connecting : (language === 'ko' ? '회의에 참여하시겠습니까?' : 'Would you like to join the meeting?')}
               </p>
             </div>
 
             {connectionStatus.error && (
               <div className="text-sm text-destructive p-3 bg-destructive/10 rounded-md">
-                오류: {connectionStatus.error}
+                {t.error}: {connectionStatus.error}
               </div>
             )}
 
@@ -608,10 +624,10 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
               {connectionStatus.connecting ? (
                 <>
                   <Activity className="w-5 h-5 mr-2 animate-spin" />
-                  연결 중...
+                  {t.connecting}
                 </>
               ) : (
-                <>참여하기</>
+                <>{t.joinMeeting}</>
               )}
             </Button>
           </div>
@@ -635,8 +651,11 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
                   <span className="text-sm">{participants.length}</span>
                 </div>
               </div>
-              <div className="text-xs text-white/70">
-                {config.roomId ? config.roomId.toUpperCase() : 'PlanetKit'}
+              <div className="flex items-center gap-2">
+                <LanguageSelector />
+                <div className="text-xs text-white/70">
+                  {config.roomId ? config.roomId.toUpperCase() : 'PlanetKit'}
+                </div>
               </div>
             </div>
           </div>
