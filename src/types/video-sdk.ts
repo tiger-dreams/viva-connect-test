@@ -42,8 +42,9 @@ export interface Participant {
   name: string;
   isVideoOn: boolean;
   isAudioOn: boolean;
-  isScreenSharing: boolean;
+  isScreenSharing?: boolean;
   role?: ParticipantRole;
   permissions?: RolePermissions;
   isHost?: boolean;
+  videoElement?: HTMLVideoElement;
 }
