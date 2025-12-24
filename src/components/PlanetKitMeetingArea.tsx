@@ -499,59 +499,20 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
     }
   };
 
-  // 검은색 비디오 트랙 생성 (카메라 off 상태 시뮬레이션)
-  const createBlackVideoTrack = (): MediaStreamTrack => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 640;
-    canvas.height = 480;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.fillStyle = 'black';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-    const stream = canvas.captureStream(1); // 1 fps
-    return stream.getVideoTracks()[0];
-  };
-
   // 비디오 토글
   const toggleVideo = async () => {
     if (connectionStatus.connected) {
       try {
         const newVideoState = !isVideoOn;
 
-        if (localVideoRef.current && localVideoRef.current.srcObject) {
-          const stream = localVideoRef.current.srcObject as MediaStream;
-          const videoTracks = stream.getVideoTracks();
-
+        // PlanetKit API 호출: pauseMyVideo() / resumeMyVideo()
+        if (conference) {
           if (newVideoState) {
-            // 비디오 켜기: 검은 트랙을 제거하고 실제 카메라 트랙 추가
-            videoTracks.forEach(track => {
-              track.stop();
-              stream.removeTrack(track);
-            });
-
-            // 새로운 비디오 스트림 가져오기
-            const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
-            const newVideoTrack = newStream.getVideoTracks()[0];
-            stream.addTrack(newVideoTrack);
-
-            // PlanetKit에 비디오 재개 알림
-            if (conference && typeof conference.resumeMyVideo === 'function') {
+            if (typeof conference.resumeMyVideo === 'function') {
               await conference.resumeMyVideo();
             }
           } else {
-            // 비디오 끄기: 실제 카메라 트랙을 제거하고 검은색 트랙 추가
-            videoTracks.forEach(track => {
-              track.stop();
-              stream.removeTrack(track);
-            });
-
-            // 검은색 비디오 트랙 추가
-            const blackTrack = createBlackVideoTrack();
-            stream.addTrack(blackTrack);
-
-            // PlanetKit에 비디오 일시정지 알림
-            if (conference && typeof conference.pauseMyVideo === 'function') {
+            if (typeof conference.pauseMyVideo === 'function') {
               await conference.pauseMyVideo();
             }
           }
@@ -559,7 +520,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
 
         setIsVideoOn(newVideoState);
 
-        // 로컬 참가자 상태 업데이트
+        // 로컬 참가자 상태 업데이트 (UI에서 비디오 꺼짐 표시)
         setParticipants(prev => prev.map(p =>
           p.id === "local" ? { ...p, isVideoOn: newVideoState } : p
         ));

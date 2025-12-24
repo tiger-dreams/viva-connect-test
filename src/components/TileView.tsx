@@ -128,8 +128,8 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
           videoContainer.appendChild(participant.videoElement);
         }
 
-        // 비디오는 항상 표시 (isVideoOn이 false여도 검은 화면 유지)
-        participant.videoElement.style.display = 'block';
+        // isVideoOn 상태에 따라 비디오 표시/숨김
+        participant.videoElement.style.display = participant.isVideoOn ? 'block' : 'none';
       } else if (!participant.videoElement) {
         // videoElement 없음 - 무시
       }
