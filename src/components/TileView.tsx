@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Video, VideoOff, Mic, MicOff, Monitor } from "lucide-react";
 import { Participant } from "@/types/video-sdk";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { getTranslations } from "@/utils/translations";
 
 export interface TileParticipant extends Participant {
   videoElement?: HTMLVideoElement;
@@ -51,7 +53,8 @@ interface TileViewProps {
 export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = false }: TileViewProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [aspectRatio, setAspectRatio] = useState(window.innerWidth / window.innerHeight);
-
+  const { language } = useLanguage();
+  const t = getTranslations(language);
 
   // 참가자 순서 정렬: 로컬(나)을 항상 첫 번째로, 나머지는 기존 순서 유지
   const sortedParticipants = [...participants].sort((a, b) => {
@@ -176,11 +179,11 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
           <div className="absolute bottom-2 left-2 right-2 flex items-end justify-between">
             <div className="flex flex-col items-start gap-1">
               <div className="flex items-center gap-1">
-                <Badge 
-                  variant="secondary" 
+                <Badge
+                  variant="secondary"
                   className="text-xs bg-black/60 text-white border-none"
                 >
-                  {participant.isLocal ? "나" : participant.name}
+                  {participant.isLocal ? t.you : participant.name}
                 </Badge>
                 
                 {participant.isScreenSharing && (
@@ -381,7 +384,7 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
           {participant.isLocal && (
             <div className="absolute top-2 left-2">
               <Badge className="text-xs bg-blue-600 text-white">
-                나
+                {t.you}
               </Badge>
             </div>
           )}

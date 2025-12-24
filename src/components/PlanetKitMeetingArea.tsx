@@ -177,8 +177,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
             }, 500);
 
             toast({
-              title: "연결 성공",
-              description: "PlanetKit Conference에 성공적으로 연결되었습니다.",
+              title: t.connectionSuccessTitle,
+              description: t.connectionSuccessDescription,
             });
           },
 

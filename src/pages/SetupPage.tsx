@@ -371,7 +371,7 @@ const SetupPage = () => {
               {!planetKitConfig.environment && (
                 <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950 p-2 rounded border border-amber-200 dark:border-amber-800">
                   <p className="text-amber-800 dark:text-amber-200">
-                    ⚠️ 환경을 선택해주세요
+                    {t.pleaseSelectEnvironment}
                   </p>
                 </div>
               )}
@@ -435,7 +435,7 @@ const SetupPage = () => {
               {!planetKitConfig.roomId && (
                 <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950 p-2 rounded border border-amber-200 dark:border-amber-800">
                   <p className="text-amber-800 dark:text-amber-200">
-                    ⚠️ Room을 선택해주세요
+                    {t.pleaseSelectRoom}
                   </p>
                 </div>
               )}

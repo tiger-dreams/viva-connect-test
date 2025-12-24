@@ -82,6 +82,12 @@ export interface Translations {
   configSaved: string;
   joinedMeeting: string;
   leftMeeting: string;
+  connectionSuccessTitle: string;
+  connectionSuccessDescription: string;
+
+  // Validation messages
+  pleaseSelectEnvironment: string;
+  pleaseSelectRoom: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -167,6 +173,12 @@ export const translations: Record<Language, Translations> = {
     configSaved: '설정이 저장되었습니다',
     joinedMeeting: '회의에 참여했습니다',
     leftMeeting: '회의에서 나갔습니다',
+    connectionSuccessTitle: '연결 성공',
+    connectionSuccessDescription: 'PlanetKit Conference에 성공적으로 연결되었습니다.',
+
+    // Validation messages
+    pleaseSelectEnvironment: '⚠️ 환경을 선택해주세요',
+    pleaseSelectRoom: '⚠️ Room을 선택해주세요',
   },
   en: {
     // Common
@@ -250,6 +262,12 @@ export const translations: Record<Language, Translations> = {
     configSaved: 'Configuration saved',
     joinedMeeting: 'Joined meeting',
     leftMeeting: 'Left meeting',
+    connectionSuccessTitle: 'Connected Successfully',
+    connectionSuccessDescription: 'Successfully connected to PlanetKit Conference.',
+
+    // Validation messages
+    pleaseSelectEnvironment: '⚠️ Please select an environment',
+    pleaseSelectRoom: '⚠️ Please select a room',
   },
 };
 
