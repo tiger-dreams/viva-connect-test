@@ -505,22 +505,14 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       try {
         const newVideoState = !isVideoOn;
 
-        // PlanetKit API 호출: pauseMyVideo() / resumeMyVideo()
-        if (conference) {
-          if (newVideoState) {
-            if (typeof conference.resumeMyVideo === 'function') {
-              await conference.resumeMyVideo();
-            }
-          } else {
-            if (typeof conference.pauseMyVideo === 'function') {
-              await conference.pauseMyVideo();
-            }
-          }
+        // PlanetKit API: muteMyVideo(isMuted) - true면 비디오 끄기, false면 비디오 켜기
+        if (conference && typeof conference.muteMyVideo === 'function') {
+          await conference.muteMyVideo(!newVideoState);
         }
 
         setIsVideoOn(newVideoState);
 
-        // 로컬 참가자 상태 업데이트 (UI에서 비디오 꺼짐 표시)
+        // 로컬 참가자 상태 업데이트
         setParticipants(prev => prev.map(p =>
           p.id === "local" ? { ...p, isVideoOn: newVideoState } : p
         ));
