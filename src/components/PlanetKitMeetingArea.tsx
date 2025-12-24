@@ -124,7 +124,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
         console.log(`PlanetKit 환경: ${envLabel} (${envLabel === 'eval' ? 'Evaluation' : 'Real'})`);
 
         const planetKitConference = new PlanetKitModule.Conference({
-          logLevel: 'log'
+          logLevel: 'error' // SIP 내부 로그 최소화 (error만 표시)
         });
 
         const conferenceDelegate = {
