@@ -333,7 +333,9 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
             const peers = Array.isArray(peerInfoArray) ? peerInfoArray : [peerInfoArray];
 
             peers.forEach((peerInfo: any) => {
-              const peerId = peerInfo.userId || peerInfo.peerId || peerInfo.id;
+              // evtPeersVideoPaused의 구조: {peer: {userId, ...}, pauseReason: ...}
+              const peer = peerInfo.peer || peerInfo;
+              const peerId = peer.userId || peer.peerId || peer.id;
               console.log('[REMOTE VIDEO] Peer video paused, peerId:', peerId);
 
               setParticipants(prev => {
