@@ -285,9 +285,24 @@ const SetupPage = () => {
                       <User className="w-8 h-8 text-primary" />
                     </div>
                   )}
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg">{profile.displayName}</h3>
-                    <p className="text-sm text-muted-foreground font-mono">{profile.userId}</p>
+                  <div className="flex-1 space-y-2">
+                    <div>
+                      <h3 className="font-semibold text-lg">{profile.displayName}</h3>
+                      <p className="text-sm text-muted-foreground font-mono">{profile.userId}</p>
+                    </div>
+                    {/* Display Name 수정 필드 */}
+                    <div className="space-y-1">
+                      <Label htmlFor="displayName" className="text-xs text-muted-foreground">
+                        {t.displayName}
+                      </Label>
+                      <Input
+                        id="displayName"
+                        value={planetKitConfig.displayName || ''}
+                        onChange={(e) => setPlanetKitConfig({ ...planetKitConfig, displayName: e.target.value })}
+                        placeholder={t.displayNamePlaceholder}
+                        className="h-9 text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -453,6 +468,12 @@ const SetupPage = () => {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">User ID:</span>
                   <span className="font-mono text-xs">{planetKitConfig.userId ? (language === 'ko' ? '설정됨' : 'Set') : (language === 'ko' ? '미설정' : 'Not set')}</span>
+                </div>
+                <div className="flex justify-between col-span-2">
+                  <span className="text-muted-foreground">{t.displayName}:</span>
+                  <span className="font-mono font-semibold truncate ml-2">
+                    {planetKitConfig.displayName || (language === 'ko' ? '미설정' : 'Not set')}
+                  </span>
                 </div>
               </div>
             </CardContent>

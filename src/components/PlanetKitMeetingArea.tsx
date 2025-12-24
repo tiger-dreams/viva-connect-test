@@ -271,7 +271,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
               // 새로 추가된 참가자 추가
               const newParticipants = addedPeers.map((peer: any, index: number) => {
                 const peerId = peer.userId || peer.peerId || peer.id || peer.myId || `peer-${index}`;
-                const peerName = peer.displayName || peer.peerName || peer.userId || `User ${index}`;
+                // displayName 필드명을 다양하게 시도 (PlanetKit SDK 버전에 따라 다를 수 있음)
+                const peerName = peer.displayName || peer.peerDisplayName || peer.name || peer.peerName || peer.userId || `User ${index}`;
                 const videoElement = remoteVideoElementsRef.current.get(peerId);
 
                 return {
@@ -326,10 +327,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
 
               setParticipants(prev => prev.map(p => {
                 if (p.id === peerId) {
-                  // 비디오 엘리먼트 숨기기
-                  if (p.videoElement) {
-                    p.videoElement.style.display = 'none';
-                  }
+                  // isVideoOn 상태만 업데이트 (TileView에서 검은 화면 처리)
                   return { ...p, isVideoOn: false };
                 }
                 return p;
@@ -346,10 +344,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
 
               setParticipants(prev => prev.map(p => {
                 if (p.id === peerId) {
-                  // 비디오 엘리먼트 표시
-                  if (p.videoElement) {
-                    p.videoElement.style.display = 'block';
-                  }
+                  // isVideoOn 상태만 업데이트 (TileView에서 비디오 표시 처리)
                   return { ...p, isVideoOn: true };
                 }
                 return p;
@@ -629,8 +624,12 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
               </div>
               <div className="flex items-center gap-2">
                 <LanguageSelector />
-                <div className="text-xs text-white/70">
-                  {config.roomId ? config.roomId.toUpperCase() : 'PlanetKit'}
+                <div className="text-xs text-white/70 font-medium">
+                  {config.roomId && config.environment
+                    ? `${config.roomId.toUpperCase().slice(0, 2)} - ${config.environment === 'eval' ? 'Eval' : 'Real'}`
+                    : config.roomId
+                    ? config.roomId.toUpperCase()
+                    : 'PlanetKit'}
                 </div>
               </div>
             </div>
