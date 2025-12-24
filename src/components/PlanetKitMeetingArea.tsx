@@ -128,7 +128,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
     try {
       const attemptJoin = async (PlanetKitModule: any, envLabel: 'eval' | 'real') => {
         const planetKitConference = new PlanetKitModule.Conference({
-          logLevel: 'error' // SIP 내부 로그 최소화 (error만 표시)
+          logLevel: 'silent' // SIP 내부 로그 완전히 끄기
         });
 
         const conferenceDelegate = {
