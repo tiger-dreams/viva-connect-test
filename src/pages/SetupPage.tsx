@@ -33,10 +33,6 @@ const SetupPage = () => {
   // LIFF 로그인 후 자동으로 User ID와 Display Name 설정
   useEffect(() => {
     if (isLoggedIn && profile && !planetKitConfig.userId) {
-      console.log('LINE 프로필로 User ID 및 Display Name 자동 설정:', {
-        userId: profile.userId,
-        displayName: profile.displayName
-      });
       setPlanetKitConfig({
         ...planetKitConfig,
         userId: profile.userId,
@@ -46,16 +42,6 @@ const SetupPage = () => {
   }, [isLoggedIn, profile, planetKitConfig.userId]);
 
   const handleGenerateToken = async () => {
-    // 디버깅: 현재 설정 상태 출력
-    console.log('토큰 생성 시도:', {
-      serviceId: planetKitConfig.serviceId,
-      apiKey: planetKitConfig.apiKey ? '설정됨' : '누락',
-      apiSecret: planetKitConfig.apiSecret ? '설정됨' : '누락',
-      userId: planetKitConfig.userId,
-      roomId: planetKitConfig.roomId,
-      environment: planetKitConfig.environment
-    });
-
     if (!planetKitConfig.environment) {
       toast({
         title: language === 'ko' ? "환경 선택 필요" : "Environment Required",
@@ -108,7 +94,6 @@ const SetupPage = () => {
         description: language === 'ko' ? "이제 화상회의에 참여할 수 있습니다." : "You can now join the meeting.",
       });
     } catch (error) {
-      console.error('토큰 생성 실패:', error);
       toast({
         title: t.tokenGenerationFailed,
         description: error instanceof Error ? error.message : (language === 'ko' ? "토큰 생성 중 오류가 발생했습니다." : "An error occurred while generating the token."),

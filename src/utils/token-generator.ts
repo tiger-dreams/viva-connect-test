@@ -15,7 +15,6 @@ export const generatePlanetKitToken = async (
 
     // API Secret 필수 체크
     if (!apiSecret) {
-      console.error('❌ API Secret이 제공되지 않았습니다.');
       throw new Error('API Secret is required for PlanetKit token generation');
     }
 
@@ -32,24 +31,12 @@ export const generatePlanetKitToken = async (
       iat: now         // Creation timestamp
     };
 
-    console.log('🔐 Generating PlanetKit token for:', {
-      serviceId,
-      userId,
-      roomId,
-      hasApiSecret: !!apiSecret,
-      apiSecretLength: apiSecret.length
-    });
-    console.log('Token payload (official structure):', payload);
-
     const token = await new SignJWT(payload)
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .sign(secret);
 
-    console.log('✅ Generated PlanetKit token length:', token.length);
-
     return token;
   } catch (error) {
-    console.error('PlanetKit token generation error:', error);
     throw new Error(`Failed to generate PlanetKit token: ${error}`);
   }
 };

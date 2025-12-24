@@ -135,7 +135,7 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
           participant.videoElement.style.display = 'none';
         }
       } else if (!participant.videoElement) {
-        console.warn(`⚠️ 참가자 ${participant.id}에 videoElement 없음`);
+        // videoElement 없음 - 무시
       }
     });
   }, [visibleParticipants]);
@@ -379,15 +379,6 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
               )}
             </div>
           </div>
-
-          {/* 로컬 참가자 표시 */}
-          {participant.isLocal && (
-            <div className="absolute top-2 left-2">
-              <Badge className="text-xs bg-blue-600 text-white">
-                {t.you}
-              </Badge>
-            </div>
-          )}
 
           {/* 말하고 있는 상태 표시 (향후 확장) */}
           {participant.isAudioOn && (

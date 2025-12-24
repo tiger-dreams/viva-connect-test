@@ -43,7 +43,6 @@ export const LiffProvider = ({ children }: LiffProviderProps) => {
     }
 
     try {
-      console.log('LIFF 초기화 시작:', id);
       setError(null);
 
       await liff.init({ liffId: id });
@@ -58,23 +57,18 @@ export const LiffProvider = ({ children }: LiffProviderProps) => {
 
       // 이미 로그인되어 있는지 확인
       if (liff.isLoggedIn()) {
-        console.log('✅ 이미 LIFF에 로그인되어 있습니다');
         setIsLoggedIn(true);
 
         // 프로필 가져오기
         const userProfile = await liff.getProfile();
-        console.log('LINE 사용자 프로필:', userProfile);
         setProfile({
           userId: userProfile.userId,
           displayName: userProfile.displayName,
           pictureUrl: userProfile.pictureUrl,
           statusMessage: userProfile.statusMessage
         });
-      } else {
-        console.log('❌ LIFF에 로그인되어 있지 않습니다');
       }
     } catch (err) {
-      console.error('LIFF 초기화 실패:', err);
       setError(err instanceof Error ? err.message : 'LIFF 초기화 실패');
       setIsInitialized(true);
     }
@@ -99,7 +93,6 @@ export const LiffProvider = ({ children }: LiffProviderProps) => {
 
       // 3. 둘 다 없으면 사용자 입력 필요
       if (!id) {
-        console.log('⚠️ LIFF ID가 설정되지 않았습니다. 사용자 입력이 필요합니다.');
         setNeedsLiffId(true);
         setIsInitialized(true); // 초기화는 완료된 것으로 표시 (LIFF ID 입력 대기)
         return;

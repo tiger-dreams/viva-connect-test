@@ -101,18 +101,10 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       return;
     }
 
-    console.log('🚀 PlanetKit Conference 연결 시도:', {
-      environment: config.environment,
-      serviceId: config.serviceId,
-      userId: config.userId,
-      roomId: config.roomId
-    });
-
     setConnectionStatus({ connected: false, connecting: true });
 
     // 명시적으로 로컬 미디어 스트림 획득 (PlanetKit 연결 전)
     try {
-      console.log('📹 로컬 미디어 스트림 획득 시작...');
       const localStream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true
@@ -122,10 +114,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = localStream;
         await localVideoRef.current.play();
-        console.log('✅ 로컬 비디오 스트림 연결 완료');
       }
     } catch (mediaError) {
-      console.error('❌ 미디어 권한 획득 실패:', mediaError);
       toast({
         title: "카메라/마이크 권한 필요",
         description: "카메라와 마이크 권한을 허용해주세요.",
@@ -137,15 +127,12 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
 
     try {
       const attemptJoin = async (PlanetKitModule: any, envLabel: 'eval' | 'real') => {
-        console.log(`PlanetKit 환경: ${envLabel} (${envLabel === 'eval' ? 'Evaluation' : 'Real'})`);
-
         const planetKitConference = new PlanetKitModule.Conference({
           logLevel: 'error' // SIP 내부 로그 최소화 (error만 표시)
         });
 
         const conferenceDelegate = {
           evtConnected: () => {
-            console.log('✅ PlanetKit Conference 연결됨');
             setConnectionStatus({ connected: true, connecting: false });
             setConnectionStartTime(new Date());
 
@@ -161,16 +148,14 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
             setTimeout(async () => {
               // 비디오 미러링 적용
               if (planetKitConference && typeof planetKitConference.setVideoMirror === 'function' && localVideoRef.current) {
-                console.log('🪞 비디오 미러링 시도 중...', localVideoRef.current);
                 try {
                   const mirrorResult = planetKitConference.setVideoMirror(true, localVideoRef.current);
                   // Promise인지 확인하고 await
                   if (mirrorResult && typeof mirrorResult.then === 'function') {
                     await mirrorResult;
                   }
-                  console.log('✅ 비디오 미러링 활성화됨');
                 } catch (err: any) {
-                  console.error('❌ 비디오 미러링 실패:', err);
+                  // 미러링 실패는 무시
                 }
               }
 
@@ -183,13 +168,10 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
           },
 
           evtDisconnected: (disconnectDetails: any) => {
-            console.log('PlanetKit Conference 연결 해제:', disconnectDetails);
-
             // 로컬 미디어 스트림 정리 (카메라/마이크 끄기)
             if (localVideoRef.current && localVideoRef.current.srcObject) {
               const stream = localVideoRef.current.srcObject as MediaStream;
               stream.getTracks().forEach(track => {
-                console.log(`🛑 미디어 트랙 정지 (evtDisconnected): ${track.kind}`);
                 track.stop();
               });
               localVideoRef.current.srcObject = null;
@@ -223,7 +205,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
                 try {
                   planetKitConference.removePeerVideo({ peerId: peerId });
                 } catch (err) {
-                  console.error(`비디오 제거 실패 (${peerId}):`, err);
+                  // 비디오 제거 실패는 무시
                 }
               }
 
@@ -267,11 +249,11 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
 
                   remoteVideoElementsRef.current.set(peerId, videoElement);
 
-                  videoElement.onerror = (err) => {
-                    console.error(`비디오 에러 (${peerId}):`, err);
+                  videoElement.onerror = () => {
+                    // 비디오 에러는 무시
                   };
                 } catch (err) {
-                  console.error(`비디오 요청 실패 (${peerId}):`, err);
+                  // 비디오 요청 실패는 무시
                 }
               }
             });
@@ -295,8 +277,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
                 return {
                   id: peerId,
                   name: peerName,
-                  isVideoOn: peer.videoState === 'enabled',
-                  isAudioOn: peer.audioState === 'enabled',
+                  isVideoOn: peer.videoState !== undefined ? peer.videoState === 'enabled' : true,
+                  isAudioOn: peer.audioState !== undefined ? peer.audioState === 'enabled' : true,
                   videoElement: videoElement
                 };
               });
@@ -423,8 +405,6 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
           delegate: conferenceDelegate
         };
 
-        console.log('joinConference 파라미터:', conferenceParams);
-
         await planetKitConference.joinConference(conferenceParams);
         setConference(planetKitConference);
       };
@@ -434,7 +414,6 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       await attemptJoin(PlanetKitModule, config.environment);
 
     } catch (error) {
-      console.error("PlanetKit Conference 연결 실패:", error);
       setConnectionStatus({
         connected: false,
         connecting: false,
@@ -455,7 +434,6 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       if (localVideoRef.current && localVideoRef.current.srcObject) {
         const stream = localVideoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => {
-          console.log(`🛑 미디어 트랙 정지: ${track.kind} (${track.label})`);
           track.stop();
         });
         localVideoRef.current.srcObject = null;
@@ -466,7 +444,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
         try {
           await conference.leaveConference();
         } catch (leaveError) {
-          console.warn('Conference 해제 중 오류 (무시됨):', leaveError);
+          // Conference 해제 오류는 무시
         }
         setConference(null);
       }
@@ -490,7 +468,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
         setTimeout(() => onDisconnect(), 500);
       }
     } catch (error) {
-      console.error('Conference 연결 해제 오류:', error);
+      // Conference 연결 해제 오류는 무시
     }
   };
 
@@ -512,7 +490,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
           p.id === "local" ? { ...p, isAudioOn: newAudioState } : p
         ));
       } catch (error) {
-        console.error('마이크 토글 실패:', error);
+        // 마이크 토글 실패는 무시
       }
     }
   };
@@ -543,7 +521,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
           p.id === "local" ? { ...p, isVideoOn: newVideoState } : p
         ));
       } catch (error) {
-        console.error('비디오 토글 실패:', error);
+        // 비디오 토글 실패는 무시
       }
     }
   };
@@ -551,8 +529,6 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
-      console.log('🧹 컴포넌트 언마운트: 미디어 및 Conference 정리');
-
       // 로컬 미디어 스트림 정리
       if (localVideoRef.current && localVideoRef.current.srcObject) {
         const stream = localVideoRef.current.srcObject as MediaStream;
@@ -566,11 +542,11 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       const currentConference = conference;
       if (currentConference && typeof currentConference.leaveConference === 'function') {
         try {
-          currentConference.leaveConference().catch((error: any) => {
-            console.warn('언마운트 시 Conference 해제 중 오류 (무시됨):', error);
+          currentConference.leaveConference().catch(() => {
+            // 언마운트 시 Conference 해제 오류는 무시
           });
         } catch (error) {
-          console.warn('언마운트 시 Conference 해제 중 동기 오류 (무시됨):', error);
+          // 언마운트 시 Conference 해제 오류는 무시
         }
       }
 
