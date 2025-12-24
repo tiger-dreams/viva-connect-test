@@ -283,6 +283,23 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
           </p>
         </div>
 
+        {/* Display Name */}
+        <div className="space-y-2">
+          <Label htmlFor="displayName" className="flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Display Name
+          </Label>
+          <Input
+            id="displayName"
+            placeholder="표시 이름을 입력하세요"
+            value={config.displayName || ""}
+            onChange={(e) => onConfigChange({ ...config, displayName: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground">
+            다른 참가자에게 표시될 이름입니다. (LINE 프로필 이름이 자동 설정됨)
+          </p>
+        </div>
+
         {/* Room Selection */}
         <div className="space-y-3 p-4 bg-muted/30 rounded-lg border border-border">
           <Label className="flex items-center gap-2 text-base font-semibold">
@@ -451,6 +468,10 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
             <div className="flex justify-between">
               <span className="text-muted-foreground">User ID:</span>
               <span className="font-mono">{config.userId || "미설정"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Display Name:</span>
+              <span className="font-mono">{config.displayName || "미설정"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Token:</span>
