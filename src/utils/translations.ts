@@ -88,6 +88,9 @@ export interface Translations {
   // Validation messages
   pleaseSelectEnvironment: string;
   pleaseSelectRoom: string;
+
+  // Footer messages
+  appDescription: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -179,6 +182,9 @@ export const translations: Record<Language, Translations> = {
     // Validation messages
     pleaseSelectEnvironment: '⚠️ 환경을 선택해주세요',
     pleaseSelectRoom: '⚠️ Room을 선택해주세요',
+
+    // Footer messages
+    appDescription: '💡 이 앱은 LINE Planet PlanetKit Web SDK를 사용한 테스트용 LIFF 앱입니다.',
   },
   en: {
     // Common
@@ -268,6 +274,9 @@ export const translations: Record<Language, Translations> = {
     // Validation messages
     pleaseSelectEnvironment: '⚠️ Please select an environment',
     pleaseSelectRoom: '⚠️ Please select a room',
+
+    // Footer messages
+    appDescription: '💡 This is a test LIFF app using the LINE Planet PlanetKit Web SDK.',
   },
 };
 

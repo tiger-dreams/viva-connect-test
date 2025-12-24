@@ -511,7 +511,7 @@ const SetupPage = () => {
           {/* 안내 메시지 */}
           <div className="text-center text-xs text-muted-foreground">
             <p>
-              💡 이 앱은 LINE Planet PlanetKit Web SDK를 사용한 테스트용 LIFF 앱입니다.
+              {t.appDescription}
             </p>
           </div>
         </div>
