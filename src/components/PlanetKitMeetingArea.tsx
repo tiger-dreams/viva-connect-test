@@ -394,6 +394,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
 
         const conferenceParams = {
           myId: config.userId,
+          myDisplayName: config.displayName || config.userId,
           myServiceId: config.serviceId,
           roomId: config.roomId,
           roomServiceId: config.serviceId,
