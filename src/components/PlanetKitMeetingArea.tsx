@@ -138,9 +138,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
 
     try {
       const attemptJoin = async (PlanetKitModule: any, envLabel: 'eval' | 'real') => {
-        const planetKitConference = new PlanetKitModule.Conference({
-          logLevel: 'none' // SIP 내부 로그 완전히 끄기
-        });
+        const planetKitConference = new PlanetKitModule.Conference();
 
         const conferenceDelegate = {
           evtConnected: () => {
@@ -507,24 +505,36 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       try {
         const newVideoState = !isVideoOn;
 
-        // 비디오 트랙 직접 제어 (멈춘 프레임 방지)
         if (localVideoRef.current && localVideoRef.current.srcObject) {
           const stream = localVideoRef.current.srcObject as MediaStream;
           const videoTracks = stream.getVideoTracks();
 
-          videoTracks.forEach(track => {
-            track.enabled = newVideoState;
-          });
-        }
-
-        // PlanetKit API: pauseMyVideo() / resumeMyVideo()
-        if (conference) {
           if (newVideoState) {
-            if (typeof conference.resumeMyVideo === 'function') {
+            // 비디오 켜기: 트랙이 이미 있으면 활성화, 없으면 새로 가져오기
+            if (videoTracks.length > 0) {
+              videoTracks.forEach(track => {
+                track.enabled = true;
+              });
+            } else {
+              // 새로운 비디오 스트림 가져오기
+              const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
+              const newVideoTrack = newStream.getVideoTracks()[0];
+              stream.addTrack(newVideoTrack);
+            }
+
+            // PlanetKit에 비디오 재개 알림
+            if (conference && typeof conference.resumeMyVideo === 'function') {
               await conference.resumeMyVideo();
             }
           } else {
-            if (typeof conference.pauseMyVideo === 'function') {
+            // 비디오 끄기: 트랙 완전히 정지 (검은 화면 전송)
+            videoTracks.forEach(track => {
+              track.stop();
+              stream.removeTrack(track);
+            });
+
+            // PlanetKit에 비디오 일시정지 알림
+            if (conference && typeof conference.pauseMyVideo === 'function') {
               await conference.pauseMyVideo();
             }
           }
