@@ -24,6 +24,12 @@ const SetupPage = () => {
   const { isLoggedIn, isInitialized, needsLiffId, liffId, profile, error: liffError, login, initializeLiff } = useLiff();
   const { planetKitConfig, setPlanetKitConfig, isConfigured } = useVideoSDK();
   const [liffIdInput, setLiffIdInput] = useState('');
+  const [customRoomId, setCustomRoomId] = useState('');
+
+  // Determine if current room is a preset or custom
+  const presetRooms = ['japan', 'korea', 'taiwan', 'thailand'];
+  const isCustomRoom = planetKitConfig.roomId && !presetRooms.includes(planetKitConfig.roomId);
+  const radioValue = isCustomRoom ? 'custom' : planetKitConfig.roomId;
 
   // 페이지 타이틀 업데이트
   useEffect(() => {
@@ -40,6 +46,13 @@ const SetupPage = () => {
       }));
     }
   }, [isLoggedIn, profile]);
+
+  // Sync customRoomId state when roomId is a custom value
+  useEffect(() => {
+    if (isCustomRoom && planetKitConfig.roomId) {
+      setCustomRoomId(planetKitConfig.roomId);
+    }
+  }, [isCustomRoom, planetKitConfig.roomId]);
 
   const handleGenerateToken = async () => {
     if (!planetKitConfig.environment) {
@@ -391,8 +404,17 @@ const SetupPage = () => {
             </CardHeader>
             <CardContent className="space-y-3">
               <RadioGroup
-                value={planetKitConfig.roomId}
-                onValueChange={(value) => setPlanetKitConfig({ ...planetKitConfig, roomId: value, accessToken: '' })}
+                value={radioValue}
+                onValueChange={(value) => {
+                  if (value === 'custom') {
+                    // Custom room selected - keep the custom input value if it exists
+                    setPlanetKitConfig({ ...planetKitConfig, roomId: customRoomId, accessToken: '' });
+                  } else {
+                    // Preset room selected - clear custom input and use preset value
+                    setCustomRoomId('');
+                    setPlanetKitConfig({ ...planetKitConfig, roomId: value, accessToken: '' });
+                  }
+                }}
                 className="grid grid-cols-2 gap-3"
               >
                 <div className="flex items-center space-x-2">
@@ -431,7 +453,39 @@ const SetupPage = () => {
                     </div>
                   </Label>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="custom" id="room-custom" />
+                  <Label htmlFor="room-custom" className="flex-1 cursor-pointer">
+                    <div className="flex flex-col">
+                      <span className="font-medium">✏️ {t.roomCustom}</span>
+                      <span className="text-xs text-muted-foreground">{language === 'ko' ? '커스텀 룸 입력' : 'Custom Room Input'}</span>
+                    </div>
+                  </Label>
+                </div>
               </RadioGroup>
+
+              {/* Custom Room ID Input */}
+              {(radioValue === 'custom') && (
+                <div className="space-y-2 pt-1">
+                  <Label htmlFor="custom-room-id" className="text-sm">
+                    {language === 'ko' ? '커스텀 룸 ID' : 'Custom Room ID'}
+                  </Label>
+                  <Input
+                    id="custom-room-id"
+                    value={customRoomId}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setCustomRoomId(value);
+                      setPlanetKitConfig({ ...planetKitConfig, roomId: value, accessToken: '' });
+                    }}
+                    placeholder={t.roomCustomPlaceholder}
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {language === 'ko' ? '원하는 룸 ID를 입력하세요. 같은 룸 ID를 입력한 사용자들과 통화할 수 있습니다.' : 'Enter your desired room ID. You can communicate with users who enter the same room ID.'}
+                  </p>
+                </div>
+              )}
               {!planetKitConfig.roomId && (
                 <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950 p-2 rounded border border-amber-200 dark:border-amber-800">
                   <p className="text-amber-800 dark:text-amber-200">

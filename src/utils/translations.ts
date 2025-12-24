@@ -36,6 +36,8 @@ export interface Translations {
   roomKorea: string;
   roomTaiwan: string;
   roomThailand: string;
+  roomCustom: string;
+  roomCustomPlaceholder: string;
   tokenGeneration: string;
   tokenGenerationDescription: string;
   generateToken: string;
@@ -132,6 +134,8 @@ export const translations: Record<Language, Translations> = {
     roomKorea: '한국',
     roomTaiwan: '대만',
     roomThailand: '태국',
+    roomCustom: '커스텀 룸',
+    roomCustomPlaceholder: '룸 ID를 입력하세요',
     tokenGeneration: '토큰 생성',
     tokenGenerationDescription: '회의 참여를 위한 액세스 토큰을 생성합니다.',
     generateToken: '토큰 생성',
@@ -226,6 +230,8 @@ export const translations: Record<Language, Translations> = {
     roomKorea: 'Korea',
     roomTaiwan: 'Taiwan',
     roomThailand: 'Thailand',
+    roomCustom: 'Custom Room',
+    roomCustomPlaceholder: 'Enter room ID',
     tokenGeneration: 'Token Generation',
     tokenGenerationDescription: 'Generate an access token to join the meeting.',
     generateToken: 'Generate Token',
