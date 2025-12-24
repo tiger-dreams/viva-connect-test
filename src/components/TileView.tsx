@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Video, VideoOff, Mic, MicOff, Monitor } from "lucide-react";
 import { Participant } from "@/types/video-sdk";
@@ -15,7 +15,7 @@ export interface TileParticipant extends Participant {
     frameRate: number;
     resolution: string;
     packetLoss: number;
-    
+
     // 추가 통계 정보
     codecType?: string;
     sendBytes?: number;
@@ -25,18 +25,18 @@ export interface TileParticipant extends Participant {
     jitter?: number;
     rtt?: number;
     bandwidth?: number;
-    
+
     // 네트워크 통계
     sendBandwidth?: number;
     receiveBandwidth?: number;
     totalDuration?: number;
     freezeRate?: number;
-    
+
     // 코덱 및 성능 통계
     encoderType?: string;
     cpuUsage?: number;
     memoryUsage?: number;
-    
+
     // 원시 통계 객체 (모든 정보)
     rawStats?: any;
   };
@@ -50,6 +50,7 @@ interface TileViewProps {
 
 export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = false }: TileViewProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [aspectRatio, setAspectRatio] = useState(window.innerWidth / window.innerHeight);
 
 
   // 참가자 순서 정렬: 로컬(나)을 항상 첫 번째로, 나머지는 기존 순서 유지
@@ -62,13 +63,30 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
   // 표시할 참가자 선택 (최대 4명까지, 4명 이상시 로컬 + 랜덤 3명)
   const visibleParticipants = sortedParticipants.slice(0, maxVisibleTiles);
 
-  // 참가자 수에 따른 그리드 레이아웃 결정 (모바일 최적화)
+  // 화면 비율 추적 (리사이즈 이벤트)
+  useEffect(() => {
+    const handleResize = () => {
+      setAspectRatio(window.innerWidth / window.innerHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // 참가자 수에 따른 그리드 레이아웃 결정 (화면 비율 고려)
   const getGridLayout = (count: number) => {
     switch (count) {
       case 1:
         return "grid-cols-1 grid-rows-1"; // 1x1 전체 화면
       case 2:
-        return "grid-cols-1 grid-rows-[1fr_1fr]"; // 세로 2분할 (동일 높이)
+        // 화면 비율에 따라 동적으로 분할 방향 결정
+        // aspectRatio > 1: 가로가 긴 화면 (landscape) -> 좌우 분할
+        // aspectRatio <= 1: 세로가 긴 화면 (portrait) -> 상하 분할
+        if (aspectRatio > 1) {
+          return "grid-cols-2 grid-rows-1"; // 가로 2분할
+        } else {
+          return "grid-cols-1 grid-rows-[1fr_1fr]"; // 세로 2분할 (동일 높이)
+        }
       case 3:
         return "grid-cols-2 grid-rows-2"; // 2x2 (3개 타일)
       case 4:
