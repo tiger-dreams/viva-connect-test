@@ -329,35 +329,47 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
 
           // 비디오 일시정지 이벤트
           evtPeersVideoPaused: (peerInfoArray: any) => {
+            console.log('[REMOTE VIDEO] evtPeersVideoPaused called:', peerInfoArray);
             const peers = Array.isArray(peerInfoArray) ? peerInfoArray : [peerInfoArray];
 
             peers.forEach((peerInfo: any) => {
               const peerId = peerInfo.userId || peerInfo.peerId || peerInfo.id;
+              console.log('[REMOTE VIDEO] Peer video paused, peerId:', peerId);
 
-              setParticipants(prev => prev.map(p => {
-                if (p.id === peerId) {
-                  // isVideoOn 상태만 업데이트 (TileView에서 검은 화면 처리)
-                  return { ...p, isVideoOn: false };
-                }
-                return p;
-              }));
+              setParticipants(prev => {
+                const updated = prev.map(p => {
+                  if (p.id === peerId) {
+                    console.log('[REMOTE VIDEO] Setting isVideoOn=false for:', peerId);
+                    return { ...p, isVideoOn: false };
+                  }
+                  return p;
+                });
+                console.log('[REMOTE VIDEO] Updated participants:', updated);
+                return updated;
+              });
             });
           },
 
           // 비디오 재개 이벤트
           evtPeersVideoResumed: (peerInfoArray: any) => {
+            console.log('[REMOTE VIDEO] evtPeersVideoResumed called:', peerInfoArray);
             const peers = Array.isArray(peerInfoArray) ? peerInfoArray : [peerInfoArray];
 
             peers.forEach((peerInfo: any) => {
               const peerId = peerInfo.userId || peerInfo.peerId || peerInfo.id;
+              console.log('[REMOTE VIDEO] Peer video resumed, peerId:', peerId);
 
-              setParticipants(prev => prev.map(p => {
-                if (p.id === peerId) {
-                  // isVideoOn 상태만 업데이트 (TileView에서 비디오 표시 처리)
-                  return { ...p, isVideoOn: true };
-                }
-                return p;
-              }));
+              setParticipants(prev => {
+                const updated = prev.map(p => {
+                  if (p.id === peerId) {
+                    console.log('[REMOTE VIDEO] Setting isVideoOn=true for:', peerId);
+                    return { ...p, isVideoOn: true };
+                  }
+                  return p;
+                });
+                console.log('[REMOTE VIDEO] Updated participants:', updated);
+                return updated;
+              });
             });
           },
 
