@@ -504,10 +504,36 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
     if (connectionStatus.connected) {
       try {
         const newVideoState = !isVideoOn;
+        console.log('[VIDEO] Toggle called, current:', isVideoOn, '-> new:', newVideoState);
+        console.log('[VIDEO] Conference object:', conference ? 'exists' : 'null');
 
-        // PlanetKit API: muteMyVideo(isMuted) - true면 비디오 끄기, false면 비디오 켜기
-        if (conference && typeof conference.muteMyVideo === 'function') {
-          await conference.muteMyVideo(!newVideoState);
+        // PlanetKit API: pauseMyVideo() / resumeMyVideo()
+        if (conference) {
+          console.log('[VIDEO] Available methods:', Object.keys(conference).filter(k => k.includes('ideo')));
+
+          if (newVideoState) {
+            // 비디오 켜기
+            console.log('[VIDEO] Trying to resume video...');
+            console.log('[VIDEO] resumeMyVideo type:', typeof conference.resumeMyVideo);
+            if (typeof conference.resumeMyVideo === 'function') {
+              const result = await conference.resumeMyVideo();
+              console.log('[VIDEO] resumeMyVideo result:', result);
+            } else {
+              console.error('[VIDEO] resumeMyVideo is not a function!');
+            }
+          } else {
+            // 비디오 끄기
+            console.log('[VIDEO] Trying to pause video...');
+            console.log('[VIDEO] pauseMyVideo type:', typeof conference.pauseMyVideo);
+            if (typeof conference.pauseMyVideo === 'function') {
+              const result = await conference.pauseMyVideo();
+              console.log('[VIDEO] pauseMyVideo result:', result);
+            } else {
+              console.error('[VIDEO] pauseMyVideo is not a function!');
+            }
+          }
+        } else {
+          console.error('[VIDEO] Conference object is null!');
         }
 
         setIsVideoOn(newVideoState);
@@ -517,8 +543,10 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
           p.id === "local" ? { ...p, isVideoOn: newVideoState } : p
         ));
       } catch (error) {
-        // 비디오 토글 실패는 무시
+        console.error('[VIDEO] Toggle error:', error);
       }
+    } else {
+      console.warn('[VIDEO] Not connected, cannot toggle video');
     }
   };
 
