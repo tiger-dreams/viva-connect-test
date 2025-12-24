@@ -32,14 +32,14 @@ const SetupPage = () => {
 
   // LIFF 로그인 후 자동으로 User ID와 Display Name 설정
   useEffect(() => {
-    if (isLoggedIn && profile && !planetKitConfig.userId) {
-      setPlanetKitConfig({
-        ...planetKitConfig,
-        userId: profile.userId,
-        displayName: profile.displayName
-      });
+    if (isLoggedIn && profile) {
+      setPlanetKitConfig(prev => ({
+        ...prev,
+        userId: prev.userId || profile.userId,
+        displayName: prev.displayName || profile.displayName
+      }));
     }
-  }, [isLoggedIn, profile, planetKitConfig.userId]);
+  }, [isLoggedIn, profile]);
 
   const handleGenerateToken = async () => {
     if (!planetKitConfig.environment) {
@@ -299,7 +299,7 @@ const SetupPage = () => {
                         id="displayName"
                         value={planetKitConfig.displayName || ''}
                         onChange={(e) => setPlanetKitConfig({ ...planetKitConfig, displayName: e.target.value })}
-                        placeholder={t.displayNamePlaceholder}
+                        placeholder={profile?.displayName || t.displayNamePlaceholder}
                         className="h-9 text-sm"
                       />
                     </div>
