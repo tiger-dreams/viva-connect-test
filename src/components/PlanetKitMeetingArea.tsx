@@ -465,8 +465,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       setCallDuration("00:00:00");
 
       toast({
-        title: "통화 종료",
-        description: "미디어 장치가 해제되었습니다.",
+        title: t.callEndedTitle,
+        description: t.callEndedDescription,
       });
 
       // 페이지 리디렉션

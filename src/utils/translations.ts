@@ -84,6 +84,8 @@ export interface Translations {
   leftMeeting: string;
   connectionSuccessTitle: string;
   connectionSuccessDescription: string;
+  callEndedTitle: string;
+  callEndedDescription: string;
 
   // Validation messages
   pleaseSelectEnvironment: string;
@@ -178,6 +180,8 @@ export const translations: Record<Language, Translations> = {
     leftMeeting: '회의에서 나갔습니다',
     connectionSuccessTitle: '연결 성공',
     connectionSuccessDescription: 'PlanetKit Conference에 성공적으로 연결되었습니다.',
+    callEndedTitle: '통화 종료',
+    callEndedDescription: '미디어 장치가 해제되었습니다.',
 
     // Validation messages
     pleaseSelectEnvironment: '⚠️ 환경을 선택해주세요',
@@ -270,6 +274,8 @@ export const translations: Record<Language, Translations> = {
     leftMeeting: 'Left meeting',
     connectionSuccessTitle: 'Connected Successfully',
     connectionSuccessDescription: 'Successfully connected to PlanetKit Conference.',
+    callEndedTitle: 'Call Ended',
+    callEndedDescription: 'Media devices have been released.',
 
     // Validation messages
     pleaseSelectEnvironment: '⚠️ Please select an environment',
