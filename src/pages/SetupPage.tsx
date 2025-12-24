@@ -25,11 +25,20 @@ const SetupPage = () => {
   const { planetKitConfig, setPlanetKitConfig, isConfigured } = useVideoSDK();
   const [liffIdInput, setLiffIdInput] = useState('');
   const [customRoomId, setCustomRoomId] = useState('');
+  const [selectedRoomType, setSelectedRoomType] = useState<string>(''); // 'japan', 'korea', 'taiwan', 'thailand', 'custom', or ''
 
-  // Determine if current room is a preset or custom
+  // Initialize selectedRoomType based on current config
   const presetRooms = ['japan', 'korea', 'taiwan', 'thailand'];
-  const isCustomRoom = planetKitConfig.roomId && !presetRooms.includes(planetKitConfig.roomId);
-  const radioValue = isCustomRoom ? 'custom' : planetKitConfig.roomId;
+  useEffect(() => {
+    if (planetKitConfig.roomId) {
+      if (presetRooms.includes(planetKitConfig.roomId)) {
+        setSelectedRoomType(planetKitConfig.roomId);
+      } else {
+        setSelectedRoomType('custom');
+        setCustomRoomId(planetKitConfig.roomId);
+      }
+    }
+  }, []);
 
   // 페이지 타이틀 업데이트
   useEffect(() => {
@@ -46,13 +55,6 @@ const SetupPage = () => {
       }));
     }
   }, [isLoggedIn, profile]);
-
-  // Sync customRoomId state when roomId is a custom value
-  useEffect(() => {
-    if (isCustomRoom && planetKitConfig.roomId) {
-      setCustomRoomId(planetKitConfig.roomId);
-    }
-  }, [isCustomRoom, planetKitConfig.roomId]);
 
   const handleGenerateToken = async () => {
     if (!planetKitConfig.environment) {
@@ -404,14 +406,14 @@ const SetupPage = () => {
             </CardHeader>
             <CardContent className="space-y-3">
               <RadioGroup
-                value={radioValue}
+                value={selectedRoomType}
                 onValueChange={(value) => {
+                  setSelectedRoomType(value);
                   if (value === 'custom') {
-                    // Custom room selected - keep the custom input value if it exists
+                    // Custom room selected - use existing customRoomId or empty string
                     setPlanetKitConfig({ ...planetKitConfig, roomId: customRoomId, accessToken: '' });
                   } else {
-                    // Preset room selected - clear custom input and use preset value
-                    setCustomRoomId('');
+                    // Preset room selected - use preset value directly
                     setPlanetKitConfig({ ...planetKitConfig, roomId: value, accessToken: '' });
                   }
                 }}
@@ -465,7 +467,7 @@ const SetupPage = () => {
               </RadioGroup>
 
               {/* Custom Room ID Input */}
-              {(radioValue === 'custom') && (
+              {(selectedRoomType === 'custom') && (
                 <div className="space-y-2 pt-1">
                   <Label htmlFor="custom-room-id" className="text-sm">
                     {language === 'ko' ? '커스텀 룸 ID' : 'Custom Room ID'}
