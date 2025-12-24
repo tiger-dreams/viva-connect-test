@@ -13,8 +13,14 @@ export const generatePlanetKitToken = async (
   try {
     const now = Math.floor(Date.now() / 1000);
 
-    // API Secret을 secret으로 사용 (없으면 API Key 사용 - 개발 모드)
-    const secret = new TextEncoder().encode(apiSecret || apiKey);
+    // API Secret 필수 체크
+    if (!apiSecret) {
+      console.error('❌ API Secret이 제공되지 않았습니다.');
+      throw new Error('API Secret is required for PlanetKit token generation');
+    }
+
+    // API Secret을 secret으로 사용
+    const secret = new TextEncoder().encode(apiSecret);
 
     // PlanetKit 공식 문서의 필수 필드만 사용
     // 추가 필드를 넣으면 토큰 크기가 커지므로 금지됨
@@ -26,18 +32,20 @@ export const generatePlanetKitToken = async (
       iat: now         // Creation timestamp
     };
 
-    console.log('Generating PlanetKit token for:', { serviceId, userId, roomId });
+    console.log('🔐 Generating PlanetKit token for:', {
+      serviceId,
+      userId,
+      roomId,
+      hasApiSecret: !!apiSecret,
+      apiSecretLength: apiSecret.length
+    });
     console.log('Token payload (official structure):', payload);
 
     const token = await new SignJWT(payload)
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .sign(secret);
 
-    console.log('Generated PlanetKit token length:', token.length);
-
-    if (!apiSecret) {
-      console.warn('⚠️ Warning: Using API Key as secret (development mode). For production, use API Secret from server.');
-    }
+    console.log('✅ Generated PlanetKit token length:', token.length);
 
     return token;
   } catch (error) {
