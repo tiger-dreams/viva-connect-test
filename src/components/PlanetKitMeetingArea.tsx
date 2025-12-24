@@ -198,6 +198,22 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
             const addedPeers = peerUpdateInfo.addedPeers || [];
             const removedPeers = peerUpdateInfo.removedPeers || [];
 
+            // 🔍 디버깅: peer 객체의 실제 구조 확인
+            if (addedPeers.length > 0) {
+              console.log('🔍 addedPeers 전체 구조:', JSON.stringify(addedPeers, null, 2));
+              addedPeers.forEach((peer: any, idx: number) => {
+                console.log(`🔍 Peer ${idx} 상세:`, {
+                  'peer 객체 전체': peer,
+                  'peer.userId': peer.userId,
+                  'peer.displayName': peer.displayName,
+                  'peer.peerName': peer.peerName,
+                  'peer.name': peer.name,
+                  'peer.myDisplayName': peer.myDisplayName,
+                  '모든 키': Object.keys(peer)
+                });
+              });
+            }
+
             // 제거된 peer 처리
             removedPeers.forEach((peer: any) => {
               const peerId = peer.userId || peer.peerId || peer.id || peer.myId;
@@ -411,6 +427,10 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
 
         await planetKitConference.joinConference(conferenceParams);
         setConference(planetKitConference);
+
+        // 🔍 디버깅: Conference 객체가 제공하는 메서드 확인
+        console.log('🔍 Conference 객체 메서드:', Object.getOwnPropertyNames(Object.getPrototypeOf(planetKitConference)));
+        console.log('🔍 Conference 객체:', planetKitConference);
       };
 
       // 선택한 환경의 SDK 사용 (Fallback 없음)
