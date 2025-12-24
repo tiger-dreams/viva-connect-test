@@ -25,6 +25,17 @@ interface PlanetKitMeetingAreaProps {
   onDisconnect?: () => void;
 }
 
+// Room ID를 2글자 코드로 변환
+const getRoomCode = (roomId: string): string => {
+  const roomCodes: Record<string, string> = {
+    'japan': 'JP',
+    'korea': 'KO',
+    'taiwan': 'TW',
+    'thailand': 'TH'
+  };
+  return roomCodes[roomId.toLowerCase()] || roomId.toUpperCase().slice(0, 2);
+};
+
 export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingAreaProps) => {
   const { toast } = useToast();
   const { language } = useLanguage();
@@ -496,6 +507,16 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       try {
         const newVideoState = !isVideoOn;
 
+        // 비디오 트랙 직접 제어 (멈춘 프레임 방지)
+        if (localVideoRef.current && localVideoRef.current.srcObject) {
+          const stream = localVideoRef.current.srcObject as MediaStream;
+          const videoTracks = stream.getVideoTracks();
+
+          videoTracks.forEach(track => {
+            track.enabled = newVideoState;
+          });
+        }
+
         // PlanetKit API: pauseMyVideo() / resumeMyVideo()
         if (conference) {
           if (newVideoState) {
@@ -626,9 +647,9 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
                 <LanguageSelector />
                 <div className="text-xs text-white/70 font-medium">
                   {config.roomId && config.environment
-                    ? `${config.roomId.toUpperCase().slice(0, 2)} - ${config.environment === 'eval' ? 'Eval' : 'Real'}`
+                    ? `${getRoomCode(config.roomId)} - ${config.environment === 'eval' ? 'Eval' : 'Real'}`
                     : config.roomId
-                    ? config.roomId.toUpperCase()
+                    ? getRoomCode(config.roomId)
                     : 'PlanetKit'}
                 </div>
               </div>
