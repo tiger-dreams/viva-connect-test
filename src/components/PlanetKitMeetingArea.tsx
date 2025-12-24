@@ -410,7 +410,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
 
         const conferenceParams = {
           myId: config.userId,
-          myDisplayName: config.displayName || config.userId,
+          displayName: config.displayName || config.userId, // 정확한 파라미터 이름: displayName (not myDisplayName)
           myServiceId: config.serviceId,
           roomId: config.roomId,
           roomServiceId: config.serviceId,
