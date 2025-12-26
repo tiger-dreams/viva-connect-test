@@ -106,23 +106,22 @@ export default async function handler(request: Request) {
 
     console.log('[PlanetKit Callback] Event stored with ID:', result.rows[0]?.id);
 
-    // Send admin notifications for new room creation
+    // Send admin notifications for new room creation (non-blocking)
     if (eventType === 'GCALL_EVT_START') {
-      try {
-        // Extract base URL from current request
-        const url = new URL(request.url);
-        const baseUrl = `${url.protocol}//${url.host}`;
+      // Extract base URL from current request
+      const url = new URL(request.url);
+      const baseUrl = `${url.protocol}//${url.host}`;
 
-        await sendAdminNotifications({
-          roomId: roomId || 'Unknown',
-          displayName: displayName || 'Unknown User',
-          timestamp: timestamp || Date.now(),
-          baseUrl,
-        });
-      } catch (notificationError) {
+      // Fire and forget - don't wait for notifications to complete
+      sendAdminNotifications({
+        roomId: roomId || 'Unknown',
+        displayName: displayName || 'Unknown User',
+        timestamp: timestamp || Date.now(),
+        baseUrl,
+      }).catch((notificationError) => {
         // Log error but don't fail the callback
         console.error('[PlanetKit Callback] Failed to send admin notifications:', notificationError);
-      }
+      });
     }
 
     return new Response(
