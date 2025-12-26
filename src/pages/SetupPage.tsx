@@ -99,6 +99,18 @@ const SetupPage = () => {
   useEffect(() => {
     const roomParam = searchParams.get('room');
 
+    console.log('[SetupPage] Auto-token useEffect triggered', {
+      roomParam,
+      isLoggedIn,
+      hasProfile: !!profile,
+      roomId: planetKitConfig.roomId,
+      hasToken: !!planetKitConfig.accessToken,
+      alreadyGenerated: autoTokenGeneratedRef.current,
+      serviceId: planetKitConfig.serviceId,
+      apiKey: !!planetKitConfig.apiKey,
+      userId: planetKitConfig.userId,
+    });
+
     // 조건: URL에 room 파라미터가 있고, 로그인 완료, 토큰이 없고, 아직 자동 생성하지 않음
     if (roomParam && isLoggedIn && profile && planetKitConfig.roomId && !planetKitConfig.accessToken && !autoTokenGeneratedRef.current) {
       // 필수 설정이 모두 있는지 확인
