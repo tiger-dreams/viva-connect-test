@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Activity, LogIn, User, Video, Server, Hash, Settings, Globe } from "lucide-react";
+import { Activity, LogIn, User, Video, Server, Hash, Settings, Globe, Copy, CheckCircle, XCircle } from "lucide-react";
 import { useVideoSDK } from "@/contexts/VideoSDKContext";
 import { useLiff } from "@/contexts/LiffContext";
 import { useToast } from "@/hooks/use-toast";
@@ -28,7 +28,18 @@ const SetupPage = () => {
   const [customRoomId, setCustomRoomId] = useState('');
   const [selectedRoomType, setSelectedRoomType] = useState<string>(''); // 'japan', 'korea', 'taiwan', 'thailand', 'custom', or ''
   const autoTokenGeneratedRef = useRef(false); // 토큰 자동 생성 중복 방지
-  const [debugInfo, setDebugInfo] = useState<string>(''); // 디버그 정보 표시
+  const [debugInfo, setDebugInfo] = useState<{
+    roomParam: string | null;
+    isLoggedIn: boolean;
+    hasProfile: boolean;
+    roomId: string;
+    hasToken: boolean;
+    alreadyGenerated: boolean;
+    serviceId: boolean;
+    apiKey: boolean;
+    userId: string;
+    status: string;
+  } | null>(null); // 디버그 정보 표시
 
   // Initialize selectedRoomType based on current config
   const presetRooms = ['japan', 'korea', 'taiwan', 'thailand'];
@@ -101,20 +112,38 @@ const SetupPage = () => {
     const roomParam = searchParams.get('room');
 
     // 디버그 정보 업데이트
-    const debugData = {
+    let status = 'Waiting for conditions...';
+    if (!roomParam) {
+      status = 'No room parameter in URL';
+    } else if (!isLoggedIn) {
+      status = 'Waiting for login...';
+    } else if (!profile) {
+      status = 'Waiting for profile...';
+    } else if (!planetKitConfig.roomId) {
+      status = 'Room ID not set';
+    } else if (!planetKitConfig.serviceId || !planetKitConfig.apiKey) {
+      status = 'Configuration incomplete';
+    } else if (planetKitConfig.accessToken) {
+      status = 'Token already generated';
+    } else if (autoTokenGeneratedRef.current) {
+      status = 'Token generation in progress...';
+    } else {
+      status = 'Ready to generate token';
+    }
+
+    setDebugInfo({
       roomParam,
       isLoggedIn,
       hasProfile: !!profile,
       roomId: planetKitConfig.roomId,
       hasToken: !!planetKitConfig.accessToken,
       alreadyGenerated: autoTokenGeneratedRef.current,
-      serviceId: planetKitConfig.serviceId ? '✅' : '❌',
-      apiKey: planetKitConfig.apiKey ? '✅' : '❌',
-      userId: planetKitConfig.userId || '❌',
-    };
-
-    setDebugInfo(JSON.stringify(debugData, null, 2));
-    console.log('[SetupPage] Auto-token useEffect triggered', debugData);
+      serviceId: !!planetKitConfig.serviceId,
+      apiKey: !!planetKitConfig.apiKey,
+      userId: planetKitConfig.userId || '',
+      status,
+    });
+    console.log('[SetupPage] Auto-token useEffect triggered', { status });
 
     // 조건: URL에 room 파라미터가 있고, 로그인 완료, 토큰이 없고, 아직 자동 생성하지 않음
     if (roomParam && isLoggedIn && profile && planetKitConfig.roomId && !planetKitConfig.accessToken && !autoTokenGeneratedRef.current) {
@@ -122,7 +151,7 @@ const SetupPage = () => {
       if (planetKitConfig.serviceId && planetKitConfig.apiKey && planetKitConfig.userId) {
         autoTokenGeneratedRef.current = true; // 중복 실행 방지
         console.log('[SetupPage] Auto-generating token for deep link entry...');
-        setDebugInfo(prev => prev + '\n\n🚀 토큰 자동 생성 시작...');
+        setDebugInfo(prev => prev ? { ...prev, status: '🚀 Generating token...' } : null);
 
         // 토큰 생성
         generatePlanetKitToken(
@@ -138,7 +167,7 @@ const SetupPage = () => {
             accessToken: token
           }));
           console.log('[SetupPage] Token auto-generated successfully');
-          setDebugInfo(prev => prev + '\n\n✅ 토큰 생성 성공!');
+          setDebugInfo(prev => prev ? { ...prev, status: '✅ Token generated!' } : null);
 
           // 토큰 생성 성공 toast
           toast({
@@ -149,13 +178,13 @@ const SetupPage = () => {
           // 0.5초 후 자동으로 미팅 페이지로 이동
           setTimeout(() => {
             console.log('[SetupPage] Auto-navigating to meeting page...');
-            setDebugInfo(prev => prev + '\n\n🚀 미팅 페이지로 이동 중...');
+            setDebugInfo(prev => prev ? { ...prev, status: '🚀 Navigating to meeting...' } : null);
             navigate('/planetkit_meeting');
           }, 500);
         }).catch(error => {
           console.error('[SetupPage] Auto token generation failed:', error);
           autoTokenGeneratedRef.current = false; // 실패 시 다시 시도 가능하도록
-          setDebugInfo(prev => prev + '\n\n❌ 토큰 생성 실패: ' + (error instanceof Error ? error.message : 'Unknown error'));
+          setDebugInfo(prev => prev ? { ...prev, status: `❌ Token generation failed: ${error instanceof Error ? error.message : 'Unknown error'}` } : null);
           toast({
             title: language === 'ko' ? '자동 토큰 생성 실패' : 'Auto Token Generation Failed',
             description: error instanceof Error ? error.message : (language === 'ko' ? '토큰 생성 중 오류가 발생했습니다.' : 'An error occurred while generating the token.'),
@@ -225,6 +254,35 @@ const SetupPage = () => {
     if (isConfigured) {
       navigate('/planetkit_meeting');
     }
+  };
+
+  const copyDebugInfo = () => {
+    if (!debugInfo) return;
+
+    const debugText = `Deep Link Auto-Entry Debug Info
+=================================
+Room Parameter: ${debugInfo.roomParam || 'None'}
+Logged In: ${debugInfo.isLoggedIn ? 'Yes' : 'No'}
+Has Profile: ${debugInfo.hasProfile ? 'Yes' : 'No'}
+Room ID: ${debugInfo.roomId || 'Not set'}
+Has Token: ${debugInfo.hasToken ? 'Yes' : 'No'}
+Service ID: ${debugInfo.serviceId ? 'Set' : 'Not set'}
+API Key: ${debugInfo.apiKey ? 'Set' : 'Not set'}
+User ID: ${debugInfo.userId || 'Not set'}
+Status: ${debugInfo.status}`;
+
+    navigator.clipboard.writeText(debugText).then(() => {
+      toast({
+        title: language === 'ko' ? '복사 완료' : 'Copied',
+        description: language === 'ko' ? '디버그 정보가 클립보드에 복사되었습니다.' : 'Debug info copied to clipboard.',
+      });
+    }).catch(() => {
+      toast({
+        title: language === 'ko' ? '복사 실패' : 'Copy Failed',
+        description: language === 'ko' ? '클립보드 복사에 실패했습니다.' : 'Failed to copy to clipboard.',
+        variant: 'destructive',
+      });
+    });
   };
 
   // LIFF ID 입력 필요
@@ -430,16 +488,152 @@ const SetupPage = () => {
 
           {/* 디버그 정보 (딥링크 진입 시에만 표시) */}
           {searchParams.get('room') && debugInfo && (
-            <Card className="bg-yellow-50 dark:bg-yellow-950 border-yellow-300 dark:border-yellow-700">
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  🔍 디버그 정보 (Deep Link Auto-Entry)
-                </CardTitle>
+            <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-950 dark:to-orange-950 border-2 border-yellow-400 dark:border-yellow-600">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    🔍 <span className="font-bold">{language === 'ko' ? '딥링크 디버그' : 'Deep Link Debug'}</span>
+                  </CardTitle>
+                  <Button
+                    onClick={copyDebugInfo}
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs bg-white/50 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40"
+                  >
+                    <Copy className="w-3 h-3 mr-1" />
+                    {language === 'ko' ? '복사' : 'Copy'}
+                  </Button>
+                </div>
+                <CardDescription className="text-xs pt-1">
+                  {language === 'ko' ? '자동 입장 조건 확인' : 'Auto-entry conditions check'}
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <pre className="text-xs font-mono whitespace-pre-wrap overflow-auto max-h-40 bg-black/5 dark:bg-white/5 p-3 rounded">
-                  {debugInfo}
-                </pre>
+              <CardContent className="space-y-3">
+                {/* Status Banner */}
+                <div className={`p-3 rounded-lg font-medium text-sm ${
+                  debugInfo.status.includes('✅') ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' :
+                  debugInfo.status.includes('🚀') ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200' :
+                  debugInfo.status.includes('❌') ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200' :
+                  'bg-gray-100 dark:bg-gray-800/30 text-gray-800 dark:text-gray-200'
+                }`}>
+                  {debugInfo.status}
+                </div>
+
+                {/* Conditions Grid */}
+                <div className="grid grid-cols-1 gap-2">
+                  {/* Room Parameter */}
+                  <div className="flex items-center justify-between p-2 bg-white/60 dark:bg-black/20 rounded">
+                    <span className="text-sm font-medium">{language === 'ko' ? 'URL 파라미터' : 'URL Param'}</span>
+                    <div className="flex items-center gap-2">
+                      {debugInfo.roomParam ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span className="text-xs font-mono bg-green-100 dark:bg-green-900/40 px-2 py-0.5 rounded">
+                            {debugInfo.roomParam}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4 text-red-600" />
+                          <span className="text-xs text-muted-foreground">{language === 'ko' ? '없음' : 'None'}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Login Status */}
+                  <div className="flex items-center justify-between p-2 bg-white/60 dark:bg-black/20 rounded">
+                    <span className="text-sm font-medium">{language === 'ko' ? '로그인 상태' : 'Login Status'}</span>
+                    <div className="flex items-center gap-2">
+                      {debugInfo.isLoggedIn && debugInfo.hasProfile ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                            {language === 'ko' ? '로그인됨' : 'Logged In'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4 text-red-600" />
+                          <span className="text-xs text-red-600 dark:text-red-400">
+                            {language === 'ko' ? '미로그인' : 'Not Logged In'}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Room ID */}
+                  <div className="flex items-center justify-between p-2 bg-white/60 dark:bg-black/20 rounded">
+                    <span className="text-sm font-medium">Room ID</span>
+                    <div className="flex items-center gap-2">
+                      {debugInfo.roomId ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span className="text-xs font-mono bg-green-100 dark:bg-green-900/40 px-2 py-0.5 rounded">
+                            {debugInfo.roomId}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4 text-red-600" />
+                          <span className="text-xs text-muted-foreground">{language === 'ko' ? '미설정' : 'Not Set'}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Configuration */}
+                  <div className="flex items-center justify-between p-2 bg-white/60 dark:bg-black/20 rounded">
+                    <span className="text-sm font-medium">{language === 'ko' ? '설정 완료' : 'Configuration'}</span>
+                    <div className="flex items-center gap-2">
+                      {debugInfo.serviceId && debugInfo.apiKey && debugInfo.userId ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                            {language === 'ko' ? '완료' : 'Complete'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4 text-red-600" />
+                          <span className="text-xs text-red-600 dark:text-red-400">
+                            {language === 'ko' ? '불완전' : 'Incomplete'}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Token Status */}
+                  <div className="flex items-center justify-between p-2 bg-white/60 dark:bg-black/20 rounded">
+                    <span className="text-sm font-medium">{language === 'ko' ? '토큰 상태' : 'Token Status'}</span>
+                    <div className="flex items-center gap-2">
+                      {debugInfo.hasToken ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                            {language === 'ko' ? '생성됨' : 'Generated'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4 text-orange-500" />
+                          <span className="text-xs text-orange-600 dark:text-orange-400">
+                            {language === 'ko' ? '미생성' : 'Not Generated'}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* User ID Display (if set) */}
+                {debugInfo.userId && (
+                  <div className="text-xs text-center text-muted-foreground pt-1 border-t border-yellow-300/50 dark:border-yellow-700/50">
+                    User: <span className="font-mono font-semibold">{debugInfo.userId}</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
