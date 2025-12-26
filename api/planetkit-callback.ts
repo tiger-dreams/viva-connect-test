@@ -106,6 +106,20 @@ export default async function handler(request: Request) {
 
     console.log('[PlanetKit Callback] Event stored with ID:', result.rows[0]?.id);
 
+    // Send admin notifications for new room creation
+    if (eventType === 'GCALL_EVT_START') {
+      try {
+        await sendAdminNotifications({
+          roomId: roomId || 'Unknown',
+          displayName: displayName || 'Unknown User',
+          timestamp: timestamp || Date.now(),
+        });
+      } catch (notificationError) {
+        // Log error but don't fail the callback
+        console.error('[PlanetKit Callback] Failed to send admin notifications:', notificationError);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -188,4 +202,96 @@ function determineEventType(params: any): string {
   }
 
   return 'GCALL_EVT_CALLBACK';
+}
+
+// Send notifications to admin users
+async function sendAdminNotifications(params: {
+  roomId: string;
+  displayName: string;
+  timestamp: number;
+}) {
+  const { roomId, displayName, timestamp } = params;
+
+  // Get admin UIDs from environment variable
+  const adminUids = process.env.VITE_ADMIN_UIDS?.split(',').map(id => id.trim()).filter(Boolean) || [];
+
+  if (adminUids.length === 0) {
+    console.log('[Admin Notifications] No admin UIDs configured');
+    return;
+  }
+
+  console.log('[Admin Notifications] Sending notifications to admins:', adminUids);
+
+  // Format timestamp
+  const date = new Date(timestamp);
+  const formattedTime = date.toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  // Get LINE Channel Access Token
+  const baseUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'http://localhost:8080';
+
+  const tokenUrl = `${baseUrl}/api/get-line-token`;
+
+  try {
+    const tokenResponse = await fetch(tokenUrl);
+
+    if (!tokenResponse.ok) {
+      throw new Error(`Failed to get LINE token: ${tokenResponse.status}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+    const channelAccessToken = tokenData.access_token;
+
+    if (!channelAccessToken) {
+      throw new Error('Invalid token response');
+    }
+
+    // Send notifications to each admin
+    const notificationPromises = adminUids.map(async (adminUid) => {
+      const message = `🆕 새 룸이 생성되었습니다!\n\n룸: ${roomId}\n생성자: ${displayName}\n시간: ${formattedTime}`;
+
+      try {
+        const lineApiResponse = await fetch('https://api.line.me/v2/bot/message/push', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${channelAccessToken}`,
+          },
+          body: JSON.stringify({
+            to: adminUid,
+            messages: [
+              {
+                type: 'text',
+                text: message,
+              },
+            ],
+          }),
+        });
+
+        if (!lineApiResponse.ok) {
+          const errorText = await lineApiResponse.text();
+          console.error(`[Admin Notifications] Failed to send to ${adminUid}:`, errorText);
+        } else {
+          console.log(`[Admin Notifications] Successfully sent to ${adminUid}`);
+        }
+      } catch (error) {
+        console.error(`[Admin Notifications] Error sending to ${adminUid}:`, error);
+      }
+    });
+
+    // Wait for all notifications to complete
+    await Promise.allSettled(notificationPromises);
+
+  } catch (error) {
+    console.error('[Admin Notifications] Error getting LINE token:', error);
+    throw error;
+  }
 }
