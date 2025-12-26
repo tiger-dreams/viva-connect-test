@@ -21,11 +21,11 @@ interface CallHistoryUser {
   call_count: number;
 }
 
-interface OAFollower {
+interface AppUser {
   user_id: string;
   display_name: string;
-  picture_url?: string;
-  status_message?: string;
+  last_seen: string;
+  total_calls: number;
 }
 
 interface InviteUserDialogProps {
@@ -47,9 +47,9 @@ export const InviteUserDialog = ({
 }: InviteUserDialogProps) => {
   const { toast } = useToast();
   const [users, setUsers] = useState<CallHistoryUser[]>([]);
-  const [followers, setFollowers] = useState<OAFollower[]>([]);
+  const [appUsers, setAppUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(false);
-  const [followersLoading, setFollowersLoading] = useState(false);
+  const [appUsersLoading, setAppUsersLoading] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [isAdmin, setIsAdmin] = useState(false);
@@ -68,7 +68,7 @@ export const InviteUserDialog = ({
     setIsAdmin(hasAdminPermission);
 
     if (hasAdminPermission) {
-      fetchFollowers();
+      fetchAppUsers();
     }
   };
 
@@ -101,21 +101,21 @@ export const InviteUserDialog = ({
     }
   };
 
-  const fetchFollowers = async () => {
-    setFollowersLoading(true);
+  const fetchAppUsers = async () => {
+    setAppUsersLoading(true);
     try {
-      const response = await fetch(`/api/get-followers?requesterId=${encodeURIComponent(currentUserId)}`);
+      const response = await fetch(`/api/get-followers?requesterId=${encodeURIComponent(currentUserId)}&days=90`);
       const result = await response.json();
 
       if (result.success) {
-        setFollowers(result.data);
+        setAppUsers(result.data);
       } else {
-        console.error('Failed to fetch followers:', result.error);
+        console.error('Failed to fetch app users:', result.error);
       }
     } catch (error) {
-      console.error('Failed to fetch followers:', error);
+      console.error('Failed to fetch app users:', error);
     } finally {
-      setFollowersLoading(false);
+      setAppUsersLoading(false);
     }
   };
 
@@ -172,7 +172,7 @@ export const InviteUserDialog = ({
     }
 
     setSending('bulk');
-    const allUsers = [...users, ...followers];
+    const allUsers = [...users, ...appUsers];
     const selectedUsers = allUsers.filter(u => selectedUserIds.has(u.user_id));
 
     let successCount = 0;
@@ -211,7 +211,7 @@ export const InviteUserDialog = ({
     setSelectedUserIds(newSelection);
   };
 
-  const toggleSelectAll = (users: Array<CallHistoryUser | OAFollower>) => {
+  const toggleSelectAll = (users: Array<CallHistoryUser | AppUser>) => {
     const userIds = users.map(u => u.user_id);
     const allSelected = userIds.every(id => selectedUserIds.has(id));
 
@@ -246,7 +246,7 @@ export const InviteUserDialog = ({
   };
 
   const renderUserList = (
-    users: Array<CallHistoryUser | OAFollower>,
+    users: Array<CallHistoryUser | AppUser>,
     title: string,
     emptyMessage: string,
     showTimeInfo: boolean = false
@@ -328,7 +328,7 @@ export const InviteUserDialog = ({
     );
   };
 
-  const totalUsers = users.length + followers.length;
+  const totalUsers = users.length + appUsers.length;
   const hasAnyUsers = totalUsers > 0;
 
   return (
@@ -365,24 +365,24 @@ export const InviteUserDialog = ({
                   true
                 )}
 
-                {/* OA Followers Section (Admin Only) */}
+                {/* All App Users Section (Admin Only) */}
                 {isAdmin && (
                   <>
                     <Separator className="my-4" />
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <Users className="w-4 h-4 text-primary" />
-                        <h3 className="text-sm font-semibold">OA 팔로워</h3>
+                        <h3 className="text-sm font-semibold">전체 사용자</h3>
                       </div>
-                      {followersLoading ? (
+                      {appUsersLoading ? (
                         <div className="flex items-center justify-center py-6">
                           <Loader2 className="w-6 h-6 animate-spin text-primary" />
                         </div>
                       ) : (
                         renderUserList(
-                          followers,
-                          'OA 팔로워 목록',
-                          '팔로워가 없습니다.',
+                          appUsers,
+                          '앱 사용자 목록',
+                          '사용자가 없습니다.',
                           false
                         )
                       )}

@@ -1,20 +1,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sql } from '@vercel/postgres';
 
-interface FollowerProfile {
+interface UserProfile {
   user_id: string;
   display_name: string;
-  picture_url?: string;
-  status_message?: string;
+  last_seen: string;
+  total_calls: number;
 }
 
 /**
  * GET /api/get-followers
  *
- * LINE Official Account의 팔로워 목록 조회
+ * 앱을 사용한 적이 있는 모든 사용자 목록 조회 (planetkit_events 기반)
  * 어드민 권한이 있는 사용자만 호출 가능
  *
  * Query params:
  * - requesterId: 요청한 사용자의 LINE user ID (어드민 권한 확인용)
+ * - days: 조회 기간 (기본값: 90일)
  */
 export default async function handler(
   request: VercelRequest,
@@ -38,9 +40,9 @@ export default async function handler(
   }
 
   try {
-    const { requesterId } = request.query;
+    const { requesterId, days = '90' } = request.query;
 
-    console.log('[get-followers] Request:', { requesterId });
+    console.log('[get-followers] Request:', { requesterId, days });
 
     // 어드민 권한 확인
     const adminUids = process.env.VITE_ADMIN_UIDS?.split(',').map(id => id.trim()) || [];
@@ -60,115 +62,57 @@ export default async function handler(
       });
     }
 
-    // Get Channel Access Token
-    const baseUrl = request.headers.origin || `https://${request.headers.host}`;
-    const tokenUrl = `${baseUrl}/api/get-line-token`;
+    // planetkit_events 테이블에서 앱을 사용한 모든 사용자 조회
+    const daysNumber = parseInt(days as string);
+    const cutoffTime = new Date(Date.now() - daysNumber * 24 * 60 * 60 * 1000).toISOString();
 
-    const tokenResponse = await fetch(tokenUrl);
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
-      console.error('[get-followers] Failed to get LINE token:', errorText);
-      return response.status(500).json({
-        success: false,
-        error: 'Failed to obtain LINE Channel Access Token',
-      });
-    }
-
-    const tokenData = await tokenResponse.json();
-    const channelAccessToken = tokenData.access_token;
-
-    if (!channelAccessToken) {
-      return response.status(500).json({
-        success: false,
-        error: 'Invalid token response',
-      });
-    }
-
-    // Get follower IDs (paginated)
-    const allFollowerIds: string[] = [];
-    let start: string | undefined = undefined;
-
-    console.log('[get-followers] Fetching follower IDs...');
-
-    do {
-      const url = start
-        ? `https://api.line.me/v2/bot/followers/ids?start=${start}`
-        : 'https://api.line.me/v2/bot/followers/ids';
-
-      const followersResponse = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${channelAccessToken}`,
-        },
-      });
-
-      if (!followersResponse.ok) {
-        const errorText = await followersResponse.text();
-        console.error('[get-followers] LINE API Error:', errorText);
-        return response.status(followersResponse.status).json({
-          success: false,
-          error: `LINE API Error: ${errorText}`,
-        });
-      }
-
-      const followersData = await followersResponse.json();
-      allFollowerIds.push(...followersData.userIds);
-      start = followersData.next;
-
-      console.log('[get-followers] Fetched batch:', {
-        batchSize: followersData.userIds.length,
-        hasMore: !!start,
-        totalSoFar: allFollowerIds.length,
-      });
-    } while (start);
-
-    console.log('[get-followers] Total followers found:', allFollowerIds.length);
-
-    // Get profiles for each follower (batch processing)
-    // LINE API는 bulk profile API가 없으므로 개별 호출 필요
-    // 너무 많은 경우 제한할 수 있음
-    const MAX_PROFILES = 100;
-    const followerIdsToFetch = allFollowerIds.slice(0, MAX_PROFILES);
-
-    console.log('[get-followers] Fetching profiles for', followerIdsToFetch.length, 'followers');
-
-    const profilePromises = followerIdsToFetch.map(async (userId) => {
-      try {
-        const profileResponse = await fetch(`https://api.line.me/v2/bot/profile/${userId}`, {
-          headers: {
-            'Authorization': `Bearer ${channelAccessToken}`,
-          },
-        });
-
-        if (!profileResponse.ok) {
-          console.warn('[get-followers] Failed to get profile for', userId);
-          return null;
-        }
-
-        const profileData = await profileResponse.json();
-        return {
-          user_id: userId,
-          display_name: profileData.displayName,
-          picture_url: profileData.pictureUrl,
-          status_message: profileData.statusMessage,
-        } as FollowerProfile;
-      } catch (error) {
-        console.error('[get-followers] Error fetching profile for', userId, error);
-        return null;
-      }
+    console.log('[get-followers] Query parameters:', {
+      requesterId,
+      daysNumber,
+      cutoffTime,
     });
 
-    const profiles = (await Promise.all(profilePromises)).filter((p): p is FollowerProfile => p !== null);
+    const usersResult = await sql`
+      SELECT
+        user_id,
+        display_name,
+        MAX(created_at) as last_seen,
+        COUNT(DISTINCT room_id) as total_calls
+      FROM planetkit_events
+      WHERE
+        user_id IS NOT NULL
+        AND user_id != ${requesterId}
+        AND display_name IS NOT NULL
+        AND created_at >= ${cutoffTime}
+        AND event_type IN ('GCALL_EVT_USER_JOIN', 'GCALL_EVT_START')
+      GROUP BY user_id, display_name
+      ORDER BY last_seen DESC
+      LIMIT 100
+    `;
 
-    console.log('[get-followers] Successfully fetched', profiles.length, 'profiles');
+    const users: UserProfile[] = usersResult.rows.map(row => ({
+      user_id: row.user_id,
+      display_name: row.display_name,
+      last_seen: row.last_seen,
+      total_calls: parseInt(row.total_calls),
+    }));
+
+    console.log('[get-followers] Users found:', {
+      count: users.length,
+      users: users.map(u => ({
+        userId: u.user_id,
+        displayName: u.display_name,
+        totalCalls: u.total_calls,
+      })),
+    });
 
     return response.status(200).json({
       success: true,
-      data: profiles,
-      total: allFollowerIds.length,
-      returned: profiles.length,
+      data: users,
+      total: users.length,
     });
   } catch (error) {
-    console.error('[get-followers] Error fetching followers:', error);
+    console.error('[get-followers] Error fetching users:', error);
     return response.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error',
