@@ -125,8 +125,26 @@ export const InviteUserDialog = ({
   const shareToLineFriends = async () => {
     setSharingToFriends(true);
     try {
+      // Check if LIFF is initialized and user is logged in
+      if (!liff.isLoggedIn()) {
+        console.error('[shareTargetPicker] User is not logged in');
+        toast({
+          title: '로그인 필요',
+          description: 'LINE 로그인이 필요합니다.',
+          variant: 'destructive',
+        });
+        setSharingToFriends(false);
+        return;
+      }
+
       // Build LIFF URL
       const liffUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(roomId)}`;
+
+      console.log('[shareTargetPicker] Starting share with:', {
+        liffUrl,
+        roomId,
+        userName: currentUserName,
+      });
 
       const result = await liff.shareTargetPicker(
         [
@@ -142,7 +160,7 @@ export const InviteUserDialog = ({
 
       if (result) {
         // Successfully sent
-        console.log(`[${result.status}] Message sent via shareTargetPicker!`);
+        console.log(`[shareTargetPicker] Success - [${result.status}] Message sent!`);
         toast({
           title: '초대 전송 완료',
           description: 'LINE 친구들에게 초대 메시지를 보냈습니다.',
@@ -150,18 +168,43 @@ export const InviteUserDialog = ({
         onOpenChange(false);
       } else {
         // User canceled
-        console.log('ShareTargetPicker was closed by user');
+        console.log('[shareTargetPicker] User canceled - TargetPicker was closed');
         toast({
           title: '초대 취소',
           description: '친구 선택을 취소했습니다.',
           variant: 'default',
         });
       }
-    } catch (error) {
-      console.error('Failed to share via shareTargetPicker:', error);
+    } catch (error: any) {
+      console.error('[shareTargetPicker] Error:', error);
+
+      // Extract detailed error information
+      let errorMessage = 'LINE 친구 초대 중 오류가 발생했습니다.';
+      let errorDetails = '';
+
+      if (error && typeof error === 'object') {
+        if (error.code) {
+          errorDetails += `Code: ${error.code}`;
+        }
+        if (error.message) {
+          errorDetails += errorDetails ? `, Message: ${error.message}` : `Message: ${error.message}`;
+        }
+
+        // Check for specific LIFF errors
+        if (error.code === 'INVALID_ARGUMENT') {
+          errorMessage = '잘못된 메시지 형식입니다.';
+        } else if (error.code === 'FORBIDDEN') {
+          errorMessage = 'Share Target Picker가 활성화되지 않았습니다. LINE Developers Console에서 설정을 확인해주세요.';
+        } else if (error.code === 'UNAUTHORIZED') {
+          errorMessage = '권한이 없습니다. 로그인 상태를 확인해주세요.';
+        }
+      }
+
+      console.error('[shareTargetPicker] Error details:', errorDetails);
+
       toast({
         title: '초대 전송 실패',
-        description: 'LINE 친구 초대 중 오류가 발생했습니다.',
+        description: errorDetails ? `${errorMessage}\n\n${errorDetails}` : errorMessage,
         variant: 'destructive',
       });
     } finally {
