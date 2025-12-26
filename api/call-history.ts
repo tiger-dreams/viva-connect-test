@@ -41,6 +41,8 @@ export default async function handler(
   try {
     const { userId, days = '30' } = request.query;
 
+    console.log('[call-history] Request:', { userId, days });
+
     if (!userId || typeof userId !== 'string') {
       return response.status(400).json({
         success: false,
@@ -50,6 +52,12 @@ export default async function handler(
 
     const daysNumber = parseInt(days as string);
     const cutoffTime = new Date(Date.now() - daysNumber * 24 * 60 * 60 * 1000).toISOString();
+
+    console.log('[call-history] Query parameters:', {
+      userId,
+      daysNumber,
+      cutoffTime,
+    });
 
     // 1. 현재 사용자가 참여한 room_id 목록 찾기
     const userRoomsResult = await sql`
@@ -64,7 +72,13 @@ export default async function handler(
 
     const userRoomIds = userRoomsResult.rows.map(row => row.room_id);
 
+    console.log('[call-history] User rooms found:', {
+      count: userRoomIds.length,
+      roomIds: userRoomIds,
+    });
+
     if (userRoomIds.length === 0) {
+      console.log('[call-history] No rooms found for user, returning empty list');
       return response.status(200).json({
         success: true,
         data: [],
@@ -97,12 +111,21 @@ export default async function handler(
       call_count: parseInt(row.call_count),
     }));
 
+    console.log('[call-history] Other users found:', {
+      count: callHistory.length,
+      users: callHistory.map(u => ({
+        userId: u.user_id,
+        displayName: u.display_name,
+        callCount: u.call_count,
+      })),
+    });
+
     return response.status(200).json({
       success: true,
       data: callHistory,
     });
   } catch (error) {
-    console.error('Error fetching call history:', error);
+    console.error('[call-history] Error fetching call history:', error);
     return response.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error',

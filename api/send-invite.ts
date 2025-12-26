@@ -44,19 +44,31 @@ export default async function handler(
     }
 
     // Get LINE Channel Access Token dynamically using v2.1 method
-    const tokenResponse = await fetch(`${request.headers.origin || 'https://' + request.headers.host}/api/get-line-token`);
+    const baseUrl = request.headers.origin || `https://${request.headers.host}`;
+    const tokenUrl = `${baseUrl}/api/get-line-token`;
+    console.log('[send-invite] Requesting token from:', tokenUrl);
+
+    const tokenResponse = await fetch(tokenUrl);
+
+    console.log('[send-invite] Token response status:', tokenResponse.status);
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
-      console.error('Failed to get LINE token:', errorText);
+      console.error('[send-invite] Failed to get LINE token:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        errorText,
+      });
       return response.status(500).json({
         success: false,
-        error: 'Failed to obtain LINE Channel Access Token',
+        error: `Failed to obtain LINE Channel Access Token: ${errorText}`,
       });
     }
 
     const tokenData = await tokenResponse.json();
     const channelAccessToken = tokenData.access_token;
+
+    console.log('[send-invite] Token obtained successfully');
 
     if (!channelAccessToken) {
       return response.status(500).json({
