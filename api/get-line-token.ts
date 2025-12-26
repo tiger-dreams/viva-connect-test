@@ -1,11 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { SignJWT } from 'jose';
 
 /**
  * GET /api/get-line-token
  *
- * LINE Messaging API Channel Access Token v2.1 발급
- * Channel ID와 Channel Secret을 사용하여 JWT 생성 후 토큰 발급
+ * LINE Messaging API Channel Access Token v2 발급
+ * Channel ID와 Channel Secret을 사용하여 OAuth 2.0 client credentials flow로 토큰 발급
  */
 export default async function handler(
   request: VercelRequest,
@@ -48,44 +47,18 @@ export default async function handler(
       });
     }
 
-    // JWT 생성 (Channel Secret을 HMAC key로 사용)
-    const now = Math.floor(Date.now() / 1000);
-    const exp = now + (60 * 30); // 30분 후 만료
+    // LINE API로 Channel Access Token 요청 (OAuth 2.0 client credentials flow)
+    console.log('[get-line-token] Requesting token from LINE API using client credentials...');
 
-    console.log('[get-line-token] JWT parameters:', {
-      issuer: channelId,
-      subject: channelId,
-      now,
-      exp,
-    });
-
-    const secret = new TextEncoder().encode(channelSecret);
-
-    const jwt = await new SignJWT({})
-      .setProtectedHeader({
-        alg: 'HS256',
-        typ: 'JWT',
-        kid: channelId // LINE API v2.1 requires kid in header
-      })
-      .setIssuer(channelId)
-      .setSubject(channelId)
-      .setAudience('https://api.line.me/')
-      .setExpirationTime(exp)
-      .setIssuedAt(now)
-      .sign(secret);
-
-    console.log('[get-line-token] JWT generated successfully, requesting token from LINE API...');
-
-    // LINE API로 Channel Access Token 요청
-    const tokenResponse = await fetch('https://api.line.me/oauth2/v2.1/token', {
+    const tokenResponse = await fetch('https://api.line.me/v2/oauth/accessToken', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-        client_assertion: jwt,
+        client_id: channelId,
+        client_secret: channelSecret,
       }),
     });
 
