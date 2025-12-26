@@ -595,6 +595,57 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
     };
   }, []);
 
+  // 브라우저 닫힘/백그라운드 전환 감지하여 세션 종료 시도
+  useEffect(() => {
+    // beforeunload: 브라우저 닫힘/새로고침/페이지 이동 감지
+    const handleBeforeUnload = () => {
+      // 동기적으로 Conference 종료 시도 (LINE 인앱 브라우저에서는 제한적)
+      if (conference && typeof conference.leaveConference === 'function') {
+        try {
+          // 비동기 호출이지만 최선을 다함
+          conference.leaveConference().catch(() => {});
+        } catch (error) {
+          // 오류 무시
+        }
+      }
+    };
+
+    // visibilitychange: 페이지가 숨겨짐 (백그라운드, 다른 앱 전환)
+    let visibilityTimer: NodeJS.Timeout | null = null;
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // 페이지가 숨겨진 후 30초 후에도 여전히 숨겨져 있으면 세션 종료
+        visibilityTimer = setTimeout(() => {
+          if (document.hidden && conference && connectionStatus.connected) {
+            console.log('[PlanetKit] Page hidden for 30s, attempting to leave conference');
+            if (typeof conference.leaveConference === 'function') {
+              conference.leaveConference().catch(() => {});
+            }
+          }
+        }, 30000); // 30초
+      } else {
+        // 페이지가 다시 보이면 타이머 취소
+        if (visibilityTimer) {
+          clearTimeout(visibilityTimer);
+          visibilityTimer = null;
+        }
+      }
+    };
+
+    // 이벤트 리스너 등록
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // 정리
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (visibilityTimer) {
+        clearTimeout(visibilityTimer);
+      }
+    };
+  }, [conference, connectionStatus.connected]);
+
   // 참가자를 TileParticipant로 변환
   const tileParticipants: TileParticipant[] = participants.map(p => ({
     ...p,
