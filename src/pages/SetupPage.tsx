@@ -15,6 +15,7 @@ import { generatePlanetKitToken } from "@/utils/token-generator";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getTranslations } from "@/utils/translations";
 import { LanguageSelector } from "@/components/LanguageSelector";
+import { CustomCredentialsSection } from "@/components/CustomCredentialsSection";
 
 const SetupPage = () => {
   const navigate = useNavigate();
@@ -661,6 +662,9 @@ Status: ${debugInfo.status}`;
               </div>
             </CardContent>
           </Card>
+
+          {/* Custom Credentials Section */}
+          <CustomCredentialsSection language={language} />
 
           {/* Room 선택 */}
           <Card>

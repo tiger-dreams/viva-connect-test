@@ -48,3 +48,22 @@ export interface Participant {
   isHost?: boolean;
   videoElement?: HTMLVideoElement;
 }
+
+// Custom PlanetKit Credentials
+export interface CustomPlanetKitCredentials {
+  enabled: boolean;
+  serviceId: string;
+  apiKey: string;
+  apiSecret: string;
+  environment: 'eval' | 'real';
+}
+
+// Feature Availability based on credentials mode
+export interface FeatureAvailability {
+  hasBackendSupport: boolean;
+  canUseCallHistory: boolean;
+  canUseAllUsers: boolean;
+  canSendDirectInvites: boolean;
+  canUseLiffShare: boolean;  // Always true
+  canCopyInviteUrl: boolean;  // Always true
+}

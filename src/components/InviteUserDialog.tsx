@@ -11,10 +11,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Send, UserPlus, Clock, Users, CheckSquare, Share2, Copy } from 'lucide-react';
+import { Loader2, Send, UserPlus, Clock, Users, CheckSquare, Share2, Copy, Info } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useLiff } from '@/contexts/LiffContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useVideoSDK } from '@/contexts/VideoSDKContext';
 
 interface CallHistoryUser {
   user_id: string;
@@ -50,6 +52,7 @@ export const InviteUserDialog = ({
   const { toast } = useToast();
   const { liff } = useLiff();
   const { language } = useLanguage();
+  const { featureAvailability } = useVideoSDK();
   const [users, setUsers] = useState<CallHistoryUser[]>([]);
   const [appUsers, setAppUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -78,6 +81,12 @@ export const InviteUserDialog = ({
   };
 
   const fetchCallHistory = async () => {
+    // Skip if call history is not available (custom credentials mode)
+    if (!featureAvailability.canUseCallHistory) {
+      setUsers([]);
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch(`/api/call-history?userId=${encodeURIComponent(currentUserId)}&days=30`);
@@ -107,6 +116,12 @@ export const InviteUserDialog = ({
   };
 
   const fetchAppUsers = async () => {
+    // Skip if all users feature is not available (custom credentials mode)
+    if (!featureAvailability.canUseAllUsers) {
+      setAppUsers([]);
+      return;
+    }
+
     setAppUsersLoading(true);
     try {
       const response = await fetch(`/api/get-followers?requesterId=${encodeURIComponent(currentUserId)}&days=90`);
@@ -452,20 +467,22 @@ export const InviteUserDialog = ({
                   )}
                 </div>
               </div>
-              <Button
-                size="sm"
-                onClick={() => sendInvite(user.user_id, user.display_name)}
-                disabled={sending === user.user_id || sending === 'bulk'}
-              >
-                {sending === user.user_id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <Send className="w-4 h-4 mr-1" />
-                    Invite
-                  </>
-                )}
-              </Button>
+              {featureAvailability.canSendDirectInvites && (
+                <Button
+                  size="sm"
+                  onClick={() => sendInvite(user.user_id, user.display_name)}
+                  disabled={sending === user.user_id || sending === 'bulk'}
+                >
+                  {sending === user.user_id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 mr-1" />
+                      Invite
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           );
         })}
@@ -535,6 +552,21 @@ export const InviteUserDialog = ({
           </div>
         </div>
 
+        {/* Feature Restriction Alert */}
+        {!featureAvailability.hasBackendSupport && (
+          <Alert>
+            <Info className="w-4 h-4" />
+            <AlertTitle>
+              {language === 'ko' ? '제한된 기능' : 'Limited Features'}
+            </AlertTitle>
+            <AlertDescription className="text-xs">
+              {language === 'ko'
+                ? '커스텀 인증 정보를 사용 중이므로 통화 이력 및 직접 초대 기능을 사용할 수 없습니다.'
+                : 'Call history and direct invites are unavailable when using custom credentials.'}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -554,7 +586,7 @@ export const InviteUserDialog = ({
             <ScrollArea className="max-h-[350px] pr-4">
               <div className="space-y-4">
                 {/* Call History Section */}
-                {renderUserList(
+                {featureAvailability.canUseCallHistory && renderUserList(
                   users,
                   'Recent Call History',
                   'No users with call history.',
@@ -562,7 +594,7 @@ export const InviteUserDialog = ({
                 )}
 
                 {/* All App Users Section (Admin Only) */}
-                {isAdmin && (
+                {isAdmin && featureAvailability.canUseAllUsers && (
                   <>
                     <Separator className="my-4" />
                     <div>
