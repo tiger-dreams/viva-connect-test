@@ -92,7 +92,7 @@ export default async function handler(
         messages: [
           {
             type: 'text',
-            text: `🎥 ${fromUserName}님이 화상 통화에 초대했습니다!\n\n룸 이름: ${roomId}\n\n아래 링크를 눌러 참여하세요:\n${liffUrl}`,
+            text: `🎥 ${fromUserName} invited you to a video call!\n\nRoom: ${roomId}\n\nTap the link to join:\n${liffUrl}`,
           },
         ],
       }),
