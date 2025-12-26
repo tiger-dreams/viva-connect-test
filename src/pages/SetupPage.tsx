@@ -488,33 +488,33 @@ Status: ${debugInfo.status}`;
 
           {/* 디버그 정보 (딥링크 진입 시에만 표시) */}
           {searchParams.get('room') && debugInfo && (
-            <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-950 dark:to-orange-950 border-2 border-yellow-400 dark:border-yellow-600">
+            <Card className="bg-gradient-to-br from-yellow-100 to-orange-100 border-2 border-yellow-500">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
+                  <CardTitle className="text-base flex items-center gap-2 text-gray-900">
                     🔍 <span className="font-bold">{language === 'ko' ? '딥링크 디버그' : 'Deep Link Debug'}</span>
                   </CardTitle>
                   <Button
                     onClick={copyDebugInfo}
                     size="sm"
                     variant="outline"
-                    className="h-8 text-xs bg-white/50 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40"
+                    className="h-8 text-xs bg-white/80 hover:bg-white text-gray-900 border-gray-400"
                   >
                     <Copy className="w-3 h-3 mr-1" />
                     {language === 'ko' ? '복사' : 'Copy'}
                   </Button>
                 </div>
-                <CardDescription className="text-xs pt-1">
+                <CardDescription className="text-xs pt-1 text-gray-700">
                   {language === 'ko' ? '자동 입장 조건 확인' : 'Auto-entry conditions check'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {/* Status Banner */}
-                <div className={`p-3 rounded-lg font-medium text-sm ${
-                  debugInfo.status.includes('✅') ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200' :
-                  debugInfo.status.includes('🚀') ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200' :
-                  debugInfo.status.includes('❌') ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200' :
-                  'bg-gray-100 dark:bg-gray-800/30 text-gray-800 dark:text-gray-200'
+                <div className={`p-3 rounded-lg font-semibold text-sm ${
+                  debugInfo.status.includes('✅') ? 'bg-green-200 text-green-900' :
+                  debugInfo.status.includes('🚀') ? 'bg-blue-200 text-blue-900' :
+                  debugInfo.status.includes('❌') ? 'bg-red-200 text-red-900' :
+                  'bg-gray-200 text-gray-900'
                 }`}>
                   {debugInfo.status}
                 </div>
@@ -522,40 +522,40 @@ Status: ${debugInfo.status}`;
                 {/* Conditions Grid */}
                 <div className="grid grid-cols-1 gap-2">
                   {/* Room Parameter */}
-                  <div className="flex items-center justify-between p-2 bg-white/60 dark:bg-black/20 rounded">
-                    <span className="text-sm font-medium">{language === 'ko' ? 'URL 파라미터' : 'URL Param'}</span>
+                  <div className="flex items-center justify-between p-2.5 bg-white/80 rounded">
+                    <span className="text-sm font-semibold text-gray-900">{language === 'ko' ? 'URL 파라미터' : 'URL Param'}</span>
                     <div className="flex items-center gap-2">
                       {debugInfo.roomParam ? (
                         <>
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span className="text-xs font-mono bg-green-100 dark:bg-green-900/40 px-2 py-0.5 rounded">
+                          <CheckCircle className="w-4 h-4 text-green-700" />
+                          <span className="text-xs font-mono font-semibold bg-green-200 text-green-900 px-2 py-0.5 rounded">
                             {debugInfo.roomParam}
                           </span>
                         </>
                       ) : (
                         <>
-                          <XCircle className="w-4 h-4 text-red-600" />
-                          <span className="text-xs text-muted-foreground">{language === 'ko' ? '없음' : 'None'}</span>
+                          <XCircle className="w-4 h-4 text-red-700" />
+                          <span className="text-xs font-semibold text-gray-600">{language === 'ko' ? '없음' : 'None'}</span>
                         </>
                       )}
                     </div>
                   </div>
 
                   {/* Login Status */}
-                  <div className="flex items-center justify-between p-2 bg-white/60 dark:bg-black/20 rounded">
-                    <span className="text-sm font-medium">{language === 'ko' ? '로그인 상태' : 'Login Status'}</span>
+                  <div className="flex items-center justify-between p-2.5 bg-white/80 rounded">
+                    <span className="text-sm font-semibold text-gray-900">{language === 'ko' ? '로그인 상태' : 'Login Status'}</span>
                     <div className="flex items-center gap-2">
                       {debugInfo.isLoggedIn && debugInfo.hasProfile ? (
                         <>
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                          <CheckCircle className="w-4 h-4 text-green-700" />
+                          <span className="text-xs font-bold text-green-900">
                             {language === 'ko' ? '로그인됨' : 'Logged In'}
                           </span>
                         </>
                       ) : (
                         <>
-                          <XCircle className="w-4 h-4 text-red-600" />
-                          <span className="text-xs text-red-600 dark:text-red-400">
+                          <XCircle className="w-4 h-4 text-red-700" />
+                          <span className="text-xs font-bold text-red-900">
                             {language === 'ko' ? '미로그인' : 'Not Logged In'}
                           </span>
                         </>
@@ -564,40 +564,40 @@ Status: ${debugInfo.status}`;
                   </div>
 
                   {/* Room ID */}
-                  <div className="flex items-center justify-between p-2 bg-white/60 dark:bg-black/20 rounded">
-                    <span className="text-sm font-medium">Room ID</span>
+                  <div className="flex items-center justify-between p-2.5 bg-white/80 rounded">
+                    <span className="text-sm font-semibold text-gray-900">Room ID</span>
                     <div className="flex items-center gap-2">
                       {debugInfo.roomId ? (
                         <>
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span className="text-xs font-mono bg-green-100 dark:bg-green-900/40 px-2 py-0.5 rounded">
+                          <CheckCircle className="w-4 h-4 text-green-700" />
+                          <span className="text-xs font-mono font-semibold bg-green-200 text-green-900 px-2 py-0.5 rounded">
                             {debugInfo.roomId}
                           </span>
                         </>
                       ) : (
                         <>
-                          <XCircle className="w-4 h-4 text-red-600" />
-                          <span className="text-xs text-muted-foreground">{language === 'ko' ? '미설정' : 'Not Set'}</span>
+                          <XCircle className="w-4 h-4 text-red-700" />
+                          <span className="text-xs font-semibold text-gray-600">{language === 'ko' ? '미설정' : 'Not Set'}</span>
                         </>
                       )}
                     </div>
                   </div>
 
                   {/* Configuration */}
-                  <div className="flex items-center justify-between p-2 bg-white/60 dark:bg-black/20 rounded">
-                    <span className="text-sm font-medium">{language === 'ko' ? '설정 완료' : 'Configuration'}</span>
+                  <div className="flex items-center justify-between p-2.5 bg-white/80 rounded">
+                    <span className="text-sm font-semibold text-gray-900">{language === 'ko' ? '설정 완료' : 'Configuration'}</span>
                     <div className="flex items-center gap-2">
                       {debugInfo.serviceId && debugInfo.apiKey && debugInfo.userId ? (
                         <>
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                          <CheckCircle className="w-4 h-4 text-green-700" />
+                          <span className="text-xs font-bold text-green-900">
                             {language === 'ko' ? '완료' : 'Complete'}
                           </span>
                         </>
                       ) : (
                         <>
-                          <XCircle className="w-4 h-4 text-red-600" />
-                          <span className="text-xs text-red-600 dark:text-red-400">
+                          <XCircle className="w-4 h-4 text-red-700" />
+                          <span className="text-xs font-bold text-red-900">
                             {language === 'ko' ? '불완전' : 'Incomplete'}
                           </span>
                         </>
@@ -606,20 +606,20 @@ Status: ${debugInfo.status}`;
                   </div>
 
                   {/* Token Status */}
-                  <div className="flex items-center justify-between p-2 bg-white/60 dark:bg-black/20 rounded">
-                    <span className="text-sm font-medium">{language === 'ko' ? '토큰 상태' : 'Token Status'}</span>
+                  <div className="flex items-center justify-between p-2.5 bg-white/80 rounded">
+                    <span className="text-sm font-semibold text-gray-900">{language === 'ko' ? '토큰 상태' : 'Token Status'}</span>
                     <div className="flex items-center gap-2">
                       {debugInfo.hasToken ? (
                         <>
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                          <CheckCircle className="w-4 h-4 text-green-700" />
+                          <span className="text-xs font-bold text-green-900">
                             {language === 'ko' ? '생성됨' : 'Generated'}
                           </span>
                         </>
                       ) : (
                         <>
-                          <XCircle className="w-4 h-4 text-orange-500" />
-                          <span className="text-xs text-orange-600 dark:text-orange-400">
+                          <XCircle className="w-4 h-4 text-orange-700" />
+                          <span className="text-xs font-bold text-orange-900">
                             {language === 'ko' ? '미생성' : 'Not Generated'}
                           </span>
                         </>
@@ -630,8 +630,8 @@ Status: ${debugInfo.status}`;
 
                 {/* User ID Display (if set) */}
                 {debugInfo.userId && (
-                  <div className="text-xs text-center text-muted-foreground pt-1 border-t border-yellow-300/50 dark:border-yellow-700/50">
-                    User: <span className="font-mono font-semibold">{debugInfo.userId}</span>
+                  <div className="text-xs text-center text-gray-700 pt-2 border-t border-yellow-400">
+                    User: <span className="font-mono font-bold text-gray-900">{debugInfo.userId}</span>
                   </div>
                 )}
               </CardContent>
