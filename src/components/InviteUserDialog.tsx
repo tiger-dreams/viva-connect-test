@@ -228,19 +228,21 @@ export const InviteUserDialog = ({
   const copyInviteUrl = async () => {
     try {
       const liffUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(roomId)}`;
-      await navigator.clipboard.writeText(liffUrl);
+      const inviteMessage = `🎥 ${currentUserName} invited you to a video call!\n\nRoom: ${roomId}\n\nTap the link to join:\n${liffUrl}`;
 
-      console.log('[copyInviteUrl] URL copied to clipboard:', liffUrl);
+      await navigator.clipboard.writeText(inviteMessage);
+
+      console.log('[copyInviteUrl] Invite message copied to clipboard:', inviteMessage);
 
       toast({
-        title: 'URL Copied',
-        description: 'Invite URL has been copied to clipboard.',
+        title: 'Invite Message Copied',
+        description: 'Invitation message with URL has been copied to clipboard.',
       });
     } catch (error) {
-      console.error('[copyInviteUrl] Failed to copy URL:', error);
+      console.error('[copyInviteUrl] Failed to copy invite message:', error);
       toast({
         title: 'Copy Failed',
-        description: 'Failed to copy URL to clipboard.',
+        description: 'Failed to copy invitation message to clipboard.',
         variant: 'destructive',
       });
     }
@@ -512,7 +514,7 @@ export const InviteUserDialog = ({
               className="w-full border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
             >
               <Copy className="w-4 h-4 mr-2" />
-              Copy Invite URL
+              Copy Invite Message
             </Button>
           </div>
         </div>
