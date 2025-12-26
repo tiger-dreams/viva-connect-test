@@ -164,8 +164,9 @@ const AdminLogs = () => {
                     <SelectItem value="GCALL_EVT_USER_LEAVE">USER_LEAVE</SelectItem>
                     <SelectItem value="GCALL_EVT_START">CALL_START</SelectItem>
                     <SelectItem value="GCALL_EVT_END">CALL_END</SelectItem>
-                    <SelectItem value="GCALL_EVT_ROOM_CREATE">ROOM_CREATE</SelectItem>
-                    <SelectItem value="GCALL_EVT_ROOM_DELETE">ROOM_DELETE</SelectItem>
+                    <SelectItem value="GCALL_EVT_STATUS_CHANGE">STATUS_CHANGE</SelectItem>
+                    <SelectItem value="GCALL_EVT_MEDIA_CHANGE">MEDIA_CHANGE</SelectItem>
+                    <SelectItem value="GCALL_EVT_CALLBACK">CALLBACK</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -133,6 +133,7 @@ export default async function handler(request: Request) {
 }
 
 // Determine event type from PlanetKit callback parameters
+// Based on PlanetKit Group Call Event callback documentation
 function determineEventType(params: any): string {
   // If eventType is explicitly provided, use it
   if (params.eventType || params.event_type) {
@@ -140,31 +141,51 @@ function determineEventType(params: any): string {
   }
 
   // Support both snake_case and camelCase
-  const sc = params.sc; // Status Code
+  const sc = params.sc; // Status Code: S=Started, C=Changed, E=Ended
+  const msc = params.msc; // Media Status Code: C=Connected, D=Disconnected, T=Timeout, M=Media changed
   const ueType = params.ue_type || params.ueType; // User Event Type
   const startTime = params.start_time || params.startTime;
   const endTime = params.end_time || params.endTime;
 
-  // Call ended
+  // Group call status code (sc)
+  if (sc === 'E') {
+    return 'GCALL_EVT_END'; // Group call ended
+  }
+  if (sc === 'S') {
+    return 'GCALL_EVT_START'; // Group call started
+  }
+
+  // Media status code (msc) - participant events
+  if (msc === 'C') {
+    return 'GCALL_EVT_USER_JOIN'; // Participant connected
+  }
+  if (msc === 'D' || msc === 'T') {
+    return 'GCALL_EVT_USER_LEAVE'; // Participant disconnected or timeout
+  }
+  if (msc === 'M') {
+    return 'GCALL_EVT_MEDIA_CHANGE'; // Media changed (e.g., audio <-> video)
+  }
+
+  // Fallback: check timestamps
   if (endTime && endTime !== '0' && endTime !== 0) {
-    return 'CALL_END';
+    return 'GCALL_EVT_END';
   }
-
-  // Call started
   if (startTime && startTime !== '0' && startTime !== 0) {
-    return 'CALL_START';
+    return 'GCALL_EVT_START';
   }
 
-  // User joined
-  if (ueType === 'JOIN' || sc === 'S') {
-    return 'USER_JOIN';
+  // Legacy user event type
+  if (ueType === 'JOIN') {
+    return 'GCALL_EVT_USER_JOIN';
   }
-
-  // User left
   if (ueType === 'LEAVE') {
-    return 'USER_LEAVE';
+    return 'GCALL_EVT_USER_LEAVE';
   }
 
-  // Default: generic callback
-  return 'CALLBACK_RECEIVED';
+  // Default: generic callback with status change
+  if (sc === 'C') {
+    return 'GCALL_EVT_STATUS_CHANGE'; // Status changed
+  }
+
+  return 'GCALL_EVT_CALLBACK';
 }
