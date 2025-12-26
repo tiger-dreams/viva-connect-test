@@ -1,8 +1,5 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
-
-export const config = {
-  runtime: 'edge',
-};
 
 interface PlanetKitCallback {
   eventType: string;
@@ -14,12 +11,15 @@ interface PlanetKitCallback {
   [key: string]: any;
 }
 
-export default async function handler(request: Request) {
+export default async function handler(
+  request: VercelRequest,
+  response: VercelResponse
+) {
   // Allow both GET and POST requests
   if (request.method !== 'GET' && request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
+    return response.status(405).json({
+      success: false,
+      error: 'Method not allowed'
     });
   }
 
@@ -30,8 +30,7 @@ export default async function handler(request: Request) {
     // Parse request data based on method
     if (request.method === 'GET') {
       // Parse query parameters for GET requests
-      const url = new URL(request.url);
-      rawParams = Object.fromEntries(url.searchParams);
+      rawParams = request.query;
       console.log('[PlanetKit Callback] Received GET callback:', rawParams);
 
       // Map PlanetKit parameters to our format
@@ -41,12 +40,12 @@ export default async function handler(request: Request) {
         roomId: rawParams.id || rawParams.room_id || rawParams.roomId,
         userId: rawParams.user_id || rawParams.userId,
         displayName: rawParams.display_name || rawParams.displayName,
-        timestamp: parseInt(rawParams.ts || rawParams.timestamp || Date.now().toString()),
+        timestamp: parseInt((rawParams.ts || rawParams.timestamp || Date.now()).toString()),
         ...rawParams, // Store all parameters
       };
     } else {
       // Parse JSON body for POST requests
-      rawParams = await request.json();
+      rawParams = request.body;
       console.log('[PlanetKit Callback] Received POST callback:', rawParams);
 
       // Map PlanetKit parameters to our format (support both snake_case and camelCase)
@@ -56,7 +55,7 @@ export default async function handler(request: Request) {
         roomId: rawParams.id || rawParams.room_id || rawParams.roomId,
         userId: rawParams.user_id || rawParams.userId,
         displayName: rawParams.display_name || rawParams.displayName,
-        timestamp: parseInt(rawParams.ts || rawParams.timestamp || Date.now().toString()),
+        timestamp: parseInt((rawParams.ts || rawParams.timestamp || Date.now()).toString()),
         ...rawParams, // Store all parameters
       };
     }
@@ -108,45 +107,30 @@ export default async function handler(request: Request) {
 
     // Send admin notifications for new room creation (non-blocking)
     if (eventType === 'GCALL_EVT_START') {
-      // Extract base URL from current request
-      const url = new URL(request.url);
-      const baseUrl = `${url.protocol}//${url.host}`;
+      const baseUrl = request.headers.origin || `https://${request.headers.host}`;
 
-      // Fire and forget - don't wait for notifications to complete
+      // Fire and forget - don't wait for notifications
       sendAdminNotifications({
         roomId: roomId || 'Unknown',
         displayName: displayName || 'Unknown User',
         timestamp: timestamp || Date.now(),
         baseUrl,
       }).catch((notificationError) => {
-        // Log error but don't fail the callback
         console.error('[PlanetKit Callback] Failed to send admin notifications:', notificationError);
       });
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Event processed successfully',
-        eventId: result.rows[0]?.id,
-      }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return response.status(200).json({
+      success: true,
+      message: 'Event processed successfully',
+      eventId: result.rows[0]?.id,
+    });
   } catch (error: any) {
     console.error('[PlanetKit Callback] Error:', error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || 'Internal server error',
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return response.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error',
+    });
   }
 }
 
