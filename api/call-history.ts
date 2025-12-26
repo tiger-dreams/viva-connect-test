@@ -137,18 +137,24 @@ export default async function handler(
       call_count: parseInt(row.call_count),
     }));
 
+    // 추가 안전장치: 클라이언트 사이드에서도 현재 사용자 제외
+    const filteredCallHistory = callHistory.filter(u => u.user_id !== userId);
+
     console.log('[call-history] Other users found:', {
       count: callHistory.length,
+      filteredCount: filteredCallHistory.length,
+      currentUserId: userId,
       users: callHistory.map(u => ({
         userId: u.user_id,
         displayName: u.display_name,
         callCount: u.call_count,
+        isCurrentUser: u.user_id === userId,
       })),
     });
 
     return response.status(200).json({
       success: true,
-      data: callHistory,
+      data: filteredCallHistory,
     });
   } catch (error) {
     console.error('[call-history] Error fetching call history:', error);

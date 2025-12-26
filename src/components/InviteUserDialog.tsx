@@ -55,7 +55,9 @@ export const InviteUserDialog = ({
       const result = await response.json();
 
       if (result.success) {
-        setUsers(result.data);
+        // 추가 안전장치: 프론트엔드에서도 현재 사용자 제외
+        const filteredUsers = result.data.filter((user: CallHistoryUser) => user.user_id !== currentUserId);
+        setUsers(filteredUsers);
       } else {
         toast({
           title: '통화 이력 조회 실패',
