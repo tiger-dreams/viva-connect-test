@@ -497,7 +497,7 @@ const SetupPage = () => {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">{t.environment}:</span>
                   <span className="font-mono font-semibold">
-                    {planetKitConfig.environment === 'eval' ? 'Evaluation' : planetKitConfig.environment === 'real' ? 'Real' : (language === 'ko' ? '미선택' : 'Not selected')}
+                    {planetKitConfig.environment === 'real' ? 'Real' : 'Evaluation'}
                   </span>
                 </div>
                 <div className="flex justify-between">
