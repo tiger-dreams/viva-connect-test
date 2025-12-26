@@ -54,14 +54,8 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
   };
 
   const generateAccessToken = async () => {
-    if (!config.environment) {
-      toast({
-        title: "환경 선택 필요",
-        description: "Evaluation 또는 Real 환경을 선택해주세요.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Environment is now always 'eval' (set automatically)
+    // No need to check for environment selection
 
     if (!config.roomId) {
       toast({

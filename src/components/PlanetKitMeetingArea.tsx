@@ -103,14 +103,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       return;
     }
 
-    if (!config.environment) {
-      toast({
-        title: "환경 선택 필요",
-        description: "Evaluation 또는 Real 환경을 선택해주세요.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Environment is now always 'eval' (set automatically)
+    // No need to check for environment selection
 
     setConnectionStatus({ connected: false, connecting: true });
 
@@ -427,9 +421,10 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
         setConference(planetKitConference);
       };
 
-      // 선택한 환경의 SDK 사용 (Fallback 없음)
-      const PlanetKitModule = config.environment === 'eval' ? PlanetKitEval : PlanetKitReal;
-      await attemptJoin(PlanetKitModule, config.environment);
+      // 환경은 항상 'eval' (기본값)
+      const environment = config.environment || 'eval';
+      const PlanetKitModule = environment === 'eval' ? PlanetKitEval : PlanetKitReal;
+      await attemptJoin(PlanetKitModule, environment);
 
     } catch (error) {
       setConnectionStatus({
