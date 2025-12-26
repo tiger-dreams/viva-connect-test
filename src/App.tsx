@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import SetupPage from "./pages/SetupPage";
 import PlanetKitMeeting from "./pages/PlanetKitMeeting";
 import MeetingPage from "./pages/MeetingPage";
+import AdminLogs from "./pages/AdminLogs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,9 @@ const App = () => (
 
               {/* 기존 미팅 페이지 (호환성 유지) */}
               <Route path="/meeting" element={<MeetingPage />} />
+
+              {/* 관리 페이지 */}
+              <Route path="/admin/logs" element={<AdminLogs />} />
 
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
