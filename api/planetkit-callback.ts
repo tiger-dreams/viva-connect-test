@@ -15,8 +15,8 @@ interface PlanetKitCallback {
 }
 
 export default async function handler(request: Request) {
-  // Only allow POST requests
-  if (request.method !== 'POST') {
+  // Allow both GET and POST requests
+  if (request.method !== 'GET' && request.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
       headers: { 'Content-Type': 'application/json' },
@@ -24,15 +24,42 @@ export default async function handler(request: Request) {
   }
 
   try {
-    // Parse request body
-    const body = await request.json() as PlanetKitCallback;
+    let body: PlanetKitCallback;
+    let rawParams: any;
 
-    console.log('[PlanetKit Callback] Received event:', {
-      eventType: body.eventType,
-      roomId: body.roomId,
-      userId: body.userId,
-      timestamp: body.timestamp,
-    });
+    // Parse request data based on method
+    if (request.method === 'GET') {
+      // Parse query parameters for GET requests
+      const url = new URL(request.url);
+      rawParams = Object.fromEntries(url.searchParams);
+      console.log('[PlanetKit Callback] Received GET callback:', rawParams);
+
+      // Map PlanetKit parameters to our format
+      body = {
+        eventType: determineEventType(rawParams),
+        serviceId: rawParams.svc_id || rawParams.service_id || rawParams.svcId,
+        roomId: rawParams.id || rawParams.room_id || rawParams.roomId,
+        userId: rawParams.user_id || rawParams.userId,
+        displayName: rawParams.display_name || rawParams.displayName,
+        timestamp: parseInt(rawParams.ts || rawParams.timestamp || Date.now().toString()),
+        ...rawParams, // Store all parameters
+      };
+    } else {
+      // Parse JSON body for POST requests
+      rawParams = await request.json();
+      console.log('[PlanetKit Callback] Received POST callback:', rawParams);
+
+      // Map PlanetKit parameters to our format (support both snake_case and camelCase)
+      body = {
+        eventType: rawParams.eventType || rawParams.event_type || determineEventType(rawParams),
+        serviceId: rawParams.svc_id || rawParams.service_id || rawParams.svcId,
+        roomId: rawParams.id || rawParams.room_id || rawParams.roomId,
+        userId: rawParams.user_id || rawParams.userId,
+        displayName: rawParams.display_name || rawParams.displayName,
+        timestamp: parseInt(rawParams.ts || rawParams.timestamp || Date.now().toString()),
+        ...rawParams, // Store all parameters
+      };
+    }
 
     // Extract key fields
     const {
@@ -45,16 +72,15 @@ export default async function handler(request: Request) {
       ...additionalData
     } = body;
 
-    // Validate required fields
-    if (!eventType) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'eventType is required' }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
+    // Log the parsed data
+    console.log('[PlanetKit Callback] Parsed data:', {
+      eventType,
+      serviceId,
+      roomId,
+      userId,
+      displayName,
+      timestamp,
+    });
 
     // Store event in database
     const result = await sql`
@@ -104,4 +130,41 @@ export default async function handler(request: Request) {
       }
     );
   }
+}
+
+// Determine event type from PlanetKit callback parameters
+function determineEventType(params: any): string {
+  // If eventType is explicitly provided, use it
+  if (params.eventType || params.event_type) {
+    return params.eventType || params.event_type;
+  }
+
+  // Support both snake_case and camelCase
+  const sc = params.sc; // Status Code
+  const ueType = params.ue_type || params.ueType; // User Event Type
+  const startTime = params.start_time || params.startTime;
+  const endTime = params.end_time || params.endTime;
+
+  // Call ended
+  if (endTime && endTime !== '0' && endTime !== 0) {
+    return 'CALL_END';
+  }
+
+  // Call started
+  if (startTime && startTime !== '0' && startTime !== 0) {
+    return 'CALL_START';
+  }
+
+  // User joined
+  if (ueType === 'JOIN' || sc === 'S') {
+    return 'USER_JOIN';
+  }
+
+  // User left
+  if (ueType === 'LEAVE') {
+    return 'USER_LEAVE';
+  }
+
+  // Default: generic callback
+  return 'CALLBACK_RECEIVED';
 }

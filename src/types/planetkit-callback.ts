@@ -1,5 +1,36 @@
 // PlanetKit Callback Event Types
 
+// PlanetKit 실제 콜백 파라미터 구조
+export interface PlanetKitCallbackParams {
+  sid?: string;              // Session ID
+  svc_id?: string;           // Service ID
+  id?: string;               // Room/Call ID
+  user_svc_id?: string;      // User Service ID
+  user_id?: string;          // User ID
+  host_svc_id?: string;      // Host Service ID
+  host_id?: string;          // Host ID
+  sc?: string;               // Status Code (S=Success, E=Error, etc.)
+  setup_time?: string;       // Setup timestamp
+  start_time?: string;       // Start timestamp
+  end_time?: string;         // End timestamp
+  online?: string;           // Online status
+  media_type?: string;       // Media type (A=Audio, V=Video, AV=Both)
+  msc?: string;              // Media status code
+  ts?: string;               // Timestamp
+  rel_code?: string;         // Release code
+  rel_code_str?: string;     // Release code string
+  ue_type?: string;          // User event type
+  client_address?: string;   // Client IP address
+  display_name?: string;     // Display name
+  rc_idc?: string;           // Return code indicator
+  disconnect_reason?: string; // Disconnect reason
+  releaser_type?: string;    // Releaser type
+  billing_sec?: string;      // Billing seconds
+  app_svr_data?: string;     // App server data
+  stid?: string;             // Sub-transaction ID
+  [key: string]: any;        // Allow additional fields
+}
+
 export interface PlanetKitCallbackEvent {
   eventType: string;
   serviceId?: string;
