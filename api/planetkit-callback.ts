@@ -214,7 +214,7 @@ async function sendAdminNotifications(params: {
 
   console.log('[Admin Notifications] Sending notifications to admins:', adminUids);
 
-  // Format timestamp
+  // Format timestamp in KST (Korea Standard Time)
   const date = new Date(timestamp);
   const formattedTime = date.toLocaleString('ko-KR', {
     year: 'numeric',
@@ -223,6 +223,7 @@ async function sendAdminNotifications(params: {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: 'Asia/Seoul', // Force KST timezone
   });
 
   // Get LINE Channel Access Token
