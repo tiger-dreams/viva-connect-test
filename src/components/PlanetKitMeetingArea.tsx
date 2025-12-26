@@ -9,6 +9,7 @@ import {
   Activity,
   Clock,
   Users,
+  Share2,
 } from "lucide-react";
 import { PlanetKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,7 @@ import { TileView, TileParticipant } from "@/components/TileView";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getTranslations } from "@/utils/translations";
 import { LanguageSelector } from "@/components/LanguageSelector";
+import { useLiff } from "@/contexts/LiffContext";
 // PlanetKit 환경별 빌드 import
 import * as PlanetKitReal from "@line/planet-kit";
 import * as PlanetKitEval from "@line/planet-kit/dist/planet-kit-eval";
@@ -40,6 +42,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
   const { toast } = useToast();
   const { language } = useLanguage();
   const t = getTranslations(language);
+  const { liffId } = useLiff();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     connected: false,
     connecting: false
@@ -548,6 +551,41 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
     }
   };
 
+  // 초대 URL 생성 및 복사
+  const shareInviteUrl = () => {
+    if (!config.roomId || !liffId) {
+      toast({
+        title: language === 'ko' ? '초대 링크 생성 실패' : 'Failed to Create Invite Link',
+        description: language === 'ko' ? 'Room ID 또는 LIFF ID가 없습니다.' : 'Room ID or LIFF ID is missing.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // LINE 앱 내부용 딥링크
+    const lineAppUrl = `line://app/${liffId}?room=${encodeURIComponent(config.roomId)}`;
+    // 웹 브라우저용 LIFF URL
+    const webUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(config.roomId)}`;
+
+    // 클립보드에 복사 (LINE 앱용 우선)
+    const urlToCopy = lineAppUrl;
+
+    navigator.clipboard.writeText(urlToCopy).then(() => {
+      toast({
+        title: language === 'ko' ? '초대 링크 복사 완료' : 'Invite Link Copied',
+        description: language === 'ko'
+          ? `"${config.roomId}" 룸 초대 링크가 클립보드에 복사되었습니다.`
+          : `Invite link for "${config.roomId}" room has been copied to clipboard.`,
+      });
+    }).catch(() => {
+      // 클립보드 복사 실패 시 URL을 alert로 표시
+      const message = language === 'ko'
+        ? `초대 링크:\n\nLINE 앱용:\n${lineAppUrl}\n\n웹 브라우저용:\n${webUrl}`
+        : `Invite Link:\n\nFor LINE App:\n${lineAppUrl}\n\nFor Web Browser:\n${webUrl}`;
+      alert(message);
+    });
+  };
+
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
@@ -702,6 +740,16 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
                 ) : (
                   <MicOff className="w-6 h-6" />
                 )}
+              </Button>
+
+              {/* 초대 링크 공유 */}
+              <Button
+                onClick={shareInviteUrl}
+                size="lg"
+                className="w-14 h-14 rounded-full bg-white/20 hover:bg-white/30 text-white"
+                title={language === 'ko' ? '초대 링크 복사' : 'Copy Invite Link'}
+              >
+                <Share2 className="w-6 h-6" />
               </Button>
 
               {/* 연결 해제 */}

@@ -1,5 +1,5 @@
-import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 
 const SetupPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { language } = useLanguage();
   const t = getTranslations(language);
@@ -26,6 +27,7 @@ const SetupPage = () => {
   const [liffIdInput, setLiffIdInput] = useState('');
   const [customRoomId, setCustomRoomId] = useState('');
   const [selectedRoomType, setSelectedRoomType] = useState<string>(''); // 'japan', 'korea', 'taiwan', 'thailand', 'custom', or ''
+  const autoTokenGeneratedRef = useRef(false); // 토큰 자동 생성 중복 방지
 
   // Initialize selectedRoomType based on current config
   const presetRooms = ['japan', 'korea', 'taiwan', 'thailand'];
@@ -70,6 +72,78 @@ const SetupPage = () => {
       }));
     }
   }, [isLoggedIn, profile]);
+
+  // URL 파라미터에서 room 읽어서 자동 선택
+  useEffect(() => {
+    const roomParam = searchParams.get('room');
+    if (roomParam) {
+      const roomValue = roomParam.toLowerCase();
+      console.log('[SetupPage] Deep link room parameter detected:', roomValue);
+
+      if (presetRooms.includes(roomValue)) {
+        // Preset room (japan, korea, taiwan, thailand)
+        setSelectedRoomType(roomValue);
+        setPlanetKitConfig(prev => ({ ...prev, roomId: roomValue, accessToken: '' }));
+        console.log('[SetupPage] Auto-selected preset room:', roomValue);
+      } else {
+        // Custom room
+        setSelectedRoomType('custom');
+        setCustomRoomId(roomParam); // 원본 대소문자 유지
+        setPlanetKitConfig(prev => ({ ...prev, roomId: roomParam, accessToken: '' }));
+        console.log('[SetupPage] Auto-selected custom room:', roomParam);
+      }
+    }
+  }, [searchParams]); // searchParams 변경 시 실행
+
+  // 자동 토큰 생성 및 미팅 참여
+  useEffect(() => {
+    const roomParam = searchParams.get('room');
+
+    // 조건: URL에 room 파라미터가 있고, 로그인 완료, 토큰이 없고, 아직 자동 생성하지 않음
+    if (roomParam && isLoggedIn && profile && planetKitConfig.roomId && !planetKitConfig.accessToken && !autoTokenGeneratedRef.current) {
+      // 필수 설정이 모두 있는지 확인
+      if (planetKitConfig.serviceId && planetKitConfig.apiKey && planetKitConfig.userId) {
+        autoTokenGeneratedRef.current = true; // 중복 실행 방지
+        console.log('[SetupPage] Auto-generating token for deep link entry...');
+
+        // 토큰 생성
+        generatePlanetKitToken(
+          planetKitConfig.serviceId,
+          planetKitConfig.apiKey,
+          planetKitConfig.userId,
+          planetKitConfig.roomId,
+          3600,
+          planetKitConfig.apiSecret
+        ).then(token => {
+          setPlanetKitConfig({
+            ...planetKitConfig,
+            accessToken: token
+          });
+          console.log('[SetupPage] Token auto-generated successfully');
+
+          // 토큰 생성 성공 toast
+          toast({
+            title: language === 'ko' ? '자동 입장 준비 완료' : 'Auto-entry Ready',
+            description: language === 'ko' ? `${planetKitConfig.roomId} 룸에 입장할 수 있습니다.` : `Ready to join ${planetKitConfig.roomId} room.`,
+          });
+
+          // 0.5초 후 자동으로 미팅 페이지로 이동
+          setTimeout(() => {
+            console.log('[SetupPage] Auto-navigating to meeting page...');
+            navigate('/planetkit_meeting');
+          }, 500);
+        }).catch(error => {
+          console.error('[SetupPage] Auto token generation failed:', error);
+          autoTokenGeneratedRef.current = false; // 실패 시 다시 시도 가능하도록
+          toast({
+            title: language === 'ko' ? '자동 토큰 생성 실패' : 'Auto Token Generation Failed',
+            description: error instanceof Error ? error.message : (language === 'ko' ? '토큰 생성 중 오류가 발생했습니다.' : 'An error occurred while generating the token.'),
+            variant: "destructive",
+          });
+        });
+      }
+    }
+  }, [isLoggedIn, profile, planetKitConfig.roomId, planetKitConfig.accessToken, planetKitConfig.serviceId, planetKitConfig.apiKey, planetKitConfig.userId, searchParams]);
 
   const handleGenerateToken = async () => {
     // Environment is now always 'eval' (set automatically in useEffect)
