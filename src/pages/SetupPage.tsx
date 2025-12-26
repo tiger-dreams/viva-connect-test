@@ -40,6 +40,21 @@ const SetupPage = () => {
     }
   }, []);
 
+  // 환경을 Evaluation으로 자동 설정 (컴포넌트 마운트 시 1회만)
+  useEffect(() => {
+    // 환경이 설정되지 않았거나 real인 경우에만 eval로 강제 설정
+    if (!planetKitConfig.environment || planetKitConfig.environment === 'real') {
+      setPlanetKitConfig({
+        ...planetKitConfig,
+        environment: 'eval',
+        serviceId: import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || planetKitConfig.serviceId,
+        apiKey: import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || planetKitConfig.apiKey,
+        apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || planetKitConfig.apiSecret,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 빈 배열로 마운트 시 1회만 실행
+
   // 페이지 타이틀 업데이트
   useEffect(() => {
     document.title = language === 'ko' ? 'WebPlanet SDK 테스트' : 'WebPlanet SDK Test';
@@ -333,63 +348,18 @@ const SetupPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <RadioGroup
-                value={planetKitConfig.environment}
-                onValueChange={(value: 'eval' | 'real') => {
-                  // 환경 변경 시 해당 환경의 설정으로 업데이트
-                  const newConfig = {
-                    ...planetKitConfig,
-                    environment: value,
-                    serviceId: value === 'eval'
-                      ? import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || ''
-                      : import.meta.env.VITE_PLANETKIT_REAL_SERVICE_ID || '',
-                    apiKey: value === 'eval'
-                      ? import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || ''
-                      : import.meta.env.VITE_PLANETKIT_REAL_API_KEY || '',
-                    apiSecret: value === 'eval'
-                      ? import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || ''
-                      : import.meta.env.VITE_PLANETKIT_REAL_API_SECRET || '',
-                    accessToken: '' // 환경 변경 시 토큰 초기화
-                  };
-                  setPlanetKitConfig(newConfig);
-                }}
-                className="grid grid-cols-2 gap-3"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="eval" id="env-eval" />
-                  <Label htmlFor="env-eval" className="flex-1 cursor-pointer">
-                    <div className="flex flex-col">
-                      <span className="font-medium">{t.evaluationEnv}</span>
-                      <span className="text-xs text-muted-foreground">{language === 'ko' ? '테스트 환경' : 'Testing'}</span>
-                    </div>
-                  </Label>
+              {/* Environment Info - Fixed to Evaluation */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <Server className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span className="font-semibold text-blue-800 dark:text-blue-200">
+                    {language === 'ko' ? 'Evaluation 환경 사용 중' : 'Using Evaluation Environment'}
+                  </span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="real" id="env-real" />
-                  <Label htmlFor="env-real" className="flex-1 cursor-pointer">
-                    <div className="flex flex-col">
-                      <span className="font-medium">{t.realEnv}</span>
-                      <span className="text-xs text-muted-foreground">{language === 'ko' ? '프로덕션 환경' : 'Production'}</span>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
-              {planetKitConfig.environment && (
-                <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
-                  <p className="text-blue-800 dark:text-blue-200">
-                    {planetKitConfig.environment === 'eval'
-                      ? '📍 Evaluation: voipnx-saturn.line-apps-rc.com'
-                      : '📍 Real: voipnx-saturn.line-apps.com'}
-                  </p>
-                </div>
-              )}
-              {!planetKitConfig.environment && (
-                <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950 p-2 rounded border border-amber-200 dark:border-amber-800">
-                  <p className="text-amber-800 dark:text-amber-200">
-                    {t.pleaseSelectEnvironment}
-                  </p>
-                </div>
-              )}
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  📍 voipnx-saturn.line-apps-rc.com ({language === 'ko' ? '테스트 환경' : 'Testing Environment'})
+                </p>
+              </div>
             </CardContent>
           </Card>
 
