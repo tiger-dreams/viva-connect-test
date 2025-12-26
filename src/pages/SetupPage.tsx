@@ -115,10 +115,10 @@ const SetupPage = () => {
           3600,
           planetKitConfig.apiSecret
         ).then(token => {
-          setPlanetKitConfig({
-            ...planetKitConfig,
+          setPlanetKitConfig(prev => ({
+            ...prev,
             accessToken: token
-          });
+          }));
           console.log('[SetupPage] Token auto-generated successfully');
 
           // 토큰 생성 성공 toast
