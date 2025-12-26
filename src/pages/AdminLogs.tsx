@@ -24,7 +24,7 @@ const AdminLogs = () => {
   // Filters
   const [days, setDays] = useState('7');
   const [roomId, setRoomId] = useState('');
-  const [eventType, setEventType] = useState('');
+  const [eventType, setEventType] = useState('all');
   const [userId, setUserId] = useState('');
   const [limit] = useState(50);
   const [offset, setOffset] = useState(0);
@@ -43,7 +43,7 @@ const AdminLogs = () => {
       });
 
       if (roomId) params.append('roomId', roomId);
-      if (eventType) params.append('eventType', eventType);
+      if (eventType && eventType !== 'all') params.append('eventType', eventType);
       if (userId) params.append('userId', userId);
 
       const response = await fetch(`/api/logs?${params.toString()}`);
@@ -159,7 +159,7 @@ const AdminLogs = () => {
                     <SelectValue placeholder={language === 'ko' ? '전체' : 'All'} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">{language === 'ko' ? '전체' : 'All'}</SelectItem>
+                    <SelectItem value="all">{language === 'ko' ? '전체' : 'All'}</SelectItem>
                     <SelectItem value="GCALL_EVT_USER_JOIN">USER_JOIN</SelectItem>
                     <SelectItem value="GCALL_EVT_USER_LEAVE">USER_LEAVE</SelectItem>
                     <SelectItem value="GCALL_EVT_START">CALL_START</SelectItem>
