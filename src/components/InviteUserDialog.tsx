@@ -137,6 +137,18 @@ export const InviteUserDialog = ({
         return;
       }
 
+      // Check if shareTargetPicker API is available
+      if (!liff.isApiAvailable('shareTargetPicker')) {
+        console.error('[shareTargetPicker] API is not available in this environment');
+        toast({
+          title: 'Feature Not Available',
+          description: 'Share Target Picker is not available. Please enable it in LINE Developers Console or use a supported LINE version.',
+          variant: 'destructive',
+        });
+        setSharingToFriends(false);
+        return;
+      }
+
       // Build LIFF URL
       const liffUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(roomId)}`;
 
@@ -144,6 +156,7 @@ export const InviteUserDialog = ({
         liffUrl,
         roomId,
         userName: currentUserName,
+        isApiAvailable: true,
       });
 
       const result = await liff.shareTargetPicker(
