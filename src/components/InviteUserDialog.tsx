@@ -11,8 +11,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Send, UserPlus, Clock, Users, CheckSquare } from 'lucide-react';
+import { Loader2, Send, UserPlus, Clock, Users, CheckSquare, Share2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useLiff } from '@/contexts/LiffContext';
 
 interface CallHistoryUser {
   user_id: string;
@@ -46,11 +47,13 @@ export const InviteUserDialog = ({
   liffId,
 }: InviteUserDialogProps) => {
   const { toast } = useToast();
+  const { liff } = useLiff();
   const [users, setUsers] = useState<CallHistoryUser[]>([]);
   const [appUsers, setAppUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [appUsersLoading, setAppUsersLoading] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
+  const [sharingToFriends, setSharingToFriends] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -116,6 +119,53 @@ export const InviteUserDialog = ({
       console.error('Failed to fetch app users:', error);
     } finally {
       setAppUsersLoading(false);
+    }
+  };
+
+  const shareToLineFriends = async () => {
+    setSharingToFriends(true);
+    try {
+      // Build LIFF URL
+      const liffUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(roomId)}`;
+
+      const result = await liff.shareTargetPicker(
+        [
+          {
+            type: 'text',
+            text: `🎥 ${currentUserName} invited you to a video call!\n\nRoom: ${roomId}\n\nTap the link to join:\n${liffUrl}`,
+          },
+        ],
+        {
+          isMultiple: true,
+        }
+      );
+
+      if (result) {
+        // Successfully sent
+        console.log(`[${result.status}] Message sent via shareTargetPicker!`);
+        toast({
+          title: '초대 전송 완료',
+          description: 'LINE 친구들에게 초대 메시지를 보냈습니다.',
+        });
+        onOpenChange(false);
+      } else {
+        // User canceled
+        console.log('ShareTargetPicker was closed by user');
+        toast({
+          title: '초대 취소',
+          description: '친구 선택을 취소했습니다.',
+          variant: 'default',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to share via shareTargetPicker:', error);
+      toast({
+        title: '초대 전송 실패',
+        description: 'LINE 친구 초대 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSharingToFriends(false);
     }
   };
 
@@ -344,18 +394,51 @@ export const InviteUserDialog = ({
           </DialogDescription>
         </DialogHeader>
 
+        {/* LINE Friend Share Button - Always visible */}
+        <div className="p-4 border rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950">
+          <div className="flex items-center gap-3 mb-2">
+            <Share2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+            <h3 className="font-semibold text-green-900 dark:text-green-100">LINE 친구 초대</h3>
+          </div>
+          <p className="text-sm text-green-700 dark:text-green-300 mb-3">
+            LINE 친구 선택 화면에서 원하는 친구들을 선택하여 바로 초대할 수 있습니다.
+          </p>
+          <Button
+            onClick={shareToLineFriends}
+            disabled={sharingToFriends}
+            className="w-full bg-green-600 hover:bg-green-700 text-white"
+          >
+            {sharingToFriends ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                초대 중...
+              </>
+            ) : (
+              <>
+                <Share2 className="w-4 h-4 mr-2" />
+                LINE 친구에게 초대
+              </>
+            )}
+          </Button>
+        </div>
+
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : !hasAnyUsers ? (
           <div className="text-center py-8 text-muted-foreground">
-            <p>초대할 수 있는 사용자가 없습니다.</p>
-            <p className="text-sm mt-2">다른 사용자와 통화한 후 다시 시도해주세요.</p>
+            <p className="text-sm">통화 이력 기반 추천이 없습니다.</p>
           </div>
         ) : (
           <>
-            <ScrollArea className="max-h-[450px] pr-4">
+            <Separator className="my-2" />
+            <div className="mb-3">
+              <h3 className="text-sm font-medium text-muted-foreground">
+                또는 특정 사용자에게 직접 초대 {isAdmin && '(어드민 전용)'}
+              </h3>
+            </div>
+            <ScrollArea className="max-h-[350px] pr-4">
               <div className="space-y-4">
                 {/* Call History Section */}
                 {renderUserList(
