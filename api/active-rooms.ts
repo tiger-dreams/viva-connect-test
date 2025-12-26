@@ -54,6 +54,7 @@ export default async function handler(request: Request) {
       last_activity: string;
       call_start_time: string | null;
       call_ended: boolean;
+      online_count: number; // Track online count from callback
     }>();
 
     // Process events in chronological order (ASC) to build current state
@@ -66,6 +67,7 @@ export default async function handler(request: Request) {
           last_activity: event.created_at,
           call_start_time: null,
           call_ended: false,
+          online_count: 0,
         });
       }
 
@@ -73,6 +75,11 @@ export default async function handler(request: Request) {
 
       // Always update last activity time
       room.last_activity = event.created_at;
+
+      // Extract online count from callback data (stored as string)
+      const eventData = event.data || {};
+      const onlineCount = parseInt(eventData.online || '0');
+      room.online_count = onlineCount;
 
       // Handle different event types
       switch (event.event_type) {
@@ -83,6 +90,7 @@ export default async function handler(request: Request) {
 
         case 'GCALL_EVT_END':
           room.call_ended = true;
+          room.online_count = 0;
           room.participants.clear(); // Clear all participants when call ends
           break;
 
@@ -110,16 +118,14 @@ export default async function handler(request: Request) {
       }
     }
 
-    // Build response - only include rooms with active participants or recent activity
+    // Build response - only include rooms with active participants
     const activeRooms: ActiveRoom[] = [];
 
     for (const [roomId, roomData] of roomMap.entries()) {
       // Include room if:
-      // 1. It has participants, OR
-      // 2. It has recent activity (within query time window) AND hasn't ended
-      const shouldInclude =
-        roomData.participants.size > 0 ||
-        (!roomData.call_ended && roomData.last_activity);
+      // 1. online_count > 0 (from PlanetKit callback), OR
+      // 2. It has tracked participants in our map
+      const shouldInclude = roomData.online_count > 0 || roomData.participants.size > 0;
 
       if (shouldInclude) {
         const participants = Array.from(roomData.participants.entries()).map(
@@ -130,9 +136,15 @@ export default async function handler(request: Request) {
           })
         );
 
+        // Use online_count as the authoritative participant count
+        // Fall back to tracked participants if online_count is 0
+        const participantCount = roomData.online_count > 0
+          ? roomData.online_count
+          : roomData.participants.size;
+
         activeRooms.push({
           room_id: roomId,
-          participant_count: roomData.participants.size,
+          participant_count: participantCount,
           participants,
           last_activity: roomData.last_activity,
           call_start_time: roomData.call_start_time,
