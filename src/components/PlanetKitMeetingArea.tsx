@@ -18,6 +18,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { getTranslations } from "@/utils/translations";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { useLiff } from "@/contexts/LiffContext";
+import { InviteUserDialog } from "@/components/InviteUserDialog";
 // PlanetKit 환경별 빌드 import
 import * as PlanetKitReal from "@line/planet-kit";
 import * as PlanetKitEval from "@line/planet-kit/dist/planet-kit-eval";
@@ -31,7 +32,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
   const { toast } = useToast();
   const { language } = useLanguage();
   const t = getTranslations(language);
-  const { liffId, liff } = useLiff();
+  const { liffId, liff, profile } = useLiff();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     connected: false,
     connecting: false
@@ -41,6 +42,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
   const [callDuration, setCallDuration] = useState<string>("00:00:00");
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
 
   // 비디오 엘리먼트 refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -540,8 +542,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
     }
   };
 
-  // 초대 링크 공유 (LINE 친구 목록)
-  const shareInviteUrl = async () => {
+  // 초대 링크 공유 (통화 이력 사용자 선택)
+  const shareInviteUrl = () => {
     if (!config.roomId || !liffId) {
       toast({
         title: language === 'ko' ? '초대 링크 생성 실패' : 'Failed to Create Invite Link',
@@ -551,87 +553,17 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       return;
     }
 
-    // shareTargetPicker API 사용 가능 여부 체크
-    const canUseShareTargetPicker = liff.isInClient() && liff.isApiAvailable('shareTargetPicker');
-
-    console.log('[ShareInvite] API availability check:', {
-      isInClient: liff.isInClient(),
-      isApiAvailable: liff.isApiAvailable('shareTargetPicker'),
-      canUseShareTargetPicker,
-    });
-
-    // shareTargetPicker를 사용할 수 없는 경우 클립보드 복사로 폴백
-    if (!canUseShareTargetPicker) {
-      const lineAppUrl = `line://app/${liffId}?room=${encodeURIComponent(config.roomId)}`;
-      const webUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(config.roomId)}`;
-
-      navigator.clipboard.writeText(lineAppUrl).then(() => {
-        toast({
-          title: language === 'ko' ? '초대 링크 복사 완료' : 'Invite Link Copied',
-          description: language === 'ko'
-            ? `"${config.roomId}" 룸 초대 링크가 클립보드에 복사되었습니다.`
-            : `Invite link for "${config.roomId}" room has been copied to clipboard.`,
-        });
-      }).catch(() => {
-        const message = language === 'ko'
-          ? `초대 링크:\n\nLINE 앱용:\n${lineAppUrl}\n\n웹 브라우저용:\n${webUrl}`
-          : `Invite Link:\n\nFor LINE App:\n${lineAppUrl}\n\nFor Web Browser:\n${webUrl}`;
-        alert(message);
+    if (!profile?.userId) {
+      toast({
+        title: language === 'ko' ? '사용자 정보 없음' : 'No User Info',
+        description: language === 'ko' ? '로그인 정보를 확인할 수 없습니다.' : 'Cannot verify login information.',
+        variant: 'destructive',
       });
       return;
     }
 
-    // LINE 앱 내부이고 shareTargetPicker를 사용할 수 있는 경우
-    try {
-      const liffUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(config.roomId)}`;
-
-      console.log('[ShareInvite] Attempting to share:', { liffUrl, isInClient: liff.isInClient() });
-
-      const result = await liff.shareTargetPicker([
-        {
-          type: 'text',
-          text: language === 'ko'
-            ? `🎥 PlanetKit 화상 통화 초대\n\n룸 이름: ${config.roomId}\n\n아래 링크를 눌러 참여하세요:\n${liffUrl}`
-            : `🎥 PlanetKit Video Call Invitation\n\nRoom: ${config.roomId}\n\nTap the link below to join:\n${liffUrl}`
-        }
-      ]);
-
-      console.log('[ShareInvite] Share result:', result);
-
-      if (result) {
-        toast({
-          title: language === 'ko' ? '초대 링크 전송 완료' : 'Invite Link Sent',
-          description: language === 'ko'
-            ? `"${config.roomId}" 룸 초대 링크를 전송했습니다.`
-            : `Invite link for "${config.roomId}" room has been sent.`,
-        });
-      } else {
-        // 사용자가 취소한 경우
-        toast({
-          title: language === 'ko' ? '전송 취소' : 'Cancelled',
-          description: language === 'ko' ? '초대 링크 전송이 취소되었습니다.' : 'Invite link sending was cancelled.',
-          variant: 'default',
-        });
-      }
-    } catch (error: any) {
-      console.error('[ShareInvite] Error details:', {
-        error,
-        message: error?.message,
-        code: error?.code,
-        liffError: error?.liffError,
-        isInClient: liff.isInClient(),
-      });
-
-      const errorMessage = error?.message || error?.toString() || 'Unknown error';
-
-      toast({
-        title: language === 'ko' ? '공유 실패' : 'Share Failed',
-        description: language === 'ko'
-          ? `에러: ${errorMessage}`
-          : `Error: ${errorMessage}`,
-        variant: 'destructive',
-      });
-    }
+    // 통화 이력 사용자 선택 다이얼로그 열기
+    setInviteDialogOpen(true);
   };
 
   // 컴포넌트 언마운트 시 정리
@@ -812,6 +744,16 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
           </div>
         </>
       )}
+
+      {/* 초대 사용자 선택 다이얼로그 */}
+      <InviteUserDialog
+        open={inviteDialogOpen}
+        onOpenChange={setInviteDialogOpen}
+        currentUserId={profile?.userId || ''}
+        currentUserName={config.displayName || profile?.displayName || ''}
+        roomId={config.roomId}
+        liffId={liffId || ''}
+      />
     </div>
   );
 };
