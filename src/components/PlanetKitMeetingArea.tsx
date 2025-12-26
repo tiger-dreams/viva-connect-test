@@ -31,7 +31,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
   const { toast } = useToast();
   const { language } = useLanguage();
   const t = getTranslations(language);
-  const { liffId } = useLiff();
+  const { liffId, liff } = useLiff();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     connected: false,
     connecting: false
@@ -540,8 +540,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
     }
   };
 
-  // 초대 URL 생성 및 복사
-  const shareInviteUrl = () => {
+  // 초대 링크 공유 (LINE 친구 목록)
+  const shareInviteUrl = async () => {
     if (!config.roomId || !liffId) {
       toast({
         title: language === 'ko' ? '초대 링크 생성 실패' : 'Failed to Create Invite Link',
@@ -551,28 +551,65 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       return;
     }
 
-    // LINE 앱 내부용 딥링크
-    const lineAppUrl = `line://app/${liffId}?room=${encodeURIComponent(config.roomId)}`;
-    // 웹 브라우저용 LIFF URL
-    const webUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(config.roomId)}`;
+    // LIFF가 초기화되지 않았거나 LINE 앱 내부가 아닌 경우 클립보드 복사로 폴백
+    if (!liff.isInClient()) {
+      const lineAppUrl = `line://app/${liffId}?room=${encodeURIComponent(config.roomId)}`;
+      const webUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(config.roomId)}`;
 
-    // 클립보드에 복사 (LINE 앱용 우선)
-    const urlToCopy = lineAppUrl;
-
-    navigator.clipboard.writeText(urlToCopy).then(() => {
-      toast({
-        title: language === 'ko' ? '초대 링크 복사 완료' : 'Invite Link Copied',
-        description: language === 'ko'
-          ? `"${config.roomId}" 룸 초대 링크가 클립보드에 복사되었습니다.`
-          : `Invite link for "${config.roomId}" room has been copied to clipboard.`,
+      navigator.clipboard.writeText(lineAppUrl).then(() => {
+        toast({
+          title: language === 'ko' ? '초대 링크 복사 완료' : 'Invite Link Copied',
+          description: language === 'ko'
+            ? `"${config.roomId}" 룸 초대 링크가 클립보드에 복사되었습니다.`
+            : `Invite link for "${config.roomId}" room has been copied to clipboard.`,
+        });
+      }).catch(() => {
+        const message = language === 'ko'
+          ? `초대 링크:\n\nLINE 앱용:\n${lineAppUrl}\n\n웹 브라우저용:\n${webUrl}`
+          : `Invite Link:\n\nFor LINE App:\n${lineAppUrl}\n\nFor Web Browser:\n${webUrl}`;
+        alert(message);
       });
-    }).catch(() => {
-      // 클립보드 복사 실패 시 URL을 alert로 표시
-      const message = language === 'ko'
-        ? `초대 링크:\n\nLINE 앱용:\n${lineAppUrl}\n\n웹 브라우저용:\n${webUrl}`
-        : `Invite Link:\n\nFor LINE App:\n${lineAppUrl}\n\nFor Web Browser:\n${webUrl}`;
-      alert(message);
-    });
+      return;
+    }
+
+    // LINE 앱 내부인 경우 친구 목록 공유 사용
+    try {
+      const liffUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(config.roomId)}`;
+
+      const result = await liff.shareTargetPicker([
+        {
+          type: 'text',
+          text: language === 'ko'
+            ? `🎥 PlanetKit 화상 통화 초대\n\n룸 이름: ${config.roomId}\n\n아래 링크를 눌러 참여하세요:\n${liffUrl}`
+            : `🎥 PlanetKit Video Call Invitation\n\nRoom: ${config.roomId}\n\nTap the link below to join:\n${liffUrl}`
+        }
+      ]);
+
+      if (result) {
+        toast({
+          title: language === 'ko' ? '초대 링크 전송 완료' : 'Invite Link Sent',
+          description: language === 'ko'
+            ? `"${config.roomId}" 룸 초대 링크를 전송했습니다.`
+            : `Invite link for "${config.roomId}" room has been sent.`,
+        });
+      } else {
+        // 사용자가 취소한 경우
+        toast({
+          title: language === 'ko' ? '전송 취소' : 'Cancelled',
+          description: language === 'ko' ? '초대 링크 전송이 취소되었습니다.' : 'Invite link sending was cancelled.',
+          variant: 'default',
+        });
+      }
+    } catch (error) {
+      console.error('Share target picker error:', error);
+      toast({
+        title: language === 'ko' ? '공유 실패' : 'Share Failed',
+        description: language === 'ko'
+          ? '초대 링크를 공유할 수 없습니다.'
+          : 'Failed to share invite link.',
+        variant: 'destructive',
+      });
+    }
   };
 
   // 컴포넌트 언마운트 시 정리

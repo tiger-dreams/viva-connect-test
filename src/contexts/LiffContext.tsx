@@ -18,6 +18,7 @@ interface LiffContextType {
   logout: () => void;
   setLiffId: (id: string) => void;
   initializeLiff: (id: string) => Promise<void>;
+  liff: typeof liff;
 }
 
 const LiffContext = createContext<LiffContextType | undefined>(undefined);
@@ -132,7 +133,8 @@ export const LiffProvider = ({ children }: LiffProviderProps) => {
     login,
     logout,
     setLiffId,
-    initializeLiff
+    initializeLiff,
+    liff
   };
 
   return (
