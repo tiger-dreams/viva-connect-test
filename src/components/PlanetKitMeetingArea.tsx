@@ -576,6 +576,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
     try {
       const liffUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(config.roomId)}`;
 
+      console.log('[ShareInvite] Attempting to share:', { liffUrl, isInClient: liff.isInClient() });
+
       const result = await liff.shareTargetPicker([
         {
           type: 'text',
@@ -584,6 +586,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
             : `🎥 PlanetKit Video Call Invitation\n\nRoom: ${config.roomId}\n\nTap the link below to join:\n${liffUrl}`
         }
       ]);
+
+      console.log('[ShareInvite] Share result:', result);
 
       if (result) {
         toast({
@@ -600,13 +604,22 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
           variant: 'default',
         });
       }
-    } catch (error) {
-      console.error('Share target picker error:', error);
+    } catch (error: any) {
+      console.error('[ShareInvite] Error details:', {
+        error,
+        message: error?.message,
+        code: error?.code,
+        liffError: error?.liffError,
+        isInClient: liff.isInClient(),
+      });
+
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+
       toast({
         title: language === 'ko' ? '공유 실패' : 'Share Failed',
         description: language === 'ko'
-          ? '초대 링크를 공유할 수 없습니다.'
-          : 'Failed to share invite link.',
+          ? `에러: ${errorMessage}`
+          : `Error: ${errorMessage}`,
         variant: 'destructive',
       });
     }
