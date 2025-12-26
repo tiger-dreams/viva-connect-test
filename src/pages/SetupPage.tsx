@@ -58,13 +58,13 @@ const SetupPage = () => {
   useEffect(() => {
     // 환경이 설정되지 않았거나 real인 경우에만 eval로 강제 설정
     if (!planetKitConfig.environment || planetKitConfig.environment === 'real') {
-      setPlanetKitConfig({
-        ...planetKitConfig,
+      setPlanetKitConfig(prev => ({
+        ...prev,
         environment: 'eval',
-        serviceId: import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || planetKitConfig.serviceId,
-        apiKey: import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || planetKitConfig.apiKey,
-        apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || planetKitConfig.apiSecret,
-      });
+        serviceId: import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || prev.serviceId,
+        apiKey: import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || prev.apiKey,
+        apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || prev.apiSecret,
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 빈 배열로 마운트 시 1회만 실행
@@ -232,10 +232,10 @@ const SetupPage = () => {
         planetKitConfig.apiSecret
       );
 
-      setPlanetKitConfig({
-        ...planetKitConfig,
+      setPlanetKitConfig(prev => ({
+        ...prev,
         accessToken: token
-      });
+      }));
 
       toast({
         title: t.tokenGeneratedSuccess,
@@ -475,7 +475,7 @@ Status: ${debugInfo.status}`;
                       <Input
                         id="displayName"
                         value={planetKitConfig.displayName || ''}
-                        onChange={(e) => setPlanetKitConfig({ ...planetKitConfig, displayName: e.target.value })}
+                        onChange={(e) => setPlanetKitConfig(prev => ({ ...prev, displayName: e.target.value }))}
                         placeholder={profile?.displayName || t.displayNamePlaceholder}
                         className="h-9 text-sm"
                       />
@@ -699,10 +699,10 @@ Status: ${debugInfo.status}`;
                   setSelectedRoomType(value);
                   if (value === 'custom') {
                     // Custom room selected - use existing customRoomId or empty string
-                    setPlanetKitConfig({ ...planetKitConfig, roomId: customRoomId, accessToken: '' });
+                    setPlanetKitConfig(prev => ({ ...prev, roomId: customRoomId, accessToken: '' }));
                   } else {
                     // Preset room selected - use preset value directly
-                    setPlanetKitConfig({ ...planetKitConfig, roomId: value, accessToken: '' });
+                    setPlanetKitConfig(prev => ({ ...prev, roomId: value, accessToken: '' }));
                   }
                 }}
                 className="grid grid-cols-2 gap-3"
@@ -766,7 +766,7 @@ Status: ${debugInfo.status}`;
                     onChange={(e) => {
                       const value = e.target.value;
                       setCustomRoomId(value);
-                      setPlanetKitConfig({ ...planetKitConfig, roomId: value, accessToken: '' });
+                      setPlanetKitConfig(prev => ({ ...prev, roomId: value, accessToken: '' }));
                     }}
                     placeholder={t.roomCustomPlaceholder}
                     className="font-mono"
@@ -839,7 +839,7 @@ Status: ${debugInfo.status}`;
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setPlanetKitConfig({ ...planetKitConfig, accessToken: '' })}
+                  onClick={() => setPlanetKitConfig(prev => ({ ...prev, accessToken: '' }))}
                 >
                   {language === 'ko' ? '재생성' : 'Regenerate'}
                 </Button>
