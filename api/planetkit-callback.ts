@@ -109,10 +109,15 @@ export default async function handler(request: Request) {
     // Send admin notifications for new room creation
     if (eventType === 'GCALL_EVT_START') {
       try {
+        // Extract base URL from current request
+        const url = new URL(request.url);
+        const baseUrl = `${url.protocol}//${url.host}`;
+
         await sendAdminNotifications({
           roomId: roomId || 'Unknown',
           displayName: displayName || 'Unknown User',
           timestamp: timestamp || Date.now(),
+          baseUrl,
         });
       } catch (notificationError) {
         // Log error but don't fail the callback
@@ -209,8 +214,9 @@ async function sendAdminNotifications(params: {
   roomId: string;
   displayName: string;
   timestamp: number;
+  baseUrl: string;
 }) {
-  const { roomId, displayName, timestamp } = params;
+  const { roomId, displayName, timestamp, baseUrl } = params;
 
   // Get admin UIDs from environment variable
   const adminUids = process.env.VITE_ADMIN_UIDS?.split(',').map(id => id.trim()).filter(Boolean) || [];
@@ -234,10 +240,6 @@ async function sendAdminNotifications(params: {
   });
 
   // Get LINE Channel Access Token
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:8080';
-
   const tokenUrl = `${baseUrl}/api/get-line-token`;
 
   try {
