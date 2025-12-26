@@ -11,10 +11,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Search, Calendar, Users, Activity, Lock, LogIn } from 'lucide-react';
+import { RefreshCw, Search, Calendar, Users, Activity, Lock, LogIn, LayoutGrid } from 'lucide-react';
 import { StoredPlanetKitEvent } from '@/types/planetkit-callback';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useLiff } from '@/contexts/LiffContext';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 // 환경 변수에서 허용된 관리자 UID 목록 로드 (쉼표로 구분)
 const ALLOWED_ADMIN_UIDS = import.meta.env.VITE_ADMIN_UIDS
@@ -24,13 +25,15 @@ const ALLOWED_ADMIN_UIDS = import.meta.env.VITE_ADMIN_UIDS
 const AdminLogs = () => {
   const { language } = useLanguage();
   const { isLoggedIn, profile, login } = useLiff();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [logs, setLogs] = useState<StoredPlanetKitEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Filters
+  // Filters - initialize roomId from URL query parameter
   const [days, setDays] = useState('7');
-  const [roomId, setRoomId] = useState('');
+  const [roomId, setRoomId] = useState(searchParams.get('roomId') || '');
   const [eventType, setEventType] = useState('all');
   const [userId, setUserId] = useState('');
   const [limit] = useState(50);
@@ -173,7 +176,7 @@ const AdminLogs = () => {
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-7xl mx-auto space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold">
               {language === 'ko' ? 'PlanetKit 이벤트 로그' : 'PlanetKit Event Logs'}
@@ -182,10 +185,16 @@ const AdminLogs = () => {
               {language === 'ko' ? `총 ${totalCount}개 이벤트` : `Total ${totalCount} events`}
             </p>
           </div>
-          <Button onClick={fetchLogs} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            {language === 'ko' ? '새로고침' : 'Refresh'}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/admin/rooms')}>
+              <LayoutGrid className="w-4 h-4 mr-2" />
+              {language === 'ko' ? '활성 룸' : 'Active Rooms'}
+            </Button>
+            <Button onClick={fetchLogs} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              {language === 'ko' ? '새로고침' : 'Refresh'}
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}

@@ -166,12 +166,12 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
                 </div>
               </Label>
             </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="real" id="env-real" />
-              <Label htmlFor="env-real" className="flex-1 cursor-pointer">
+            <div className="flex items-center space-x-2 opacity-50">
+              <RadioGroupItem value="real" id="env-real" disabled />
+              <Label htmlFor="env-real" className="flex-1 cursor-not-allowed">
                 <div className="flex flex-col">
                   <span className="font-medium">Real</span>
-                  <span className="text-xs text-muted-foreground">프로덕션 환경</span>
+                  <span className="text-xs text-muted-foreground">프로덕션 환경 (당분간 비활성)</span>
                 </div>
               </Label>
             </div>

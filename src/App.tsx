@@ -11,6 +11,7 @@ import SetupPage from "./pages/SetupPage";
 import PlanetKitMeeting from "./pages/PlanetKitMeeting";
 import MeetingPage from "./pages/MeetingPage";
 import AdminLogs from "./pages/AdminLogs";
+import AdminRooms from "./pages/AdminRooms";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
 
               {/* 관리 페이지 */}
               <Route path="/admin/logs" element={<AdminLogs />} />
+              <Route path="/admin/rooms" element={<AdminRooms />} />
 
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
