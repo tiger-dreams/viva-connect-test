@@ -15,7 +15,8 @@ import { generatePlanetKitToken } from "@/utils/token-generator";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getTranslations } from "@/utils/translations";
 import { LanguageSelector } from "@/components/LanguageSelector";
-import { CustomCredentialsSection } from "@/components/CustomCredentialsSection";
+import { ProfileDialog } from "@/components/ProfileDialog";
+import { ConfigurationSection } from "@/components/ConfigurationSection";
 
 const SetupPage = () => {
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ const SetupPage = () => {
   const [liffIdInput, setLiffIdInput] = useState('');
   const [customRoomId, setCustomRoomId] = useState('');
   const [selectedRoomType, setSelectedRoomType] = useState<string>(''); // 'japan', 'korea', 'taiwan', 'thailand', 'custom', or ''
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false); // 프로필 다이얼로그 상태
   const autoTokenGeneratedRef = useRef(false); // 토큰 자동 생성 중복 방지
   const [debugInfo, setDebugInfo] = useState<{
     roomParam: string | null;
@@ -436,57 +438,38 @@ Status: ${debugInfo.status}`;
             </div>
             <div className="flex items-center gap-2">
               <LanguageSelector />
-              <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30">
-                <Activity className="w-3 h-3 mr-1" />
-                LIFF
-              </Badge>
+              {/* Profile Button */}
+              <button
+                onClick={() => setProfileDialogOpen(true)}
+                className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary hover:border-primary/70 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                aria-label={language === 'ko' ? '프로필 보기' : 'View profile'}
+              >
+                {profile?.pictureUrl ? (
+                  <img
+                    src={profile.pictureUrl}
+                    alt={profile.displayName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                    <User className="w-5 h-5 text-primary" />
+                  </div>
+                )}
+              </button>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Profile Dialog */}
+      <ProfileDialog
+        open={profileDialogOpen}
+        onOpenChange={setProfileDialogOpen}
+        language={language}
+      />
+
       <div className="container mx-auto px-4 py-6 max-w-2xl">
         <div className="space-y-4">
-          {/* 사용자 프로필 */}
-          {profile && (
-            <Card className="bg-gradient-to-r from-primary/5 to-accent/5 border-primary/20">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  {profile.pictureUrl ? (
-                    <img
-                      src={profile.pictureUrl}
-                      alt={profile.displayName}
-                      className="w-16 h-16 rounded-full border-2 border-primary"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
-                      <User className="w-8 h-8 text-primary" />
-                    </div>
-                  )}
-                  <div className="flex-1 space-y-2">
-                    <div>
-                      <h3 className="font-semibold text-lg">{profile.displayName}</h3>
-                      <p className="text-sm text-muted-foreground font-mono">{profile.userId}</p>
-                    </div>
-                    {/* Display Name 수정 필드 */}
-                    <div className="space-y-1">
-                      <Label htmlFor="displayName" className="text-xs text-muted-foreground">
-                        {t.displayName}
-                      </Label>
-                      <Input
-                        id="displayName"
-                        value={planetKitConfig.displayName || ''}
-                        onChange={(e) => setPlanetKitConfig(prev => ({ ...prev, displayName: e.target.value }))}
-                        placeholder={profile?.displayName || t.displayNamePlaceholder}
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* 디버그 정보 (딥링크 진입 시에만 표시) */}
           {searchParams.get('room') && debugInfo && (
             <Card className="bg-gradient-to-br from-yellow-100 to-orange-100 border-2 border-yellow-500">
@@ -639,32 +622,8 @@ Status: ${debugInfo.status}`;
             </Card>
           )}
 
-          {/* 환경 선택 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Server className="w-4 h-4" />
-                {t.environment}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* Environment Info - Fixed to Evaluation */}
-              <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <Server className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span className="font-semibold text-blue-800 dark:text-blue-200">
-                    {language === 'ko' ? 'Evaluation 환경 사용 중' : 'Using Evaluation Environment'}
-                  </span>
-                </div>
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  📍 voipnx-saturn.line-apps-rc.com ({language === 'ko' ? '테스트 환경' : 'Testing Environment'})
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Custom Credentials Section */}
-          <CustomCredentialsSection language={language} />
+          {/* Configuration Section (Environment + Custom Credentials 통합) */}
+          <ConfigurationSection language={language} />
 
           {/* Room 선택 */}
           <Card>
