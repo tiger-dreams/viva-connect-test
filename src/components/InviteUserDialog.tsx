@@ -11,7 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Send, UserPlus, Clock, Users, CheckSquare, Share2 } from 'lucide-react';
+import { Loader2, Send, UserPlus, Clock, Users, CheckSquare, Share2, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLiff } from '@/contexts/LiffContext';
 
@@ -222,6 +222,27 @@ export const InviteUserDialog = ({
       });
     } finally {
       setSharingToFriends(false);
+    }
+  };
+
+  const copyInviteUrl = async () => {
+    try {
+      const liffUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(roomId)}`;
+      await navigator.clipboard.writeText(liffUrl);
+
+      console.log('[copyInviteUrl] URL copied to clipboard:', liffUrl);
+
+      toast({
+        title: 'URL Copied',
+        description: 'Invite URL has been copied to clipboard.',
+      });
+    } catch (error) {
+      console.error('[copyInviteUrl] Failed to copy URL:', error);
+      toast({
+        title: 'Copy Failed',
+        description: 'Failed to copy URL to clipboard.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -467,23 +488,33 @@ export const InviteUserDialog = ({
               ⚠️ This feature requires Share Target Picker to be enabled in LINE Developers Console.
             </span>
           </p>
-          <Button
-            onClick={shareToLineFriends}
-            disabled={sharingToFriends}
-            className="w-full bg-green-600 hover:bg-green-700 text-white"
-          >
-            {sharingToFriends ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                Inviting...
-              </>
-            ) : (
-              <>
-                <Share2 className="w-4 h-4 mr-2" />
-                Invite LINE Friends
-              </>
-            )}
-          </Button>
+          <div className="space-y-2">
+            <Button
+              onClick={shareToLineFriends}
+              disabled={sharingToFriends}
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+            >
+              {sharingToFriends ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Inviting...
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Invite LINE Friends
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={copyInviteUrl}
+              variant="outline"
+              className="w-full border-green-600 text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copy Invite URL
+            </Button>
+          </div>
         </div>
 
         {loading ? (
