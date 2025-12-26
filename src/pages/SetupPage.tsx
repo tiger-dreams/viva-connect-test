@@ -375,6 +375,25 @@ const SetupPage = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* 중요 안내: 커스텀 룸 사용 권장 */}
+              <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg border-2 border-amber-300 dark:border-amber-700">
+                <div className="flex items-start gap-3">
+                  <div className="text-2xl">⚠️</div>
+                  <div className="flex-1 space-y-2">
+                    <p className="font-semibold text-amber-900 dark:text-amber-100">
+                      {language === 'ko'
+                        ? '프라이빗 통화를 위해 커스텀 룸을 사용하세요!'
+                        : 'Use Custom Room for Private Calls!'}
+                    </p>
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      {language === 'ko'
+                        ? '🇯🇵 Japan, 🇰🇷 Korea, 🇹🇼 Taiwan, 🇹🇭 Thailand 룸은 데모용 공개 룸입니다. 다른 사용자가 이미 참여 중일 수 있습니다. 프라이빗 통화를 원하시면 아래 "✏️ Custom" 옵션을 선택하여 고유한 룸 이름을 입력해주세요.'
+                        : '🇯🇵 Japan, 🇰🇷 Korea, 🇹🇼 Taiwan, 🇹🇭 Thailand rooms are public demo rooms. Other users may already be present. For private calls, please select "✏️ Custom" option below and enter your own unique room name.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <RadioGroup
                 value={selectedRoomType}
                 onValueChange={(value) => {
