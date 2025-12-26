@@ -28,6 +28,7 @@ const SetupPage = () => {
   const [customRoomId, setCustomRoomId] = useState('');
   const [selectedRoomType, setSelectedRoomType] = useState<string>(''); // 'japan', 'korea', 'taiwan', 'thailand', 'custom', or ''
   const autoTokenGeneratedRef = useRef(false); // 토큰 자동 생성 중복 방지
+  const [debugInfo, setDebugInfo] = useState<string>(''); // 디버그 정보 표시
 
   // Initialize selectedRoomType based on current config
   const presetRooms = ['japan', 'korea', 'taiwan', 'thailand'];
@@ -99,17 +100,21 @@ const SetupPage = () => {
   useEffect(() => {
     const roomParam = searchParams.get('room');
 
-    console.log('[SetupPage] Auto-token useEffect triggered', {
+    // 디버그 정보 업데이트
+    const debugData = {
       roomParam,
       isLoggedIn,
       hasProfile: !!profile,
       roomId: planetKitConfig.roomId,
       hasToken: !!planetKitConfig.accessToken,
       alreadyGenerated: autoTokenGeneratedRef.current,
-      serviceId: planetKitConfig.serviceId,
-      apiKey: !!planetKitConfig.apiKey,
-      userId: planetKitConfig.userId,
-    });
+      serviceId: planetKitConfig.serviceId ? '✅' : '❌',
+      apiKey: planetKitConfig.apiKey ? '✅' : '❌',
+      userId: planetKitConfig.userId || '❌',
+    };
+
+    setDebugInfo(JSON.stringify(debugData, null, 2));
+    console.log('[SetupPage] Auto-token useEffect triggered', debugData);
 
     // 조건: URL에 room 파라미터가 있고, 로그인 완료, 토큰이 없고, 아직 자동 생성하지 않음
     if (roomParam && isLoggedIn && profile && planetKitConfig.roomId && !planetKitConfig.accessToken && !autoTokenGeneratedRef.current) {
@@ -117,6 +122,7 @@ const SetupPage = () => {
       if (planetKitConfig.serviceId && planetKitConfig.apiKey && planetKitConfig.userId) {
         autoTokenGeneratedRef.current = true; // 중복 실행 방지
         console.log('[SetupPage] Auto-generating token for deep link entry...');
+        setDebugInfo(prev => prev + '\n\n🚀 토큰 자동 생성 시작...');
 
         // 토큰 생성
         generatePlanetKitToken(
@@ -132,6 +138,7 @@ const SetupPage = () => {
             accessToken: token
           }));
           console.log('[SetupPage] Token auto-generated successfully');
+          setDebugInfo(prev => prev + '\n\n✅ 토큰 생성 성공!');
 
           // 토큰 생성 성공 toast
           toast({
@@ -142,11 +149,13 @@ const SetupPage = () => {
           // 0.5초 후 자동으로 미팅 페이지로 이동
           setTimeout(() => {
             console.log('[SetupPage] Auto-navigating to meeting page...');
+            setDebugInfo(prev => prev + '\n\n🚀 미팅 페이지로 이동 중...');
             navigate('/planetkit_meeting');
           }, 500);
         }).catch(error => {
           console.error('[SetupPage] Auto token generation failed:', error);
           autoTokenGeneratedRef.current = false; // 실패 시 다시 시도 가능하도록
+          setDebugInfo(prev => prev + '\n\n❌ 토큰 생성 실패: ' + (error instanceof Error ? error.message : 'Unknown error'));
           toast({
             title: language === 'ko' ? '자동 토큰 생성 실패' : 'Auto Token Generation Failed',
             description: error instanceof Error ? error.message : (language === 'ko' ? '토큰 생성 중 오류가 발생했습니다.' : 'An error occurred while generating the token.'),
@@ -415,6 +424,22 @@ const SetupPage = () => {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 디버그 정보 (딥링크 진입 시에만 표시) */}
+          {searchParams.get('room') && debugInfo && (
+            <Card className="bg-yellow-50 dark:bg-yellow-950 border-yellow-300 dark:border-yellow-700">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  🔍 디버그 정보 (Deep Link Auto-Entry)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <pre className="text-xs font-mono whitespace-pre-wrap overflow-auto max-h-40 bg-black/5 dark:bg-white/5 p-3 rounded">
+                  {debugInfo}
+                </pre>
               </CardContent>
             </Card>
           )}
