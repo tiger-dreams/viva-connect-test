@@ -62,7 +62,11 @@ export default async function handler(
     const secret = new TextEncoder().encode(channelSecret);
 
     const jwt = await new SignJWT({})
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .setProtectedHeader({
+        alg: 'HS256',
+        typ: 'JWT',
+        kid: channelId // LINE API v2.1 requires kid in header
+      })
       .setIssuer(channelId)
       .setSubject(channelId)
       .setAudience('https://api.line.me/')

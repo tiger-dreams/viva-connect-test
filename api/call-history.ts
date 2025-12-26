@@ -85,21 +85,47 @@ export default async function handler(
       });
     }
 
-    // 2. 그 room들에서 함께 참여했던 다른 사용자들 찾기
+    // 2. 그 room들에서 실제로 동시에 통화했던 다른 사용자들 찾기
+    // 같은 룸에서 시간 차이가 10분 이내인 JOIN 이벤트가 있는 사용자만 조회
     const otherUsersResult = await sql`
+      WITH user_sessions AS (
+        -- 현재 사용자의 세션들
+        SELECT DISTINCT
+          room_id,
+          created_at,
+          created_at - INTERVAL '10 minutes' as session_start,
+          created_at + INTERVAL '10 minutes' as session_end
+        FROM planetkit_events
+        WHERE
+          user_id = ${userId}
+          AND room_id = ANY(${userRoomIds})
+          AND event_type IN ('GCALL_EVT_USER_JOIN', 'GCALL_EVT_START')
+          AND created_at >= ${cutoffTime}
+      ),
+      other_user_sessions AS (
+        -- 다른 사용자들의 세션들
+        SELECT DISTINCT
+          e.user_id,
+          e.display_name,
+          e.room_id,
+          e.created_at
+        FROM planetkit_events e
+        INNER JOIN user_sessions us
+          ON e.room_id = us.room_id
+          AND e.created_at BETWEEN us.session_start AND us.session_end
+        WHERE
+          e.user_id IS NOT NULL
+          AND e.user_id != ${userId}
+          AND e.display_name IS NOT NULL
+          AND e.event_type IN ('GCALL_EVT_USER_JOIN', 'GCALL_EVT_START')
+          AND e.created_at >= ${cutoffTime}
+      )
       SELECT
         user_id,
         display_name,
         MAX(created_at) as last_call_time,
         COUNT(DISTINCT room_id) as call_count
-      FROM planetkit_events
-      WHERE
-        room_id = ANY(${userRoomIds})
-        AND user_id IS NOT NULL
-        AND user_id != ${userId}
-        AND display_name IS NOT NULL
-        AND event_type IN ('GCALL_EVT_USER_JOIN', 'GCALL_EVT_START')
-        AND created_at >= ${cutoffTime}
+      FROM other_user_sessions
       GROUP BY user_id, display_name
       ORDER BY last_call_time DESC
     `;
