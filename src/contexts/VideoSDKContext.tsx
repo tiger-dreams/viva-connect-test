@@ -49,12 +49,13 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
           serviceId: prev.serviceId || saved.serviceId,
           apiKey: prev.apiKey || saved.apiKey,
           apiSecret: prev.apiSecret || saved.apiSecret,
-          // userId와 displayName 복원 (나머지는 사용자가 선택)
+          // userId와 displayName 복원
           userId: saved.userId || prev.userId,
           displayName: saved.displayName || prev.displayName,
-          // environment와 roomId는 항상 빈 값으로 시작 (사용자가 선택해야 함)
+          // environment는 항상 빈 값으로 시작 (사용자가 선택해야 함)
+          // roomId는 현재 값이 있으면 유지 (URL 파라미터 등으로 설정된 경우), 없으면 빈 값
           environment: '',
-          roomId: '',
+          roomId: prev.roomId || '',
           // accessToken은 복원하지 않음 (매번 새로 생성 필요)
           accessToken: ''
         }));
