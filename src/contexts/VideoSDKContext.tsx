@@ -42,6 +42,21 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
     if (savedPlanetKitConfig) {
       try {
         const saved = JSON.parse(savedPlanetKitConfig);
+
+        // Validate and clean up invalid userId
+        // LINE user IDs start with 'U' and are 33 characters long
+        // Invalid patterns: 'Tfhh', 'test-user-', 'userId', short strings, etc.
+        let cleanedUserId = saved.userId || '';
+        if (cleanedUserId && (
+          !cleanedUserId.startsWith('U') ||
+          cleanedUserId.length < 10 ||
+          cleanedUserId.includes('test') ||
+          cleanedUserId === 'userId'
+        )) {
+          console.log('[VideoSDKContext] Cleaning invalid userId:', cleanedUserId);
+          cleanedUserId = ''; // Reset to empty, will be set from LINE profile
+        }
+
         // 환경 변수에서 로드한 값과 병합 (환경 변수 우선)
         setPlanetKitConfig(prev => ({
           ...prev,
@@ -49,8 +64,8 @@ export const VideoSDKProvider = ({ children }: VideoSDKProviderProps) => {
           serviceId: prev.serviceId || saved.serviceId,
           apiKey: prev.apiKey || saved.apiKey,
           apiSecret: prev.apiSecret || saved.apiSecret,
-          // userId와 displayName 복원
-          userId: saved.userId || prev.userId,
+          // userId: cleaned value only, LINE profile will override
+          userId: cleanedUserId || prev.userId,
           displayName: saved.displayName || prev.displayName,
           // environment는 항상 빈 값으로 시작 (사용자가 선택해야 함)
           // roomId는 현재 값이 있으면 유지 (URL 파라미터 등으로 설정된 경우), 없으면 빈 값
