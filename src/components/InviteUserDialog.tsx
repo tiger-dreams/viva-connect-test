@@ -454,10 +454,18 @@ export const InviteUserDialog = ({
         <div className="p-4 border rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950">
           <div className="flex items-center gap-3 mb-2">
             <Share2 className="w-5 h-5 text-green-600 dark:text-green-400" />
-            <h3 className="font-semibold text-green-900 dark:text-green-100">Invite LINE Friends</h3>
+            <h3 className="font-semibold text-green-900 dark:text-green-100 flex items-center gap-2">
+              Invite LINE Friends
+              <span className="text-xs px-2 py-0.5 bg-orange-500 text-white rounded-full font-normal">
+                Beta
+              </span>
+            </h3>
           </div>
           <p className="text-sm text-green-700 dark:text-green-300 mb-3">
             You can select and invite friends directly from the LINE friend picker screen.
+            <span className="block mt-1 text-xs opacity-80">
+              ⚠️ This feature requires Share Target Picker to be enabled in LINE Developers Console.
+            </span>
           </p>
           <Button
             onClick={shareToLineFriends}
