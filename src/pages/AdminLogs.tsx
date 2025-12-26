@@ -11,12 +11,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Search, Calendar, Users, Activity } from 'lucide-react';
+import { RefreshCw, Search, Calendar, Users, Activity, Lock, LogIn } from 'lucide-react';
 import { StoredPlanetKitEvent } from '@/types/planetkit-callback';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useLiff } from '@/contexts/LiffContext';
+
+// 허용된 관리자 UID 목록
+const ALLOWED_ADMIN_UIDS = ['Ua78beedfb2146efeeb20a4329a5b4f4e'];
 
 const AdminLogs = () => {
   const { language } = useLanguage();
+  const { isLoggedIn, profile, login } = useLiff();
   const [logs, setLogs] = useState<StoredPlanetKitEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -86,6 +91,82 @@ const AdminLogs = () => {
     return 'bg-gray-400';
   };
 
+  // 접근 권한 확인
+  const isAdmin = isLoggedIn && profile && ALLOWED_ADMIN_UIDS.includes(profile.userId);
+
+  // 로그인되지 않은 경우
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <div className="flex items-center justify-center mb-4">
+              <LogIn className="w-12 h-12 text-primary" />
+            </div>
+            <CardTitle className="text-center text-2xl">
+              {language === 'ko' ? '로그인 필요' : 'Login Required'}
+            </CardTitle>
+            <CardDescription className="text-center">
+              {language === 'ko'
+                ? '관리자 페이지에 접근하려면 LINE 로그인이 필요합니다.'
+                : 'LINE login is required to access the admin page.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <Button onClick={login} size="lg">
+              <LogIn className="w-5 h-5 mr-2" />
+              {language === 'ko' ? 'LINE 로그인' : 'Login with LINE'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // 권한이 없는 경우
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <div className="flex items-center justify-center mb-4">
+              <Lock className="w-12 h-12 text-destructive" />
+            </div>
+            <CardTitle className="text-center text-2xl">
+              {language === 'ko' ? '접근 권한 없음' : 'Access Denied'}
+            </CardTitle>
+            <CardDescription className="text-center">
+              {language === 'ko'
+                ? '이 페이지에 접근할 권한이 없습니다. 관리자 권한이 필요합니다.'
+                : 'You do not have permission to access this page. Administrator privileges are required.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-muted p-4 rounded-lg">
+              <p className="text-sm text-muted-foreground text-center">
+                {language === 'ko' ? '현재 사용자' : 'Current User'}
+              </p>
+              <p className="text-sm font-mono text-center mt-1">
+                {profile?.displayName || 'Unknown'}
+              </p>
+              <p className="text-xs text-muted-foreground text-center mt-1">
+                ID: {profile?.userId}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => window.location.href = '/'}
+            >
+              {language === 'ko' ? '홈으로 돌아가기' : 'Back to Home'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // 관리자 권한이 있는 경우 - 기존 로그 페이지 표시
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-7xl mx-auto space-y-4">
