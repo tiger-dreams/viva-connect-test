@@ -33,7 +33,7 @@ export default async function handler(
   }
 
   try {
-    const { toUserId, fromUserName, roomId, liffId } = request.body;
+    const { toUserId, fromUserName, roomId, liffId, language = 'en' } = request.body;
 
     // Validate required fields
     if (!toUserId || !fromUserName || !roomId || !liffId) {
@@ -80,6 +80,11 @@ export default async function handler(
     // Build LIFF URL
     const liffUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(roomId)}`;
 
+    // 언어에 따른 초대 메시지
+    const inviteMessage = language === 'ko'
+      ? `🎥 ${fromUserName}님이 화상 통화에 초대했습니다!\n\n룸: ${roomId}\n\n링크를 눌러 참여하세요:\n${liffUrl}`
+      : `🎥 ${fromUserName} invited you to a video call!\n\nRoom: ${roomId}\n\nTap the link to join:\n${liffUrl}`;
+
     // LINE Messaging API Push Message
     const lineApiResponse = await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
@@ -92,7 +97,7 @@ export default async function handler(
         messages: [
           {
             type: 'text',
-            text: `🎥 ${fromUserName} invited you to a video call!\n\nRoom: ${roomId}\n\nTap the link to join:\n${liffUrl}`,
+            text: inviteMessage,
           },
         ],
       }),

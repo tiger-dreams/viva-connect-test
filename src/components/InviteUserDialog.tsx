@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Loader2, Send, UserPlus, Clock, Users, CheckSquare, Share2, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLiff } from '@/contexts/LiffContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface CallHistoryUser {
   user_id: string;
@@ -48,6 +49,7 @@ export const InviteUserDialog = ({
 }: InviteUserDialogProps) => {
   const { toast } = useToast();
   const { liff } = useLiff();
+  const { language } = useLanguage();
   const [users, setUsers] = useState<CallHistoryUser[]>([]);
   const [appUsers, setAppUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -159,11 +161,16 @@ export const InviteUserDialog = ({
         isApiAvailable: true,
       });
 
+      // 언어에 따른 초대 메시지
+      const shareMessage = language === 'ko'
+        ? `🎥 ${currentUserName}님이 화상 통화에 초대했습니다!\n\n룸: ${roomId}\n\n링크를 눌러 참여하세요:\n${liffUrl}`
+        : `🎥 ${currentUserName} invited you to a video call!\n\nRoom: ${roomId}\n\nTap the link to join:\n${liffUrl}`;
+
       const result = await liff.shareTargetPicker(
         [
           {
             type: 'text',
-            text: `🎥 ${currentUserName} invited you to a video call!\n\nRoom: ${roomId}\n\nTap the link to join:\n${liffUrl}`,
+            text: shareMessage,
           },
         ],
         {
@@ -228,21 +235,29 @@ export const InviteUserDialog = ({
   const copyInviteUrl = async () => {
     try {
       const liffUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(roomId)}`;
-      const inviteMessage = `🎥 ${currentUserName} invited you to a video call!\n\nRoom: ${roomId}\n\nTap the link to join:\n${liffUrl}`;
+
+      // 언어에 따른 초대 메시지
+      const inviteMessage = language === 'ko'
+        ? `🎥 ${currentUserName}님이 화상 통화에 초대했습니다!\n\n룸: ${roomId}\n\n링크를 눌러 참여하세요:\n${liffUrl}`
+        : `🎥 ${currentUserName} invited you to a video call!\n\nRoom: ${roomId}\n\nTap the link to join:\n${liffUrl}`;
 
       await navigator.clipboard.writeText(inviteMessage);
 
       console.log('[copyInviteUrl] Invite message copied to clipboard:', inviteMessage);
 
       toast({
-        title: 'Invite Message Copied',
-        description: 'Invitation message with URL has been copied to clipboard.',
+        title: language === 'ko' ? '초대 메시지 복사됨' : 'Invite Message Copied',
+        description: language === 'ko'
+          ? 'URL이 포함된 초대 메시지가 클립보드에 복사되었습니다.'
+          : 'Invitation message with URL has been copied to clipboard.',
       });
     } catch (error) {
       console.error('[copyInviteUrl] Failed to copy invite message:', error);
       toast({
-        title: 'Copy Failed',
-        description: 'Failed to copy invitation message to clipboard.',
+        title: language === 'ko' ? '복사 실패' : 'Copy Failed',
+        description: language === 'ko'
+          ? '초대 메시지를 클립보드에 복사하는데 실패했습니다.'
+          : 'Failed to copy invitation message to clipboard.',
         variant: 'destructive',
       });
     }
@@ -261,6 +276,7 @@ export const InviteUserDialog = ({
           fromUserName: currentUserName,
           roomId,
           liffId,
+          language, // 언어 정보 전달
         }),
       });
 
