@@ -87,16 +87,16 @@ export const InviteUserDialog = ({
         setUsers(filteredUsers);
       } else {
         toast({
-          title: '통화 이력 조회 실패',
-          description: result.error || '알 수 없는 오류가 발생했습니다.',
+          title: 'Failed to Load Call History',
+          description: result.error || 'An unknown error occurred.',
           variant: 'destructive',
         });
       }
     } catch (error) {
       console.error('Failed to fetch call history:', error);
       toast({
-        title: '통화 이력 조회 실패',
-        description: '네트워크 오류가 발생했습니다.',
+        title: 'Failed to Load Call History',
+        description: 'A network error occurred.',
         variant: 'destructive',
       });
     } finally {
@@ -129,8 +129,8 @@ export const InviteUserDialog = ({
       if (!liff.isLoggedIn()) {
         console.error('[shareTargetPicker] User is not logged in');
         toast({
-          title: '로그인 필요',
-          description: 'LINE 로그인이 필요합니다.',
+          title: 'Login Required',
+          description: 'Please log in to LINE.',
           variant: 'destructive',
         });
         setSharingToFriends(false);
@@ -162,16 +162,16 @@ export const InviteUserDialog = ({
         // Successfully sent
         console.log(`[shareTargetPicker] Success - [${result.status}] Message sent!`);
         toast({
-          title: '초대 전송 완료',
-          description: 'LINE 친구들에게 초대 메시지를 보냈습니다.',
+          title: 'Invitation Sent',
+          description: 'Invitation message sent to LINE friends.',
         });
         onOpenChange(false);
       } else {
         // User canceled
         console.log('[shareTargetPicker] User canceled - TargetPicker was closed');
         toast({
-          title: '초대 취소',
-          description: '친구 선택을 취소했습니다.',
+          title: 'Invitation Canceled',
+          description: 'Friend selection was canceled.',
           variant: 'default',
         });
       }
@@ -179,7 +179,7 @@ export const InviteUserDialog = ({
       console.error('[shareTargetPicker] Error:', error);
 
       // Extract detailed error information
-      let errorMessage = 'LINE 친구 초대 중 오류가 발생했습니다.';
+      let errorMessage = 'An error occurred while inviting LINE friends.';
       let errorDetails = '';
 
       if (error && typeof error === 'object') {
@@ -192,18 +192,18 @@ export const InviteUserDialog = ({
 
         // Check for specific LIFF errors
         if (error.code === 'INVALID_ARGUMENT') {
-          errorMessage = '잘못된 메시지 형식입니다.';
+          errorMessage = 'Invalid message format.';
         } else if (error.code === 'FORBIDDEN') {
-          errorMessage = 'Share Target Picker가 활성화되지 않았습니다. LINE Developers Console에서 설정을 확인해주세요.';
+          errorMessage = 'Share Target Picker is not enabled. Please check the settings in LINE Developers Console.';
         } else if (error.code === 'UNAUTHORIZED') {
-          errorMessage = '권한이 없습니다. 로그인 상태를 확인해주세요.';
+          errorMessage = 'Unauthorized. Please check your login status.';
         }
       }
 
       console.error('[shareTargetPicker] Error details:', errorDetails);
 
       toast({
-        title: '초대 전송 실패',
+        title: 'Invitation Failed',
         description: errorDetails ? `${errorMessage}\n\n${errorDetails}` : errorMessage,
         variant: 'destructive',
       });
@@ -232,21 +232,21 @@ export const InviteUserDialog = ({
 
       if (result.success) {
         toast({
-          title: '초대 전송 완료',
-          description: `${toUserName}님에게 초대 메시지를 보냈습니다.`,
+          title: 'Invitation Sent',
+          description: `Invitation message sent to ${toUserName}.`,
         });
       } else {
         toast({
-          title: '초대 전송 실패',
-          description: result.error || '알 수 없는 오류가 발생했습니다.',
+          title: 'Invitation Failed',
+          description: result.error || 'An unknown error occurred.',
           variant: 'destructive',
         });
       }
     } catch (error) {
       console.error('Failed to send invite:', error);
       toast({
-        title: '초대 전송 실패',
-        description: '네트워크 오류가 발생했습니다.',
+        title: 'Invitation Failed',
+        description: 'A network error occurred.',
         variant: 'destructive',
       });
     } finally {
@@ -257,8 +257,8 @@ export const InviteUserDialog = ({
   const sendBulkInvites = async () => {
     if (selectedUserIds.size === 0) {
       toast({
-        title: '사용자를 선택해주세요',
-        description: '초대할 사용자를 선택해주세요.',
+        title: 'Please Select Users',
+        description: 'Please select users to invite.',
         variant: 'destructive',
       });
       return;
@@ -285,8 +285,8 @@ export const InviteUserDialog = ({
     setSelectedUserIds(new Set());
 
     toast({
-      title: '일괄 초대 완료',
-      description: `${successCount}명에게 초대를 보냈습니다.${failCount > 0 ? ` (실패: ${failCount}명)` : ''}`,
+      title: 'Bulk Invitation Sent',
+      description: `Invitations sent to ${successCount} ${successCount === 1 ? 'user' : 'users'}.${failCount > 0 ? ` (Failed: ${failCount})` : ''}`,
     });
 
     if (successCount > 0) {
@@ -330,11 +330,11 @@ export const InviteUserDialog = ({
     const diffDays = Math.floor(diffMs / 86400000);
 
     if (diffMins < 60) {
-      return `${diffMins}분 전`;
+      return `${diffMins} min ago`;
     } else if (diffHours < 24) {
-      return `${diffHours}시간 전`;
+      return `${diffHours} hr ago`;
     } else {
-      return `${diffDays}일 전`;
+      return `${diffDays} d ago`;
     }
   };
 
@@ -359,7 +359,7 @@ export const InviteUserDialog = ({
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium flex items-center gap-2">
             {title}
-            <span className="text-xs text-muted-foreground">({users.length}명)</span>
+            <span className="text-xs text-muted-foreground">({users.length} {users.length === 1 ? 'user' : 'users'})</span>
           </h3>
           <Button
             variant="ghost"
@@ -368,7 +368,7 @@ export const InviteUserDialog = ({
             className="h-7 text-xs"
           >
             <CheckSquare className="w-3 h-3 mr-1" />
-            {allSelected ? '전체 해제' : '전체 선택'}
+            {allSelected ? 'Deselect All' : 'Select All'}
           </Button>
         </div>
         {users.map((user) => {
@@ -395,7 +395,7 @@ export const InviteUserDialog = ({
                       <Clock className="w-3 h-3" />
                       <span>{formatTimeAgo(user.last_call_time)}</span>
                       <span>·</span>
-                      <span>{user.call_count}회 통화</span>
+                      <span>{user.call_count} {user.call_count === 1 ? 'call' : 'calls'}</span>
                     </div>
                   )}
                 </div>
@@ -410,7 +410,7 @@ export const InviteUserDialog = ({
                 ) : (
                   <>
                     <Send className="w-4 h-4 mr-1" />
-                    초대
+                    Invite
                   </>
                 )}
               </Button>
@@ -430,10 +430,10 @@ export const InviteUserDialog = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="w-5 h-5" />
-            통화 초대
+            Invite to Call
           </DialogTitle>
           <DialogDescription>
-            사용자를 선택하여 초대 메시지를 보냅니다. {isAdmin && '(어드민 권한)'}
+            Select users to send invitation messages. {isAdmin && '(Admin)'}
           </DialogDescription>
         </DialogHeader>
 
@@ -441,10 +441,10 @@ export const InviteUserDialog = ({
         <div className="p-4 border rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950">
           <div className="flex items-center gap-3 mb-2">
             <Share2 className="w-5 h-5 text-green-600 dark:text-green-400" />
-            <h3 className="font-semibold text-green-900 dark:text-green-100">LINE 친구 초대</h3>
+            <h3 className="font-semibold text-green-900 dark:text-green-100">Invite LINE Friends</h3>
           </div>
           <p className="text-sm text-green-700 dark:text-green-300 mb-3">
-            LINE 친구 선택 화면에서 원하는 친구들을 선택하여 바로 초대할 수 있습니다.
+            You can select and invite friends directly from the LINE friend picker screen.
           </p>
           <Button
             onClick={shareToLineFriends}
@@ -454,12 +454,12 @@ export const InviteUserDialog = ({
             {sharingToFriends ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                초대 중...
+                Inviting...
               </>
             ) : (
               <>
                 <Share2 className="w-4 h-4 mr-2" />
-                LINE 친구에게 초대
+                Invite LINE Friends
               </>
             )}
           </Button>
@@ -471,14 +471,14 @@ export const InviteUserDialog = ({
           </div>
         ) : !hasAnyUsers ? (
           <div className="text-center py-8 text-muted-foreground">
-            <p className="text-sm">통화 이력 기반 추천이 없습니다.</p>
+            <p className="text-sm">No recommendations based on call history.</p>
           </div>
         ) : (
           <>
             <Separator className="my-2" />
             <div className="mb-3">
               <h3 className="text-sm font-medium text-muted-foreground">
-                또는 특정 사용자에게 직접 초대 {isAdmin && '(어드민 전용)'}
+                Or invite specific users directly {isAdmin && '(Admin Only)'}
               </h3>
             </div>
             <ScrollArea className="max-h-[350px] pr-4">
@@ -486,8 +486,8 @@ export const InviteUserDialog = ({
                 {/* Call History Section */}
                 {renderUserList(
                   users,
-                  '최근 통화 이력',
-                  '통화 이력이 있는 사용자가 없습니다.',
+                  'Recent Call History',
+                  'No users with call history.',
                   true
                 )}
 
@@ -498,7 +498,7 @@ export const InviteUserDialog = ({
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <Users className="w-4 h-4 text-primary" />
-                        <h3 className="text-sm font-semibold">전체 사용자</h3>
+                        <h3 className="text-sm font-semibold">All Users</h3>
                       </div>
                       {appUsersLoading ? (
                         <div className="flex items-center justify-center py-6">
@@ -507,8 +507,8 @@ export const InviteUserDialog = ({
                       ) : (
                         renderUserList(
                           appUsers,
-                          '앱 사용자 목록',
-                          '사용자가 없습니다.',
+                          'App Users',
+                          'No users found.',
                           false
                         )
                       )}
@@ -531,7 +531,7 @@ export const InviteUserDialog = ({
                   ) : (
                     <Send className="w-4 h-4 mr-2" />
                   )}
-                  선택한 {selectedUserIds.size}명에게 일괄 초대
+                  Send Bulk Invitation to {selectedUserIds.size} {selectedUserIds.size === 1 ? 'User' : 'Users'}
                 </Button>
               </div>
             )}
