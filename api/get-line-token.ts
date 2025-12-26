@@ -30,13 +30,14 @@ export default async function handler(
 
   try {
     // Get Channel credentials from environment variables
-    const channelId = process.env.LINE_CHANNEL_ID || '1657532508';
-    const channelSecret = process.env.LINE_CHANNEL_SECRET || 'b932199b553d5b00b9a9e5d449f1a76c';
+    const channelId = process.env.LINE_CHANNEL_ID;
+    const channelSecret = process.env.LINE_CHANNEL_SECRET;
 
     if (!channelId || !channelSecret) {
+      console.error('Missing environment variables: LINE_CHANNEL_ID or LINE_CHANNEL_SECRET');
       return response.status(500).json({
         success: false,
-        error: 'LINE Channel credentials not configured',
+        error: 'LINE Channel credentials not configured. Please set LINE_CHANNEL_ID and LINE_CHANNEL_SECRET in environment variables.',
       });
     }
 
