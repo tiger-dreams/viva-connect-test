@@ -32,11 +32,13 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
         apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || config.apiSecret,
       });
     } else if (config.environment === 'real') {
+      // Real 환경은 현재 비활성화됨 - eval로 강제 변경
       onConfigChange({
         ...config,
-        serviceId: import.meta.env.VITE_PLANETKIT_REAL_SERVICE_ID || config.serviceId,
-        apiKey: import.meta.env.VITE_PLANETKIT_REAL_API_KEY || config.apiKey,
-        apiSecret: import.meta.env.VITE_PLANETKIT_REAL_API_SECRET || config.apiSecret,
+        environment: 'eval',
+        serviceId: import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || config.serviceId,
+        apiKey: import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || config.apiKey,
+        apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || config.apiSecret,
       });
     }
   }, [config.environment]);

@@ -28,7 +28,11 @@ export default async function handler(request: Request) {
     const url = new URL(request.url);
     const minutesBack = parseInt(url.searchParams.get('minutes') || '60');
 
+    // Calculate the timestamp for N minutes ago
+    const cutoffTime = new Date(Date.now() - minutesBack * 60 * 1000).toISOString();
+
     // Get all relevant events from the last N minutes
+    // Include all event types to better track room activity
     const eventsResult = await sql`
       SELECT
         room_id,
@@ -39,15 +43,9 @@ export default async function handler(request: Request) {
         data
       FROM planetkit_events
       WHERE
-        created_at >= NOW() - INTERVAL '${minutesBack} minutes'
+        created_at >= ${cutoffTime}
         AND room_id IS NOT NULL
-        AND event_type IN (
-          'GCALL_EVT_START',
-          'GCALL_EVT_END',
-          'GCALL_EVT_USER_JOIN',
-          'GCALL_EVT_USER_LEAVE'
-        )
-      ORDER BY created_at DESC
+      ORDER BY created_at ASC
     `;
 
     // Process events to determine active rooms
@@ -58,6 +56,7 @@ export default async function handler(request: Request) {
       call_ended: boolean;
     }>();
 
+    // Process events in chronological order (ASC) to build current state
     for (const event of eventsResult.rows) {
       const roomId = event.room_id;
 
@@ -72,11 +71,10 @@ export default async function handler(request: Request) {
 
       const room = roomMap.get(roomId)!;
 
-      // Update last activity time (most recent event)
-      if (new Date(event.created_at) > new Date(room.last_activity)) {
-        room.last_activity = event.created_at;
-      }
+      // Always update last activity time
+      room.last_activity = event.created_at;
 
+      // Handle different event types
       switch (event.event_type) {
         case 'GCALL_EVT_START':
           room.call_start_time = event.created_at;
@@ -102,6 +100,13 @@ export default async function handler(request: Request) {
             room.participants.delete(event.user_id);
           }
           break;
+
+        // Handle other event types that indicate room activity
+        case 'GCALL_EVT_STATUS_CHANGE':
+        case 'GCALL_EVT_MEDIA_CHANGE':
+        case 'GCALL_EVT_CALLBACK':
+          // These events indicate room is active but don't change participant list
+          break;
       }
     }
 
@@ -109,12 +114,14 @@ export default async function handler(request: Request) {
     const activeRooms: ActiveRoom[] = [];
 
     for (const [roomId, roomData] of roomMap.entries()) {
-      // Include room if it has participants or had very recent activity (last 5 minutes)
-      const lastActivityTime = new Date(roomData.last_activity);
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-      const hasRecentActivity = lastActivityTime > fiveMinutesAgo;
+      // Include room if:
+      // 1. It has participants, OR
+      // 2. It has recent activity (within query time window) AND hasn't ended
+      const shouldInclude =
+        roomData.participants.size > 0 ||
+        (!roomData.call_ended && roomData.last_activity);
 
-      if (roomData.participants.size > 0 || (hasRecentActivity && !roomData.call_ended)) {
+      if (shouldInclude) {
         const participants = Array.from(roomData.participants.entries()).map(
           ([userId, data]) => ({
             user_id: userId,
