@@ -22,9 +22,9 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
   const [showAccessToken, setShowAccessToken] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
 
-  // 환경을 Evaluation으로 자동 설정
+  // 환경을 Evaluation으로 자동 설정 (컴포넌트 마운트 시 1회만)
   useEffect(() => {
-    // 환경이 설정되지 않았거나 real인 경우 eval로 강제 설정
+    // 환경이 설정되지 않았거나 real인 경우에만 eval로 강제 설정
     if (!config.environment || config.environment === 'real') {
       onConfigChange({
         ...config,
@@ -33,16 +33,9 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
         apiKey: import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || config.apiKey,
         apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || config.apiSecret,
       });
-    } else if (config.environment === 'eval') {
-      // eval 환경 설정 업데이트
-      onConfigChange({
-        ...config,
-        serviceId: import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || config.serviceId,
-        apiKey: import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || config.apiKey,
-        apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || config.apiSecret,
-      });
     }
-  }, [config.environment]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 빈 배열로 마운트 시 1회만 실행
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
