@@ -22,20 +22,21 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
   const [showAccessToken, setShowAccessToken] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
 
-  // 환경 변경 시 Service ID, API Key, API Secret 자동 업데이트
+  // 환경을 Evaluation으로 자동 설정
   useEffect(() => {
-    if (config.environment === 'eval') {
+    // 환경이 설정되지 않았거나 real인 경우 eval로 강제 설정
+    if (!config.environment || config.environment === 'real') {
       onConfigChange({
         ...config,
+        environment: 'eval',
         serviceId: import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || config.serviceId,
         apiKey: import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || config.apiKey,
         apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || config.apiSecret,
       });
-    } else if (config.environment === 'real') {
-      // Real 환경은 현재 비활성화됨 - eval로 강제 변경
+    } else if (config.environment === 'eval') {
+      // eval 환경 설정 업데이트
       onConfigChange({
         ...config,
-        environment: 'eval',
         serviceId: import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID || config.serviceId,
         apiKey: import.meta.env.VITE_PLANETKIT_EVAL_API_KEY || config.apiKey,
         apiSecret: import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET || config.apiSecret,
@@ -148,52 +149,17 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Environment Selection */}
-        <div className="space-y-3 p-4 bg-muted/30 rounded-lg border border-border">
-          <Label className="flex items-center gap-2 text-base font-semibold">
-            <Server className="w-4 h-4" />
-            환경 선택
-          </Label>
-          <RadioGroup
-            value={config.environment}
-            onValueChange={(value: 'eval' | 'real') => onConfigChange({ ...config, environment: value })}
-            className="grid grid-cols-2 gap-3"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="eval" id="env-eval" />
-              <Label htmlFor="env-eval" className="flex-1 cursor-pointer">
-                <div className="flex flex-col">
-                  <span className="font-medium">Evaluation</span>
-                  <span className="text-xs text-muted-foreground">테스트 환경 (-rc)</span>
-                </div>
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2 opacity-50">
-              <RadioGroupItem value="real" id="env-real" disabled />
-              <Label htmlFor="env-real" className="flex-1 cursor-not-allowed">
-                <div className="flex flex-col">
-                  <span className="font-medium">Real</span>
-                  <span className="text-xs text-muted-foreground">프로덕션 환경 (당분간 비활성)</span>
-                </div>
-              </Label>
-            </div>
-          </RadioGroup>
-          {config.environment && (
-            <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
-              <p className="text-blue-800 dark:text-blue-200">
-                {config.environment === 'eval'
-                  ? '📍 Evaluation 환경: voipnx-saturn.line-apps-rc.com (WebSocket이 제한될 수 있음)'
-                  : '📍 Real 환경: voipnx-saturn.line-apps.com (안정적인 연결)'}
-              </p>
-            </div>
-          )}
-          {!config.environment && (
-            <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950 p-2 rounded border border-amber-200 dark:border-amber-800">
-              <p className="text-amber-800 dark:text-amber-200">
-                ⚠️ 환경을 선택해주세요
-              </p>
-            </div>
-          )}
+        {/* Environment Info - Fixed to Evaluation */}
+        <div className="space-y-2 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+          <div className="flex items-center gap-2">
+            <Server className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="font-semibold text-blue-800 dark:text-blue-200">
+              Evaluation 환경 사용 중
+            </span>
+          </div>
+          <p className="text-xs text-blue-700 dark:text-blue-300">
+            📍 voipnx-saturn.line-apps-rc.com (테스트 환경)
+          </p>
         </div>
 
         <Separator />
