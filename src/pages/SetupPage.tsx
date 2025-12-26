@@ -72,14 +72,8 @@ const SetupPage = () => {
   }, [isLoggedIn, profile]);
 
   const handleGenerateToken = async () => {
-    if (!planetKitConfig.environment) {
-      toast({
-        title: language === 'ko' ? "환경 선택 필요" : "Environment Required",
-        description: language === 'ko' ? "Evaluation 또는 Real 환경을 선택해주세요." : "Please select Evaluation or Real environment.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Environment is now always 'eval' (set automatically in useEffect)
+    // No need to check for environment selection
 
     if (!planetKitConfig.roomId) {
       toast({
