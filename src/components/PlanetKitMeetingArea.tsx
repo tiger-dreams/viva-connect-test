@@ -27,17 +27,6 @@ interface PlanetKitMeetingAreaProps {
   onDisconnect?: () => void;
 }
 
-// Room ID를 2글자 코드로 변환
-const getRoomCode = (roomId: string): string => {
-  const roomCodes: Record<string, string> = {
-    'japan': 'JP',
-    'korea': 'KO',
-    'taiwan': 'TW',
-    'thailand': 'TH'
-  };
-  return roomCodes[roomId.toLowerCase()] || roomId.toUpperCase().slice(0, 2);
-};
-
 export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingAreaProps) => {
   const { toast } = useToast();
   const { language } = useLanguage();
@@ -691,9 +680,9 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
                 <LanguageSelector />
                 <div className="text-xs text-white/70 font-medium">
                   {config.roomId && config.environment
-                    ? `${getRoomCode(config.roomId)} - ${config.environment === 'eval' ? 'Eval' : 'Real'}`
+                    ? `${config.roomId} - ${config.environment === 'eval' ? 'Eval' : 'Real'}`
                     : config.roomId
-                    ? getRoomCode(config.roomId)
+                    ? config.roomId
                     : 'PlanetKit'}
                 </div>
               </div>
