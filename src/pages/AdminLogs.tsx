@@ -16,8 +16,10 @@ import { StoredPlanetKitEvent } from '@/types/planetkit-callback';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useLiff } from '@/contexts/LiffContext';
 
-// 허용된 관리자 UID 목록
-const ALLOWED_ADMIN_UIDS = ['Ua78beedfb2146efeeb20a4329a5b4f4e'];
+// 환경 변수에서 허용된 관리자 UID 목록 로드 (쉼표로 구분)
+const ALLOWED_ADMIN_UIDS = import.meta.env.VITE_ADMIN_UIDS
+  ? import.meta.env.VITE_ADMIN_UIDS.split(',').map((uid: string) => uid.trim())
+  : [];
 
 const AdminLogs = () => {
   const { language } = useLanguage();
