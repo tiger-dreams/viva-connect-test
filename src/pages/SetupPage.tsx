@@ -79,7 +79,7 @@ const SetupPage = () => {
     if (isLoggedIn && profile) {
       setPlanetKitConfig(prev => ({
         ...prev,
-        userId: prev.userId || profile.userId,
+        userId: profile.userId, // Always use LINE user ID (not cached value)
         displayName: prev.displayName || profile.displayName
       }));
     }

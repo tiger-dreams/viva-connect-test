@@ -224,17 +224,17 @@ export const PlanetKitConfigPanel = ({ config, onConfigChange }: PlanetKitConfig
         <div className="space-y-2">
           <Label htmlFor="userId" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
-            User ID
+            User ID (LINE)
           </Label>
           <Input
             id="userId"
-            placeholder="사용자 ID를 입력하세요"
+            placeholder="Automatically set from LINE profile"
             value={config.userId}
-            onChange={(e) => onConfigChange({ ...config, userId: e.target.value })}
-            className="font-mono"
+            disabled
+            className="font-mono bg-muted"
           />
           <p className="text-xs text-muted-foreground">
-            통화에 참여할 사용자의 고유 ID입니다.
+            Automatically set from your LINE user ID. This ID is used to identify you in call history.
           </p>
         </div>
 
