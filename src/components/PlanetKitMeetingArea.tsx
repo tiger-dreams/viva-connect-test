@@ -551,8 +551,17 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       return;
     }
 
-    // LIFF가 초기화되지 않았거나 LINE 앱 내부가 아닌 경우 클립보드 복사로 폴백
-    if (!liff.isInClient()) {
+    // shareTargetPicker API 사용 가능 여부 체크
+    const canUseShareTargetPicker = liff.isInClient() && liff.isApiAvailable('shareTargetPicker');
+
+    console.log('[ShareInvite] API availability check:', {
+      isInClient: liff.isInClient(),
+      isApiAvailable: liff.isApiAvailable('shareTargetPicker'),
+      canUseShareTargetPicker,
+    });
+
+    // shareTargetPicker를 사용할 수 없는 경우 클립보드 복사로 폴백
+    if (!canUseShareTargetPicker) {
       const lineAppUrl = `line://app/${liffId}?room=${encodeURIComponent(config.roomId)}`;
       const webUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(config.roomId)}`;
 
@@ -572,7 +581,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
       return;
     }
 
-    // LINE 앱 내부인 경우 친구 목록 공유 사용
+    // LINE 앱 내부이고 shareTargetPicker를 사용할 수 있는 경우
     try {
       const liffUrl = `https://liff.line.me/${liffId}?room=${encodeURIComponent(config.roomId)}`;
 
