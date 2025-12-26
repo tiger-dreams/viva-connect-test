@@ -43,13 +43,25 @@ export default async function handler(
       });
     }
 
-    // Get LINE Channel Access Token from environment
-    const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-    if (!channelAccessToken) {
-      console.error('LINE_CHANNEL_ACCESS_TOKEN is not set in environment variables');
+    // Get LINE Channel Access Token dynamically using v2.1 method
+    const tokenResponse = await fetch(`${request.headers.origin || 'https://' + request.headers.host}/api/get-line-token`);
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('Failed to get LINE token:', errorText);
       return response.status(500).json({
         success: false,
-        error: 'LINE Channel Access Token is not configured',
+        error: 'Failed to obtain LINE Channel Access Token',
+      });
+    }
+
+    const tokenData = await tokenResponse.json();
+    const channelAccessToken = tokenData.access_token;
+
+    if (!channelAccessToken) {
+      return response.status(500).json({
+        success: false,
+        error: 'Invalid token response',
       });
     }
 
