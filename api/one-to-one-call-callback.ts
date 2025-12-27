@@ -32,6 +32,7 @@ export default async function handler(
       event_type,
       userId,
       timestamp,
+      sid,
       ...additionalData
     } = data;
 
@@ -40,13 +41,20 @@ export default async function handler(
       event_type,
       userId,
       timestamp,
-      method: request.method
+      sid,
+      method: request.method,
+      allParams: data
     });
 
-    if (!cc_call_id || !event_type) {
-      return response.status(400).json({
-        success: false,
-        error: 'Missing required fields: cc_call_id, event_type'
+    // Use sid or cc_call_id as identifier
+    const callId = cc_call_id || sid;
+
+    if (!callId) {
+      console.warn('[1-to-1 Call Callback] No call ID found, but processing anyway');
+      // Don't fail, just log and return success for dry run compatibility
+      return response.status(200).json({
+        success: true,
+        message: 'Callback received (no call ID found, dry run?)'
       });
     }
 
@@ -61,14 +69,15 @@ export default async function handler(
             answered_at = NOW(),
             data = COALESCE(data, '{}'::jsonb) || ${JSON.stringify({
               connected_at: Date.now(),
-              cc_call_id
+              cc_call_id,
+              callId
             })}::jsonb
-          WHERE room_id = ${cc_call_id} OR sid = ${cc_call_id}
+          WHERE room_id = ${callId} OR sid = ${callId}
           RETURNING id, sid
         `;
 
         if (updateResult.rowCount === 0) {
-          console.warn('[1-to-1 Call Callback] No session found for cc_call_id:', cc_call_id);
+          console.warn('[1-to-1 Call Callback] No session found for callId:', callId);
         } else {
           console.log('[1-to-1 Call Callback] Updated session status to answered, SID:', updateResult.rows[0]?.sid);
         }
@@ -86,14 +95,15 @@ export default async function handler(
             ended_at = NOW(),
             data = COALESCE(data, '{}'::jsonb) || ${JSON.stringify({
               disconnected_at: Date.now(),
-              cc_call_id
+              cc_call_id,
+              callId
             })}::jsonb
-          WHERE room_id = ${cc_call_id} OR sid = ${cc_call_id}
+          WHERE room_id = ${callId} OR sid = ${callId}
           RETURNING id, sid
         `;
 
         if (updateResult.rowCount === 0) {
-          console.warn('[1-to-1 Call Callback] No session found for cc_call_id:', cc_call_id);
+          console.warn('[1-to-1 Call Callback] No session found for callId:', callId);
         } else {
           console.log('[1-to-1 Call Callback] Updated session status to ended, SID:', updateResult.rows[0]?.sid);
         }
@@ -102,7 +112,7 @@ export default async function handler(
         // Don't fail the callback
       }
     } else {
-      console.log('[1-to-1 Call Callback] Unknown event type:', event_type);
+      console.log('[1-to-1 Call Callback] Unknown or missing event type:', event_type);
     }
 
     // Store event in agent_call_events table
@@ -115,12 +125,13 @@ export default async function handler(
           timestamp,
           data
         ) VALUES (
-          ${cc_call_id},
-          ${event_type},
-          ${event_type},
+          ${callId},
+          ${event_type || 'UNKNOWN'},
+          ${event_type || 'UNKNOWN'},
           ${timestamp ? parseInt(timestamp.toString()) : Date.now()},
           ${JSON.stringify({
             userId,
+            cc_call_id,
             ...additionalData
           })}
         )

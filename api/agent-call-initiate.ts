@@ -98,11 +98,15 @@ export default async function handler(
           serviceId: callerServiceId
         },
         mediaSourceType: 'STORED_SOURCE',
-        storedSource: audioFileIds.map(contentId => ({
-          contentId,
+        storedSource: {
+          storedAudioSources: audioFileIds.map(contentId => ({
+            contentId
+          })),
           playWaitTime: 1000,
-          playCount: 1
-        }))
+          playCount: 2
+        },
+        recordOnCloud: false,
+        useResponderPreparation: false
       };
 
       console.log('[Agent Call Initiate] Calling PlanetKit API:', apiUrl);
