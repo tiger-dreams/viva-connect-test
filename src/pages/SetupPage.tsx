@@ -115,6 +115,7 @@ const SetupPage = () => {
     const roomParam = searchParams.get('room');
     const modeParam = searchParams.get('mode');
     const sidParam = searchParams.get('sid');
+    const ccParamValue = searchParams.get('cc_param');
     const isAgentCall = modeParam === 'agent-call';
 
     // 디버그 정보 업데이트
@@ -186,9 +187,14 @@ const SetupPage = () => {
           // 0.5초 후 자동으로 미팅 페이지로 이동
           setTimeout(() => {
             if (isAgentCall && sidParam) {
-              console.log('[SetupPage] Auto-navigating to agent call meeting...', { sid: sidParam });
+              console.log('[SetupPage] Auto-navigating to agent call meeting...', { sid: sidParam, cc_param: ccParamValue ? 'present' : 'missing' });
               setDebugInfo(prev => prev ? { ...prev, status: '🚀 Navigating to agent call...' } : null);
-              navigate(`/agent-call-meeting?sid=${sidParam}`);
+              // cc_param을 URL에 포함해서 전달
+              const urlParams = new URLSearchParams({ sid: sidParam });
+              if (ccParamValue) {
+                urlParams.set('cc_param', ccParamValue);
+              }
+              navigate(`/agent-call-meeting?${urlParams.toString()}`);
             } else {
               console.log('[SetupPage] Auto-navigating to meeting page...');
               setDebugInfo(prev => prev ? { ...prev, status: '🚀 Navigating to meeting...' } : null);

@@ -96,9 +96,13 @@ export default async function handler(
     // Build deeplink with cc_param
     const deepLink = `https://liff.line.me/${liffId}?room=${encodeURIComponent(String(sid))}&mode=agent-call&sid=${encodeURIComponent(String(sid))}&cc_param=${encodeURIComponent(String(param))}`;
 
-    const message = type === 'V'
-      ? `📹 비디오 통화가 왔습니다!\n\n아래 링크를 눌러 수락하세요:\n${deepLink}`
-      : `📞 전화가 왔습니다!\n\n아래 링크를 눌러 수락하세요:\n${deepLink}`;
+    const messageText = type === 'V'
+      ? `📹 비디오 통화가 왔습니다!`
+      : `📞 전화가 왔습니다!`;
+
+    const buttonText = type === 'V'
+      ? '비디오 통화 수락'
+      : '전화 수락';
 
     try {
       // Get LINE Channel Access Token
@@ -116,7 +120,7 @@ export default async function handler(
         throw new Error('Invalid token response');
       }
 
-      // Send LINE push message
+      // Send LINE push message with Button Template (clicky-able link)
       const lineApiResponse = await fetch('https://api.line.me/v2/bot/message/push', {
         method: 'POST',
         headers: {
@@ -127,9 +131,20 @@ export default async function handler(
           to: to_user_id,
           messages: [
             {
-              type: 'text',
-              text: message,
-            },
+              type: 'template',
+              altText: messageText,
+              template: {
+                type: 'buttons',
+                text: messageText,
+                actions: [
+                  {
+                    type: 'uri',
+                    label: buttonText,
+                    uri: deepLink
+                  }
+                ]
+              }
+            }
           ],
         }),
       });
