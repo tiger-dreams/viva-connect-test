@@ -207,21 +207,21 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
             console.log('[Agent Call] cc_param extracted from URL:', ccParam);
             console.log('[Agent Call] cc_param length:', ccParam.length);
 
-            // Verify incoming call with cc_param
+            // Verify incoming call with ccParam
             console.log('[Agent Call] Verifying call...');
             console.log('[Agent Call] verifyCall params:', {
               delegate: 'callDelegate',
               accessToken: config.accessToken ? 'present' : 'missing',
               myUserId: config.userId,
-              cc_param: ccParam.substring(0, 50) + '...'
+              ccParam: ccParam.substring(0, 50) + '...'
             });
 
-            // Try with myUserId and cc_param (underscore version)
+            // Use ccParam (camelCase) as per PlanetKit SDK requirement
             await planetKitCall.verifyCall({
               delegate: callDelegate,
               accessToken: config.accessToken,
               myUserId: config.userId,
-              cc_param: ccParam
+              ccParam: ccParam
             });
 
             // Accept the call without cc_param (acceptCall may not need it)
