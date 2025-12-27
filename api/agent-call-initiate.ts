@@ -129,6 +129,8 @@ export default async function handler(
         }
 
         planetKitResponse = await planetKitRes.json();
+        console.log('[Agent Call Initiate] Full PlanetKit response:', JSON.stringify(planetKitResponse, null, 2));
+
         sid = planetKitResponse.sid || planetKitResponse.data?.sid;
 
         if (!sid) {
