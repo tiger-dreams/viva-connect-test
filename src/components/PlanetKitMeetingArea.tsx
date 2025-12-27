@@ -135,67 +135,149 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
 
     try {
       const attemptJoin = async (PlanetKitModule: any, envLabel: 'eval' | 'real') => {
-        const planetKitConference = new PlanetKitModule.Conference();
+        // Agent Call (1-to-1) vs Conference (Group Call)
+        if (isAgentCall) {
+          // 1-to-1 Call 방식 (Agent Call)
+          const planetKitCall = new PlanetKitModule.Call();
 
-        const conferenceDelegate = {
-          evtConnected: () => {
-            setConnectionStatus({ connected: true, connecting: false });
-            setConnectionStartTime(new Date());
+          const callDelegate = {
+            evtVerified: () => {
+              console.log('[Agent Call] Call verified');
+            },
 
-            setParticipants([{
-              id: "local",
-              name: config.displayName || config.userId,
-              isVideoOn: true,
-              isAudioOn: true,
-              videoElement: localVideoRef.current || undefined
-            }]);
+            evtConnected: () => {
+              console.log('[Agent Call] Call connected');
+              setConnectionStatus({ connected: true, connecting: false });
+              setConnectionStartTime(new Date());
 
-            // 로컬 비디오 미러링 활성화 (비디오 엘리먼트가 완전히 렌더링된 후 호출)
-            setTimeout(async () => {
-              // 비디오 미러링 적용
-              if (planetKitConference && typeof planetKitConference.setVideoMirror === 'function' && localVideoRef.current) {
-                try {
-                  const mirrorResult = planetKitConference.setVideoMirror(true, localVideoRef.current);
-                  // Promise인지 확인하고 await
-                  if (mirrorResult && typeof mirrorResult.then === 'function') {
-                    await mirrorResult;
-                  }
-                } catch (err: any) {
-                  // 미러링 실패는 무시
-                }
+              setParticipants([{
+                id: "agent",
+                name: language === 'ko' ? '상담원' : 'Agent',
+                isVideoOn: false, // Audio-only
+                isAudioOn: true,
+                videoElement: undefined
+              }]);
+
+              toast({
+                title: language === 'ko' ? '통화 연결됨' : 'Call Connected',
+                description: language === 'ko' ? 'Agent와 연결되었습니다.' : 'Connected to Agent.',
+              });
+            },
+
+            evtDisconnected: (disconnectDetails: any) => {
+              console.log('[Agent Call] Call disconnected:', disconnectDetails);
+              // 로컬 미디어 스트림 정리
+              if (localVideoRef.current && localVideoRef.current.srcObject) {
+                const stream = localVideoRef.current.srcObject as MediaStream;
+                stream.getTracks().forEach(track => track.stop());
+                localVideoRef.current.srcObject = null;
               }
 
-            }, 500);
+              setConnectionStatus({ connected: false, connecting: false });
+              setParticipants([]);
+              setConnectionStartTime(null);
+              setCallDuration("00:00:00");
 
-            toast({
-              title: t.connectionSuccessTitle,
-              description: t.connectionSuccessDescription,
-            });
-          },
-
-          evtDisconnected: (disconnectDetails: any) => {
-            // 로컬 미디어 스트림 정리 (카메라/마이크 끄기)
-            if (localVideoRef.current && localVideoRef.current.srcObject) {
-              const stream = localVideoRef.current.srcObject as MediaStream;
-              stream.getTracks().forEach(track => {
-                track.stop();
+              toast({
+                title: language === 'ko' ? '통화 종료' : 'Call Ended',
+                description: language === 'ko' ? 'Agent Call이 종료되었습니다.' : 'Agent Call ended.',
               });
-              localVideoRef.current.srcObject = null;
+            },
+
+            evtError: (error: any) => {
+              console.error('[Agent Call] Error:', error);
+              toast({
+                title: language === 'ko' ? '통화 오류' : 'Call Error',
+                description: error?.message || (language === 'ko' ? '통화 중 오류가 발생했습니다.' : 'An error occurred during the call.'),
+                variant: 'destructive'
+              });
             }
+          };
 
-            // 원격 비디오 엘리먼트 정리
-            remoteVideoElementsRef.current.clear();
-
-            setConnectionStatus({ connected: false, connecting: false });
-            setParticipants([]);
-            setConnectionStartTime(null);
-            setCallDuration("00:00:00");
-
-            toast({
-              title: "연결 해제",
-              description: "PlanetKit Conference 연결이 해제되었습니다.",
+          try {
+            // Verify incoming call
+            console.log('[Agent Call] Verifying call...');
+            await planetKitCall.verifyCall({
+              delegate: callDelegate,
+              accessToken: config.accessToken
             });
-          },
+
+            // Accept the call
+            console.log('[Agent Call] Accepting call...');
+            await planetKitCall.acceptCall({
+              mediaType: 'audio',
+              mediaHtmlElement: { roomAudio: audioElementRef.current }
+            });
+
+            setConference(planetKitCall);
+          } catch (callError: any) {
+            console.error('[Agent Call] Failed to connect:', callError);
+            throw new Error(`Agent Call 연결 실패: ${callError.message}`);
+          }
+
+        } else {
+          // Conference 방식 (Group Call)
+          const planetKitConference = new PlanetKitModule.Conference();
+
+          const conferenceDelegate = {
+            evtConnected: () => {
+              setConnectionStatus({ connected: true, connecting: false });
+              setConnectionStartTime(new Date());
+
+              setParticipants([{
+                id: "local",
+                name: config.displayName || config.userId,
+                isVideoOn: true,
+                isAudioOn: true,
+                videoElement: localVideoRef.current || undefined
+              }]);
+
+              // 로컬 비디오 미러링 활성화 (비디오 엘리먼트가 완전히 렌더링된 후 호출)
+              setTimeout(async () => {
+                // 비디오 미러링 적용
+                if (planetKitConference && typeof planetKitConference.setVideoMirror === 'function' && localVideoRef.current) {
+                  try {
+                    const mirrorResult = planetKitConference.setVideoMirror(true, localVideoRef.current);
+                    // Promise인지 확인하고 await
+                    if (mirrorResult && typeof mirrorResult.then === 'function') {
+                      await mirrorResult;
+                    }
+                  } catch (err: any) {
+                    // 미러링 실패는 무시
+                  }
+                }
+
+              }, 500);
+
+              toast({
+                title: t.connectionSuccessTitle,
+                description: t.connectionSuccessDescription,
+              });
+            },
+
+            evtDisconnected: (disconnectDetails: any) => {
+              // 로컬 미디어 스트림 정리 (카메라/마이크 끄기)
+              if (localVideoRef.current && localVideoRef.current.srcObject) {
+                const stream = localVideoRef.current.srcObject as MediaStream;
+                stream.getTracks().forEach(track => {
+                  track.stop();
+                });
+                localVideoRef.current.srcObject = null;
+              }
+
+              // 원격 비디오 엘리먼트 정리
+              remoteVideoElementsRef.current.clear();
+
+              setConnectionStatus({ connected: false, connecting: false });
+              setParticipants([]);
+              setConnectionStartTime(null);
+              setCallDuration("00:00:00");
+
+              toast({
+                title: "연결 해제",
+                description: "PlanetKit Conference 연결이 해제되었습니다.",
+              });
+            },
 
           evtPeerListUpdated: (peerUpdateInfo: any) => {
             // PlanetKit은 addedPeers, removedPeers 배열을 제공
@@ -407,26 +489,25 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
 
         const conferenceParams = {
           myId: config.userId,
-          displayName: config.displayName || config.userId, // 정확한 파라미터 이름: displayName (not myDisplayName)
+          displayName: config.displayName || config.userId,
           myServiceId: config.serviceId,
           roomId: config.roomId,
           roomServiceId: config.serviceId,
           accessToken: config.accessToken,
-          mediaType: isAgentCall ? "audio" : "video", // Agent call은 audio-only
-          mediaHtmlElement: isAgentCall
-            ? { roomAudio: audioElementRef.current } // Agent call: audio만
-            : { roomAudio: audioElementRef.current, localVideo: localVideoRef.current }, // Group call: audio + video
+          mediaType: "video",
+          mediaHtmlElement: { roomAudio: audioElementRef.current, localVideo: localVideoRef.current },
           delegate: conferenceDelegate
         };
 
         await planetKitConference.joinConference(conferenceParams);
         setConference(planetKitConference);
-      };
+      } // else 블록 끝
+    }; // attemptJoin 함수 끝
 
-      // 환경은 항상 'eval' (기본값)
-      const environment = config.environment || 'eval';
-      const PlanetKitModule = environment === 'eval' ? PlanetKitEval : PlanetKitReal;
-      await attemptJoin(PlanetKitModule, environment);
+    // 환경은 항상 'eval' (기본값)
+    const environment = config.environment || 'eval';
+    const PlanetKitModule = environment === 'eval' ? PlanetKitEval : PlanetKitReal;
+    await attemptJoin(PlanetKitModule, environment);
 
     } catch (error) {
       setConnectionStatus({
