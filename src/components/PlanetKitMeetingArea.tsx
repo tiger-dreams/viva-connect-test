@@ -207,34 +207,34 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
             console.log('[Agent Call] cc_param extracted from URL:', ccParam);
             console.log('[Agent Call] cc_param length:', ccParam.length);
 
-            // Verify incoming call with ccParam
+            // Verify incoming call with proper params (based on 1-to-1 call sample)
             console.log('[Agent Call] Verifying call...');
             console.log('[Agent Call] verifyCall params:', {
-              delegate: 'callDelegate',
-              accessToken: config.accessToken ? 'present' : 'missing',
-              myUserId: config.userId,
-              ccParam: ccParam.substring(0, 50) + '...'
+              myId: config.userId,
+              myServiceId: config.serviceId,
+              mediaType: 'audio',
+              ccParam: ccParam.substring(0, 50) + '...',
+              delegate: 'present'
             });
 
-            // Use ccParam (camelCase) as per PlanetKit SDK requirement
+            // Use proper verifyCall params from sample code
             await planetKitCall.verifyCall({
-              delegate: callDelegate,
-              accessToken: config.accessToken,
-              myUserId: config.userId,
-              ccParam: ccParam
+              myId: config.userId,
+              myServiceId: config.serviceId,
+              mediaType: 'audio',
+              ccParam: ccParam,
+              mediaHtmlElement: {
+                peer: {
+                  audio: audioElementRef.current
+                }
+              },
+              delegate: callDelegate
             });
 
-            // Accept the call without cc_param (acceptCall may not need it)
+            // Accept the call
             console.log('[Agent Call] Accepting call...');
-            console.log('[Agent Call] acceptCall params:', {
-              mediaType: 'audio',
-              mediaHtmlElement: 'present'
-            });
 
-            await planetKitCall.acceptCall({
-              mediaType: 'audio',
-              mediaHtmlElement: { roomAudio: audioElementRef.current }
-            });
+            await planetKitCall.acceptCall();
 
             setConference(planetKitCall);
           } catch (callError: any) {
