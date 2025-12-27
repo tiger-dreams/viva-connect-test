@@ -75,20 +75,21 @@ export default async function handler(
     } else {
       // Real Mode: Call PlanetKit Agent Call API
       const baseUrl = process.env.PLANETKIT_AGENT_CALL_BASE_URL || 'https://vpnx-stn-api.line-apps-rc.com';
-      const apiKey = process.env.PLANETKIT_AGENT_CALL_API_KEY;
+      const apiKey = process.env.VITE_PLANETKIT_EVAL_API_KEY;
+      const apiSecret = process.env.VITE_PLANETKIT_EVAL_API_SECRET;
 
-      if (!apiKey) {
+      if (!apiKey || !apiSecret) {
         return response.status(500).json({
           success: false,
-          error: 'Agent Call API key not configured'
+          error: 'PlanetKit API credentials not configured'
         });
       }
 
       // Build PlanetKit API URL
       const apiUrl = `${baseUrl}/tas/v2/agt_call/audio_caller/${toServiceId}/${toUserId}`;
 
-      // Basic Authentication with API Key (format: apiKey:)
-      const auth = Buffer.from(`${apiKey}:`).toString('base64');
+      // Basic Authentication: base64(API_KEY + ":" + API_SECRET)
+      const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
 
       // Build request body
       const planetKitBody = {
