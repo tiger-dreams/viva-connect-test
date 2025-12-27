@@ -13,6 +13,8 @@ import MeetingPage from "./pages/MeetingPage";
 import AdminLogs from "./pages/AdminLogs";
 import AdminRooms from "./pages/AdminRooms";
 import NotFound from "./pages/NotFound";
+import { AgentCallTrigger } from "./pages/AgentCallTrigger";
+import { AgentCallMeeting } from "./pages/AgentCallMeeting";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +37,10 @@ const App = () => (
 
               {/* PlanetKit 미팅 페이지 */}
               <Route path="/planetkit_meeting" element={<PlanetKitMeeting />} />
+
+              {/* Agent Call 페이지 */}
+              <Route path="/agent-call" element={<AgentCallTrigger />} />
+              <Route path="/agent-call-meeting" element={<AgentCallMeeting />} />
 
               {/* 기존 미팅 페이지 (호환성 유지) */}
               <Route path="/meeting" element={<MeetingPage />} />

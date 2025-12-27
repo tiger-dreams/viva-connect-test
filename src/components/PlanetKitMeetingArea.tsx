@@ -10,6 +10,7 @@ import {
   Clock,
   Users,
   Share2,
+  Phone,
 } from "lucide-react";
 import { PlanetKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
@@ -26,13 +27,19 @@ import * as PlanetKitEval from "@line/planet-kit/dist/planet-kit-eval";
 interface PlanetKitMeetingAreaProps {
   config: PlanetKitConfig;
   onDisconnect?: () => void;
+  mode?: 'group' | 'agent-call';
+  sessionId?: string;
 }
 
-export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingAreaProps) => {
+export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: PlanetKitMeetingAreaProps) => {
   const { toast } = useToast();
   const { language } = useLanguage();
   const t = getTranslations(language);
   const { liffId, liff, profile } = useLiff();
+
+  // Determine if this is an agent call
+  const isAgentCall = mode === 'agent-call';
+
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     connected: false,
     connecting: false
@@ -105,19 +112,21 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
     // 명시적으로 로컬 미디어 스트림 획득 (PlanetKit 연결 전)
     try {
       const localStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: !isAgentCall, // Agent call은 video 비활성화
         audio: true
       });
 
-      // 로컬 비디오 엘리먼트에 스트림 연결
-      if (localVideoRef.current) {
+      // 로컬 비디오 엘리먼트에 스트림 연결 (Agent call이 아닐 경우만)
+      if (!isAgentCall && localVideoRef.current) {
         localVideoRef.current.srcObject = localStream;
         await localVideoRef.current.play();
       }
     } catch (mediaError) {
       toast({
-        title: "카메라/마이크 권한 필요",
-        description: "카메라와 마이크 권한을 허용해주세요.",
+        title: language === 'ko' ? "카메라/마이크 권한 필요" : "Camera/Mic permission required",
+        description: isAgentCall
+          ? (language === 'ko' ? "마이크 권한을 허용해주세요." : "Please allow microphone access.")
+          : (language === 'ko' ? "카메라와 마이크 권한을 허용해주세요." : "Please allow camera and microphone access."),
         variant: "destructive",
       });
       setConnectionStatus({ connected: false, connecting: false });
@@ -403,11 +412,10 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
           roomId: config.roomId,
           roomServiceId: config.serviceId,
           accessToken: config.accessToken,
-          mediaType: "video",
-          mediaHtmlElement: {
-            roomAudio: audioElementRef.current,
-            localVideo: localVideoRef.current
-          },
+          mediaType: isAgentCall ? "audio" : "video", // Agent call은 audio-only
+          mediaHtmlElement: isAgentCall
+            ? { roomAudio: audioElementRef.current } // Agent call: audio만
+            : { roomAudio: audioElementRef.current, localVideo: localVideoRef.current }, // Group call: audio + video
           delegate: conferenceDelegate
         };
 
@@ -712,16 +720,22 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
                   <Clock className="w-4 h-4" />
                   <span className="text-sm font-mono">{callDuration}</span>
                 </div>
-                <div className="w-px h-4 bg-white/20" />
-                <div className="flex items-center gap-1.5">
-                  <Users className="w-4 h-4" />
-                  <span className="text-sm">{participants.length}</span>
-                </div>
+                {!isAgentCall && (
+                  <>
+                    <div className="w-px h-4 bg-white/20" />
+                    <div className="flex items-center gap-1.5">
+                      <Users className="w-4 h-4" />
+                      <span className="text-sm">{participants.length}</span>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <LanguageSelector />
                 <div className="text-xs text-white/70 font-medium">
-                  {config.roomId && config.environment
+                  {isAgentCall
+                    ? (language === 'ko' ? '음성 통화' : 'Voice Call')
+                    : config.roomId && config.environment
                     ? `${config.roomId} - ${config.environment === 'eval' ? 'Eval' : 'Real'}`
                     : config.roomId
                     ? config.roomId
@@ -731,30 +745,62 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
             </div>
           </div>
 
-          {/* 비디오 그리드 - 전체 화면 */}
+          {/* 비디오 그리드 또는 오디오 시각화 */}
           <div className="absolute top-[52px] bottom-[100px] left-0 right-0 w-full">
-            <TileView participants={tileParticipants} />
+            {isAgentCall ? (
+              /* Agent Call: 오디오 시각화 */
+              <div className="flex flex-col items-center justify-center h-full space-y-8">
+                {/* Agent Avatar */}
+                <div className="w-32 h-32 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Phone className="w-16 h-16 text-primary" />
+                </div>
+
+                {/* Call Duration */}
+                <div className="text-center space-y-2">
+                  <p className="text-white text-4xl font-semibold">{callDuration}</p>
+                  <p className="text-white/70 text-sm">
+                    {language === 'ko' ? '통화 중' : 'Call in progress'}
+                  </p>
+                </div>
+
+                {/* Speaking Indicator - shows when audio is on */}
+                {isAudioOn && (
+                  <div className="flex justify-center gap-1.5">
+                    <div className="w-2 h-8 bg-primary rounded-full animate-pulse" />
+                    <div className="w-2 h-12 bg-primary rounded-full animate-pulse" style={{ animationDelay: '0.1s' }} />
+                    <div className="w-2 h-10 bg-primary rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                    <div className="w-2 h-12 bg-primary rounded-full animate-pulse" style={{ animationDelay: '0.3s' }} />
+                    <div className="w-2 h-8 bg-primary rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Group Call: 비디오 그리드 */
+              <TileView participants={tileParticipants} />
+            )}
           </div>
 
           {/* 하단 컨트롤 */}
           <div className="fixed bottom-0 left-0 right-0 z-20 bg-black/70 backdrop-blur-sm border-t border-white/10">
             <div className="flex items-center justify-center gap-4 px-4 py-6">
-              {/* 비디오 토글 */}
-              <Button
-                onClick={toggleVideo}
-                size="lg"
-                className={`w-14 h-14 rounded-full ${
-                  isVideoOn
-                    ? 'bg-white/20 hover:bg-white/30 text-white'
-                    : 'bg-red-600 hover:bg-red-700 text-white'
-                }`}
-              >
-                {isVideoOn ? (
-                  <Video className="w-6 h-6" />
-                ) : (
-                  <VideoOff className="w-6 h-6" />
-                )}
-              </Button>
+              {/* 비디오 토글 - Agent Call에서는 숨김 */}
+              {!isAgentCall && (
+                <Button
+                  onClick={toggleVideo}
+                  size="lg"
+                  className={`w-14 h-14 rounded-full ${
+                    isVideoOn
+                      ? 'bg-white/20 hover:bg-white/30 text-white'
+                      : 'bg-red-600 hover:bg-red-700 text-white'
+                  }`}
+                >
+                  {isVideoOn ? (
+                    <Video className="w-6 h-6" />
+                  ) : (
+                    <VideoOff className="w-6 h-6" />
+                  )}
+                </Button>
+              )}
 
               {/* 마이크 토글 */}
               <Button
@@ -773,15 +819,17 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect }: PlanetKitMeetingA
                 )}
               </Button>
 
-              {/* 초대 링크 공유 */}
-              <Button
-                onClick={shareInviteUrl}
-                size="lg"
-                className="w-14 h-14 rounded-full bg-white/20 hover:bg-white/30 text-white"
-                title={language === 'ko' ? '초대 링크 복사' : 'Copy Invite Link'}
-              >
-                <Share2 className="w-6 h-6" />
-              </Button>
+              {/* 초대 링크 공유 - Agent Call에서는 숨김 */}
+              {!isAgentCall && (
+                <Button
+                  onClick={shareInviteUrl}
+                  size="lg"
+                  className="w-14 h-14 rounded-full bg-white/20 hover:bg-white/30 text-white"
+                  title={language === 'ko' ? '초대 링크 복사' : 'Copy Invite Link'}
+                >
+                  <Share2 className="w-6 h-6" />
+                </Button>
+              )}
 
               {/* 연결 해제 */}
               <Button

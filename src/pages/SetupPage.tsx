@@ -113,6 +113,9 @@ const SetupPage = () => {
   // 자동 토큰 생성 및 미팅 참여
   useEffect(() => {
     const roomParam = searchParams.get('room');
+    const modeParam = searchParams.get('mode');
+    const sidParam = searchParams.get('sid');
+    const isAgentCall = modeParam === 'agent-call';
 
     // 디버그 정보 업데이트
     let status = 'Waiting for conditions...';
@@ -146,14 +149,14 @@ const SetupPage = () => {
       userId: planetKitConfig.userId || '',
       status,
     });
-    console.log('[SetupPage] Auto-token useEffect triggered', { status });
+    console.log('[SetupPage] Auto-token useEffect triggered', { status, mode: modeParam, sid: sidParam });
 
     // 조건: URL에 room 파라미터가 있고, 로그인 완료, 토큰이 없고, 아직 자동 생성하지 않음
     if (roomParam && isLoggedIn && profile && planetKitConfig.roomId && !planetKitConfig.accessToken && !autoTokenGeneratedRef.current) {
       // 필수 설정이 모두 있는지 확인
       if (planetKitConfig.serviceId && planetKitConfig.apiKey && planetKitConfig.userId) {
         autoTokenGeneratedRef.current = true; // 중복 실행 방지
-        console.log('[SetupPage] Auto-generating token for deep link entry...');
+        console.log('[SetupPage] Auto-generating token for deep link entry...', { isAgentCall });
         setDebugInfo(prev => prev ? { ...prev, status: '🚀 Generating token...' } : null);
 
         // 토큰 생성
@@ -175,14 +178,22 @@ const SetupPage = () => {
           // 토큰 생성 성공 toast
           toast({
             title: language === 'ko' ? '자동 입장 준비 완료' : 'Auto-entry Ready',
-            description: language === 'ko' ? `${planetKitConfig.roomId} 룸에 입장할 수 있습니다.` : `Ready to join ${planetKitConfig.roomId} room.`,
+            description: isAgentCall
+              ? (language === 'ko' ? '음성 통화에 입장합니다.' : 'Joining voice call.')
+              : (language === 'ko' ? `${planetKitConfig.roomId} 룸에 입장할 수 있습니다.` : `Ready to join ${planetKitConfig.roomId} room.`),
           });
 
           // 0.5초 후 자동으로 미팅 페이지로 이동
           setTimeout(() => {
-            console.log('[SetupPage] Auto-navigating to meeting page...');
-            setDebugInfo(prev => prev ? { ...prev, status: '🚀 Navigating to meeting...' } : null);
-            navigate('/planetkit_meeting');
+            if (isAgentCall && sidParam) {
+              console.log('[SetupPage] Auto-navigating to agent call meeting...', { sid: sidParam });
+              setDebugInfo(prev => prev ? { ...prev, status: '🚀 Navigating to agent call...' } : null);
+              navigate(`/agent-call-meeting?sid=${sidParam}`);
+            } else {
+              console.log('[SetupPage] Auto-navigating to meeting page...');
+              setDebugInfo(prev => prev ? { ...prev, status: '🚀 Navigating to meeting...' } : null);
+              navigate('/planetkit_meeting');
+            }
           }, 500);
         }).catch(error => {
           console.error('[SetupPage] Auto token generation failed:', error);
@@ -196,7 +207,7 @@ const SetupPage = () => {
         });
       }
     }
-  }, [isLoggedIn, profile, planetKitConfig.roomId, planetKitConfig.accessToken, planetKitConfig.serviceId, planetKitConfig.apiKey, planetKitConfig.userId, searchParams]);
+  }, [isLoggedIn, profile, planetKitConfig.roomId, planetKitConfig.accessToken, planetKitConfig.serviceId, planetKitConfig.apiKey, planetKitConfig.userId, searchParams, navigate, toast, language]);
 
   const handleGenerateToken = async () => {
     // Environment is now always 'eval' (set automatically in useEffect)
