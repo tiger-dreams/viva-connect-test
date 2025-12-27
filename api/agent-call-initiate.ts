@@ -246,7 +246,6 @@ export default async function handler(
         return response.status(200).json({
           success: true,
           sid,
-          roomId,
           mock: MOCK_MODE,
           warning: 'Agent call initiated but LINE message failed'
         });
@@ -257,7 +256,6 @@ export default async function handler(
       return response.status(200).json({
         success: true,
         sid,
-        roomId,
         mock: MOCK_MODE,
         message: 'Agent call initiated and LINE message sent'
       });
@@ -266,7 +264,6 @@ export default async function handler(
       return response.status(200).json({
         success: true,
         sid,
-        roomId,
         mock: MOCK_MODE,
         warning: `Agent call initiated but LINE message failed: ${lineError.message}`
       });
