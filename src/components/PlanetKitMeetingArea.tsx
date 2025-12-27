@@ -208,32 +208,32 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
             console.log('[Agent Call] cc_param length:', ccParam.length);
 
             // Verify incoming call with cc_param
-            // cc_param을 base64 디코딩해서 전달해야 하는지 확인
-            console.log('[Agent Call] Verifying call with cc_param...');
+            console.log('[Agent Call] Verifying call...');
             console.log('[Agent Call] verifyCall params:', {
               delegate: 'callDelegate',
               accessToken: config.accessToken ? 'present' : 'missing',
-              ccParam: ccParam.substring(0, 50) + '...'
+              myUserId: config.userId,
+              cc_param: ccParam.substring(0, 50) + '...'
             });
 
+            // Try with myUserId and cc_param (underscore version)
             await planetKitCall.verifyCall({
               delegate: callDelegate,
               accessToken: config.accessToken,
-              ccParam: ccParam
+              myUserId: config.userId,
+              cc_param: ccParam
             });
 
-            // Accept the call with cc_param
-            console.log('[Agent Call] Accepting call with cc_param...');
+            // Accept the call without cc_param (acceptCall may not need it)
+            console.log('[Agent Call] Accepting call...');
             console.log('[Agent Call] acceptCall params:', {
               mediaType: 'audio',
-              mediaHtmlElement: 'present',
-              ccParam: ccParam.substring(0, 50) + '...'
+              mediaHtmlElement: 'present'
             });
 
             await planetKitCall.acceptCall({
               mediaType: 'audio',
-              mediaHtmlElement: { roomAudio: audioElementRef.current },
-              ccParam: ccParam
+              mediaHtmlElement: { roomAudio: audioElementRef.current }
             });
 
             setConference(planetKitCall);
