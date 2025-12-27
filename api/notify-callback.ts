@@ -97,12 +97,12 @@ export default async function handler(
     const deepLink = `https://liff.line.me/${liffId}?room=${encodeURIComponent(String(sid))}&mode=agent-call&sid=${encodeURIComponent(String(sid))}&cc_param=${encodeURIComponent(String(param))}`;
 
     const messageText = type === 'V'
-      ? `📹 비디오 통화가 왔습니다!`
-      : `📞 전화가 왔습니다!`;
+      ? `📹 Incoming video call!`
+      : `📞 Incoming call!`;
 
     const buttonText = type === 'V'
-      ? '비디오 통화 수락'
-      : '전화 수락';
+      ? 'Accept Video Call'
+      : 'Accept Call';
 
     try {
       // Get LINE Channel Access Token
