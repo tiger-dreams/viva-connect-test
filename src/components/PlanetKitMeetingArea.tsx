@@ -204,8 +204,18 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
               throw new Error('cc_param이 URL에 없습니다. notify callback에서 전달된 deeplink를 사용해주세요.');
             }
 
+            console.log('[Agent Call] cc_param extracted from URL:', ccParam);
+            console.log('[Agent Call] cc_param length:', ccParam.length);
+
             // Verify incoming call with cc_param
+            // cc_param을 base64 디코딩해서 전달해야 하는지 확인
             console.log('[Agent Call] Verifying call with cc_param...');
+            console.log('[Agent Call] verifyCall params:', {
+              delegate: 'callDelegate',
+              accessToken: config.accessToken ? 'present' : 'missing',
+              ccParam: ccParam.substring(0, 50) + '...'
+            });
+
             await planetKitCall.verifyCall({
               delegate: callDelegate,
               accessToken: config.accessToken,
@@ -214,6 +224,12 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
 
             // Accept the call with cc_param
             console.log('[Agent Call] Accepting call with cc_param...');
+            console.log('[Agent Call] acceptCall params:', {
+              mediaType: 'audio',
+              mediaHtmlElement: 'present',
+              ccParam: ccParam.substring(0, 50) + '...'
+            });
+
             await planetKitCall.acceptCall({
               mediaType: 'audio',
               mediaHtmlElement: { roomAudio: audioElementRef.current },
