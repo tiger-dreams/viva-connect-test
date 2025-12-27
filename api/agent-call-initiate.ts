@@ -106,6 +106,7 @@ export default async function handler(
       };
 
       console.log('[Agent Call Initiate] Calling PlanetKit API:', apiUrl);
+      console.log('[Agent Call Initiate] Request body:', JSON.stringify(planetKitBody, null, 2));
 
       try {
         const planetKitRes = await fetch(apiUrl, {
