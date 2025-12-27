@@ -99,7 +99,7 @@ export default async function handler(
             contentId
           })),
           playWaitTime: 1000,
-          playCount: 2
+          playCount: 1
         },
         recordOnCloud: false,
         useResponderPreparation: false
