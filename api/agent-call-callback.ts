@@ -32,6 +32,7 @@ export default async function handler(
       result,
       fail_reason,
       timestamp,
+      param,  // This is cc_param!
       ...additionalData
     } = data;
 
@@ -40,7 +41,9 @@ export default async function handler(
       result,
       fail_reason,
       timestamp,
-      method: request.method
+      param,
+      method: request.method,
+      allData: data
     });
 
     if (!sid) {

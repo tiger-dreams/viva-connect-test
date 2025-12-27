@@ -145,8 +145,22 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
           const planetKitCall = new PlanetKitModule.Call();
 
           const callDelegate = {
-            evtVerified: () => {
+            evtVerified: async () => {
               console.log('[Agent Call] Call verified');
+
+              // Now accept the call after verification
+              try {
+                console.log('[Agent Call] Accepting call...');
+                await planetKitCall.acceptCall();
+                console.log('[Agent Call] Call accepted successfully');
+              } catch (acceptError: any) {
+                console.error('[Agent Call] Failed to accept call:', acceptError);
+                toast({
+                  title: language === 'ko' ? '통화 수락 실패' : 'Failed to Accept Call',
+                  description: acceptError?.message || (language === 'ko' ? '통화 수락 중 오류가 발생했습니다.' : 'An error occurred while accepting the call.'),
+                  variant: 'destructive'
+                });
+              }
             },
 
             evtConnected: () => {
@@ -231,10 +245,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
               delegate: callDelegate
             });
 
-            // Accept the call
-            console.log('[Agent Call] Accepting call...');
-
-            await planetKitCall.acceptCall();
+            // acceptCall() is now called in evtVerified callback
+            console.log('[Agent Call] Waiting for call verification...');
 
             setConference(planetKitCall);
           } catch (callError: any) {
