@@ -58,10 +58,6 @@ export default async function handler(
       });
     }
 
-    // Generate unique room ID for this agent call
-    const roomId = `agent-call-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    console.log('[Agent Call Initiate] Generated room ID:', roomId);
-
     // Check if Mock Mode is enabled
     const MOCK_MODE = process.env.PLANETKIT_AGENT_CALL_MOCK_MODE === 'true';
 
@@ -153,7 +149,7 @@ export default async function handler(
       }
     }
 
-    // Store session in database
+    // Store session in database (use sid as room_id for Agent Call)
     try {
       await sql`
         INSERT INTO agent_call_sessions (
@@ -173,7 +169,7 @@ export default async function handler(
           ${toUserId},
           ${callerServiceId},
           ${toServiceId},
-          ${roomId},
+          ${sid},
           'initiated',
           ${JSON.stringify(audioFileIds)},
           ${language},
@@ -190,7 +186,7 @@ export default async function handler(
       });
     }
 
-    // Send LINE message with deep link
+    // Send LINE message with deep link (use sid as room parameter)
     const baseUrl = request.headers.origin || `https://${request.headers.host}`;
     const liffId = process.env.VITE_LIFF_ID;
 
@@ -199,13 +195,12 @@ export default async function handler(
       return response.status(200).json({
         success: true,
         sid,
-        roomId,
         mock: MOCK_MODE,
         warning: 'LIFF ID not configured, LINE message not sent'
       });
     }
 
-    const deepLink = `https://liff.line.me/${liffId}?room=${encodeURIComponent(roomId)}&mode=agent-call&sid=${encodeURIComponent(sid)}`;
+    const deepLink = `https://liff.line.me/${liffId}?room=${encodeURIComponent(sid)}&mode=agent-call&sid=${encodeURIComponent(sid)}`;
 
     const message = language === 'ko'
       ? `📞 전화가 왔습니다!\n\n아래 링크를 눌러 수락하세요:\n${deepLink}`
