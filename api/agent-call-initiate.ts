@@ -188,88 +188,17 @@ export default async function handler(
       });
     }
 
-    // Send LINE message with deep link (use sid as room parameter)
-    const baseUrl = request.headers.origin || `https://${request.headers.host}`;
-    const liffId = process.env.VITE_LIFF_ID;
+    // Note: LINE message will be sent by PlanetKit notify callback (/api/notify-callback)
+    // The notify callback will receive cc_param from PlanetKit and send it to the user via LINE message
+    console.log('[Agent Call Initiate] Agent Call initiated successfully.');
+    console.log('[Agent Call Initiate] Waiting for notify callback to deliver cc_param to user via LINE message.');
 
-    if (!liffId) {
-      console.warn('[Agent Call Initiate] LIFF ID not configured, skipping LINE message');
-      return response.status(200).json({
-        success: true,
-        sid,
-        mock: MOCK_MODE,
-        warning: 'LIFF ID not configured, LINE message not sent'
-      });
-    }
-
-    const deepLink = `https://liff.line.me/${liffId}?room=${encodeURIComponent(sid)}&mode=agent-call&sid=${encodeURIComponent(sid)}`;
-
-    const message = language === 'ko'
-      ? `📞 전화가 왔습니다!\n\n아래 링크를 눌러 수락하세요:\n${deepLink}`
-      : `📞 You have an incoming call!\n\nTap the link to accept:\n${deepLink}`;
-
-    try {
-      // Get LINE Channel Access Token
-      const tokenUrl = `${baseUrl}/api/get-line-token`;
-      const tokenResponse = await fetch(tokenUrl);
-
-      if (!tokenResponse.ok) {
-        throw new Error(`Failed to get LINE token: ${tokenResponse.status}`);
-      }
-
-      const tokenData = await tokenResponse.json();
-      const channelAccessToken = tokenData.access_token;
-
-      if (!channelAccessToken) {
-        throw new Error('Invalid token response');
-      }
-
-      // Send LINE push message
-      const lineApiResponse = await fetch('https://api.line.me/v2/bot/message/push', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${channelAccessToken}`,
-        },
-        body: JSON.stringify({
-          to: toUserId,
-          messages: [
-            {
-              type: 'text',
-              text: message,
-            },
-          ],
-        }),
-      });
-
-      if (!lineApiResponse.ok) {
-        const errorText = await lineApiResponse.text();
-        console.error('[Agent Call Initiate] Failed to send LINE message:', errorText);
-        return response.status(200).json({
-          success: true,
-          sid,
-          mock: MOCK_MODE,
-          warning: 'Agent call initiated but LINE message failed'
-        });
-      }
-
-      console.log('[Agent Call Initiate] LINE message sent successfully');
-
-      return response.status(200).json({
-        success: true,
-        sid,
-        mock: MOCK_MODE,
-        message: 'Agent call initiated and LINE message sent'
-      });
-    } catch (lineError: any) {
-      console.error('[Agent Call Initiate] Error sending LINE message:', lineError);
-      return response.status(200).json({
-        success: true,
-        sid,
-        mock: MOCK_MODE,
-        warning: `Agent call initiated but LINE message failed: ${lineError.message}`
-      });
-    }
+    return response.status(200).json({
+      success: true,
+      sid,
+      mock: MOCK_MODE,
+      message: 'Agent call initiated. Notify callback will send LINE message with cc_param.'
+    });
   } catch (error: any) {
     console.error('[Agent Call Initiate] Error:', error);
     return response.status(500).json({

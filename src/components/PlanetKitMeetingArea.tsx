@@ -40,6 +40,10 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
   // Determine if this is an agent call
   const isAgentCall = mode === 'agent-call';
 
+  // Extract cc_param from URL for Agent Call
+  const urlParams = new URLSearchParams(window.location.search);
+  const ccParam = urlParams.get('cc_param');
+
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     connected: false,
     connecting: false
@@ -195,18 +199,25 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
           };
 
           try {
-            // Verify incoming call
-            console.log('[Agent Call] Verifying call...');
+            // cc_param 검증
+            if (!ccParam) {
+              throw new Error('cc_param이 URL에 없습니다. notify callback에서 전달된 deeplink를 사용해주세요.');
+            }
+
+            // Verify incoming call with cc_param
+            console.log('[Agent Call] Verifying call with cc_param...');
             await planetKitCall.verifyCall({
               delegate: callDelegate,
-              accessToken: config.accessToken
+              accessToken: config.accessToken,
+              ccParam: ccParam
             });
 
-            // Accept the call
-            console.log('[Agent Call] Accepting call...');
+            // Accept the call with cc_param
+            console.log('[Agent Call] Accepting call with cc_param...');
             await planetKitCall.acceptCall({
               mediaType: 'audio',
-              mediaHtmlElement: { roomAudio: audioElementRef.current }
+              mediaHtmlElement: { roomAudio: audioElementRef.current },
+              ccParam: ccParam
             });
 
             setConference(planetKitCall);
