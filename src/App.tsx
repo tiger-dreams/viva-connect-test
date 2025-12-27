@@ -41,6 +41,9 @@ const App = () => (
               {/* Agent Call 페이지 */}
               <Route path="/agent-call" element={<AgentCallTrigger />} />
               <Route path="/agent-call-meeting" element={<AgentCallMeeting />} />
+              {/* LIFF Endpoint URL이 /setup인 경우를 위한 리다이렉트 */}
+              <Route path="/setup/agent-call" element={<AgentCallTrigger />} />
+              <Route path="/setup/agent-call-meeting" element={<AgentCallMeeting />} />
 
               {/* 기존 미팅 페이지 (호환성 유지) */}
               <Route path="/meeting" element={<MeetingPage />} />
