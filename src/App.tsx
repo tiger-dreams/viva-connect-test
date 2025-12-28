@@ -15,6 +15,7 @@ import AdminRooms from "./pages/AdminRooms";
 import NotFound from "./pages/NotFound";
 import { AgentCallTrigger } from "./pages/AgentCallTrigger";
 import { AgentCallMeeting } from "./pages/AgentCallMeeting";
+import { ScheduleRetryPage } from "./pages/ScheduleRetryPage";
 
 const queryClient = new QueryClient();
 
@@ -41,9 +42,11 @@ const App = () => (
               {/* Agent Call 페이지 */}
               <Route path="/agent-call" element={<AgentCallTrigger />} />
               <Route path="/agent-call-meeting" element={<AgentCallMeeting />} />
+              <Route path="/schedule-retry" element={<ScheduleRetryPage />} />
               {/* LIFF Endpoint URL이 /setup인 경우를 위한 리다이렉트 */}
               <Route path="/setup/agent-call" element={<AgentCallTrigger />} />
               <Route path="/setup/agent-call-meeting" element={<AgentCallMeeting />} />
+              <Route path="/setup/schedule-retry" element={<ScheduleRetryPage />} />
 
               {/* 기존 미팅 페이지 (호환성 유지) */}
               <Route path="/meeting" element={<MeetingPage />} />

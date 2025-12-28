@@ -8,6 +8,9 @@ interface AgentCallInitiateRequest {
   callerServiceId: string;
   audioFileIds: string[];
   language?: 'ko' | 'en';
+  isRetry?: boolean;
+  parentSid?: string;
+  retryAttempt?: number;
 }
 
 export default async function handler(
@@ -39,7 +42,10 @@ export default async function handler(
       callerUserId,
       callerServiceId,
       audioFileIds,
-      language = 'ko'
+      language = 'ko',
+      isRetry = false,
+      parentSid,
+      retryAttempt
     } = body;
 
     console.log('[Agent Call Initiate] Request:', {
@@ -47,7 +53,10 @@ export default async function handler(
       toServiceId,
       callerUserId,
       audioFileIds,
-      language
+      language,
+      isRetry,
+      parentSid,
+      retryAttempt
     });
 
     // Validation
@@ -164,6 +173,9 @@ export default async function handler(
           status,
           audio_file_ids,
           language,
+          is_retry,
+          parent_sid,
+          retry_count,
           data
         ) VALUES (
           ${sid},
@@ -175,11 +187,19 @@ export default async function handler(
           'initiated',
           ${JSON.stringify(audioFileIds)},
           ${language},
-          ${JSON.stringify({ mock: MOCK_MODE, planetKitResponse })}
+          ${isRetry},
+          ${parentSid || null},
+          ${retryAttempt || 0},
+          ${JSON.stringify({ mock: MOCK_MODE, planetKitResponse, isRetry, parentSid, retryAttempt })}
         )
       `;
 
-      console.log('[Agent Call Initiate] Session stored in database');
+      console.log('[Agent Call Initiate] Session stored in database', {
+        sid,
+        isRetry,
+        parentSid,
+        retryAttempt
+      });
     } catch (dbError: any) {
       console.error('[Agent Call Initiate] Database error:', dbError);
       return response.status(500).json({
