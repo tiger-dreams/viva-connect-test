@@ -63,18 +63,20 @@ export default async function handler(
       });
     }
 
-    // Check if user is currently in an active call
+    // Check if user is currently in an active call (within last 2 minutes)
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
     const activeCallResult = await sql`
-      SELECT sid, status
+      SELECT sid, status, created_at
       FROM agent_call_sessions
       WHERE callee_user_id = ${calleeUserId}
         AND status IN ('ringing', 'answered', 'initiated')
+        AND created_at > ${twoMinutesAgo.toISOString()}
       ORDER BY created_at DESC
       LIMIT 1
     `;
 
     if (activeCallResult.rowCount > 0) {
-      console.log(`[Execute Retry] User ${calleeUserId} is in active call, skipping`);
+      console.log(`[Execute Retry] User ${calleeUserId} is in active call (${activeCallResult.rows[0].status}), skipping`);
 
       // Mark as failed (user busy)
       await sql`
