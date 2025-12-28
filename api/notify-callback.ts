@@ -57,8 +57,19 @@ export default async function handler(
       });
     }
 
-    // Store cc_param in database
+    // Get session language and store cc_param in database
+    let sessionLanguage = 'en'; // Default to English for international users
     try {
+      // First, get the language from the session
+      const sessionResult = await sql`
+        SELECT language FROM agent_call_sessions WHERE sid = ${sid}
+      `;
+
+      if (sessionResult.rowCount > 0 && sessionResult.rows[0].language) {
+        sessionLanguage = sessionResult.rows[0].language;
+      }
+
+      // Then update with cc_param
       await sql`
         UPDATE agent_call_sessions
         SET
@@ -74,7 +85,7 @@ export default async function handler(
         WHERE sid = ${sid}
       `;
 
-      console.log('[Notify Callback] Updated session with cc_param for SID:', sid);
+      console.log('[Notify Callback] Updated session with cc_param for SID:', sid, 'language:', sessionLanguage);
     } catch (dbError: any) {
       console.error('[Notify Callback] Database update error:', dbError);
       // Don't fail the callback - we'll still try to send LINE message
@@ -96,13 +107,13 @@ export default async function handler(
     // Build deeplink with cc_param and autoAccept flag
     const deepLink = `https://liff.line.me/${liffId}/agent-call-meeting?sid=${encodeURIComponent(String(sid))}&cc_param=${encodeURIComponent(String(param))}&autoAccept=true`;
 
-    const messageText = type === 'V'
-      ? `📹 Incoming video call!\n\nPlease accept within 60 seconds.`
-      : `📞 Incoming call!\n\n60초 이내에 수락해주세요.`;
+    // Multi-language support based on session language (default: English for international users)
+    const isKorean = sessionLanguage === 'ko';
+    const messageText = isKorean
+      ? `📞 전화가 왔습니다!\n\n60초 이내에 수락해주세요.`
+      : `📞 Incoming call!\n\nPlease accept within 60 seconds.`;
 
-    const buttonText = type === 'V'
-      ? 'Accept Video Call'
-      : 'Accept Call';
+    const buttonText = isKorean ? '전화 받기' : 'Accept Call';
 
     try {
       // Get LINE Channel Access Token
