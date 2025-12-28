@@ -8,15 +8,5 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/cron/execute-retries",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/check-timeouts",
-      "schedule": "* * * * *"
-    }
   ]
 }
