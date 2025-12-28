@@ -67,12 +67,12 @@ export default async function handler(
       console.log('[1-to-1 Call Callback] Timeout detected (NO_ANSWER/1203)');
 
       try {
-        // Get session data first
+        // Get session data first (include 'failed' status for race condition)
         const sessionResult = await sql`
-          SELECT sid, callee_user_id, audio_file_ids, language
+          SELECT sid, callee_user_id, audio_file_ids, language, status
           FROM agent_call_sessions
           WHERE (room_id = ${callId} OR sid = ${callId})
-            AND status IN ('ringing', 'initiated')
+            AND status IN ('ringing', 'initiated', 'failed')
           LIMIT 1
         `;
 
