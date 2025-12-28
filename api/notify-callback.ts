@@ -97,8 +97,8 @@ export default async function handler(
     const deepLink = `https://liff.line.me/${liffId}/agent-call-meeting?sid=${encodeURIComponent(String(sid))}&cc_param=${encodeURIComponent(String(param))}&autoAccept=true`;
 
     const messageText = type === 'V'
-      ? `📹 Incoming video call!`
-      : `📞 Incoming call!`;
+      ? `📹 Incoming video call!\n\nPlease accept within 60 seconds.`
+      : `📞 Incoming call!\n\n60초 이내에 수락해주세요.`;
 
     const buttonText = type === 'V'
       ? 'Accept Video Call'
