@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sql } from '@vercel/postgres';
+import { Client } from '@upstash/qstash';
 
 export default async function handler(
   request: VercelRequest,
@@ -146,9 +147,39 @@ export default async function handler(
       scheduledAt: scheduledAt.toISOString()
     });
 
+    // Schedule delayed retry execution using Upstash QStash
+    const baseUrl = request.headers.origin || `https://${request.headers.host}`;
+
+    try {
+      const qstashToken = process.env.QSTASH_TOKEN;
+      if (qstashToken) {
+        const qstash = new Client({ token: qstashToken });
+
+        // Schedule the retry call to execute in 5 minutes
+        await qstash.publishJSON({
+          url: `${baseUrl}/api/execute-retry`,
+          body: {
+            queueId: retry.id,
+            originalSid: sid,
+            calleeUserId: session.callee_user_id,
+            audioFileIds: session.audio_file_ids,
+            language: session.language || 'ko',
+            retryAttempt: session.retry_count + 1
+          },
+          delay: 300 // 5 minutes in seconds
+        });
+
+        console.log('[Schedule Retry] QStash scheduled successfully');
+      } else {
+        console.warn('[Schedule Retry] QSTASH_TOKEN not configured, skipping automatic execution');
+      }
+    } catch (qstashError: any) {
+      console.error('[Schedule Retry] Failed to schedule QStash:', qstashError);
+      // Don't fail the API call, just log
+    }
+
     // Send confirmation message to user
     try {
-      const baseUrl = request.headers.origin || `https://${request.headers.host}`;
       await sendScheduleConfirmationMessage({
         calleeUserId: session.callee_user_id,
         scheduledAt: scheduledAt,
