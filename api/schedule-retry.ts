@@ -231,17 +231,10 @@ async function sendScheduleConfirmationMessage(params: {
       throw new Error('Invalid token response');
     }
 
-    // Format scheduled time for display (HH:MM)
-    const timeString = scheduledAt.toLocaleTimeString('ko-KR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
-
-    // Message text
+    // Message text (use relative time instead of absolute time to avoid timezone confusion)
     const messageText = language === 'ko'
-      ? `✅ 재시도가 예약되었습니다.\n\n${timeString}에 통화 요청이 도착합니다.\n잠시만 기다려주세요.`
-      : `✅ Retry scheduled.\n\nYou will receive a call at ${timeString}.\nPlease wait.`;
+      ? `✅ 재시도가 예약되었습니다.\n\n약 5분 후에 통화 요청이 도착합니다.\n잠시만 기다려주세요.`
+      : `✅ Retry scheduled.\n\nYou will receive a call in about 5 minutes.\nPlease wait.`;
 
     // Send LINE push message
     const lineApiResponse = await fetch('https://api.line.me/v2/bot/message/push', {
