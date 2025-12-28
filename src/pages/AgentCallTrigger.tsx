@@ -11,7 +11,7 @@ import type { AgentCallInitiateResponse } from '@/types/api';
 
 export const AgentCallTrigger = () => {
   const navigate = useNavigate();
-  const { profile, isLoggedIn } = useLiff();
+  const { profile, isLoggedIn, liff } = useLiff();
   const { planetKitConfig } = useVideoSDK();
   const { toast } = useToast();
   const { language } = useLanguage();
@@ -69,6 +69,14 @@ export const AgentCallTrigger = () => {
             ? '곧 LINE 메시지로 전화가 옵니다!'
             : 'You will receive a call via LINE message shortly!'
         });
+
+        // Auto-close LIFF window after 2 seconds
+        setTimeout(() => {
+          if (liff?.isInClient()) {
+            console.log('[AgentCallTrigger] Auto-closing LIFF window');
+            liff.closeWindow();
+          }
+        }, 2000);
       } else {
         throw new Error(result.error || 'Failed to initiate call');
       }

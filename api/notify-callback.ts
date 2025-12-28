@@ -93,8 +93,8 @@ export default async function handler(
       });
     }
 
-    // Build deeplink with cc_param
-    const deepLink = `https://liff.line.me/${liffId}?room=${encodeURIComponent(String(sid))}&mode=agent-call&sid=${encodeURIComponent(String(sid))}&cc_param=${encodeURIComponent(String(param))}`;
+    // Build deeplink with cc_param and autoAccept flag
+    const deepLink = `https://liff.line.me/${liffId}/agent-call-meeting?sid=${encodeURIComponent(String(sid))}&cc_param=${encodeURIComponent(String(param))}&autoAccept=true`;
 
     const messageText = type === 'V'
       ? `📹 Incoming video call!`

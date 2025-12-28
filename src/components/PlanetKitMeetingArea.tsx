@@ -40,9 +40,10 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
   // Determine if this is an agent call
   const isAgentCall = mode === 'agent-call';
 
-  // Extract cc_param from URL for Agent Call
+  // Extract cc_param and autoAccept from URL for Agent Call
   const urlParams = new URLSearchParams(window.location.search);
   const ccParam = urlParams.get('cc_param');
+  const autoAccept = urlParams.get('autoAccept') === 'true';
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
     connected: false,
@@ -96,6 +97,14 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
       if (interval) clearInterval(interval);
     };
   }, [connectionStatus.connected, connectionStartTime]);
+
+  // Auto-accept call if autoAccept parameter is present
+  useEffect(() => {
+    if (isAgentCall && autoAccept && !connectionStatus.connected && !connectionStatus.connecting) {
+      console.log('[Agent Call] Auto-accepting call due to autoAccept parameter');
+      connectToConference();
+    }
+  }, [isAgentCall, autoAccept, connectionStatus.connected, connectionStatus.connecting]);
 
   // PlanetKit Conference 연결
   const connectToConference = async () => {
@@ -200,6 +209,11 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
                 title: language === 'ko' ? '통화 종료' : 'Call Ended',
                 description: language === 'ko' ? 'Agent Call이 종료되었습니다.' : 'Agent Call ended.',
               });
+
+              // Navigate to setup page after disconnect
+              if (onDisconnect) {
+                onDisconnect();
+              }
             },
 
             evtError: (error: any) => {
