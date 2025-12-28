@@ -300,10 +300,9 @@ async function sendTimeoutNotification(params: {
       ? '통화 수락 대기가 종료되었습니다. 5분 후 다시 전화를 받으실 수 있습니다.'
       : 'Call acceptance timeout. You can receive a call again in 5 minutes.';
 
-    const buttonConfirmLabel = language === 'ko' ? '확인' : 'OK';
     const buttonRetryLabel = language === 'ko' ? '5분 후 다시 받기' : 'Retry in 5 min';
 
-    // Send LINE push message with Button Template
+    // Send LINE push message with Button Template (single action)
     const lineApiResponse = await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
       headers: {
@@ -320,11 +319,6 @@ async function sendTimeoutNotification(params: {
               type: 'buttons',
               text: messageText,
               actions: [
-                {
-                  type: 'uri',
-                  label: buttonConfirmLabel,
-                  uri: 'https://line.me/R/' // Just closes the message
-                },
                 {
                   type: 'uri',
                   label: buttonRetryLabel,
