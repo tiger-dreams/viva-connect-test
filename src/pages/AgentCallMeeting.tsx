@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useVideoSDK } from '@/contexts/VideoSDKContext';
 import { useLiff } from '@/contexts/LiffContext';
 import { PlanetKitMeetingArea } from '@/components/PlanetKitMeetingArea';
-import { generateToken } from '@/utils/token-generator';
+import { generatePlanetKitToken } from '@/utils/token-generator';
 import { Loader2 } from 'lucide-react';
 
 export const AgentCallMeeting = () => {
@@ -18,29 +18,35 @@ export const AgentCallMeeting = () => {
 
   // Initialize PlanetKit config when LIFF profile is available
   useEffect(() => {
-    if (isLoggedIn && profile) {
-      console.log('[AgentCallMeeting] Initializing PlanetKit config with LIFF profile');
+    const initializeConfig = async () => {
+      if (isLoggedIn && profile) {
+        console.log('[AgentCallMeeting] Initializing PlanetKit config with LIFF profile');
 
-      // Generate access token
-      const token = generateToken(
-        planetKitConfig.serviceId,
-        planetKitConfig.apiKey,
-        planetKitConfig.apiSecret,
-        profile.userId
-      );
+        // Generate access token
+        const token = await generatePlanetKitToken(
+          planetKitConfig.serviceId,
+          planetKitConfig.apiKey,
+          profile.userId,
+          sessionId || '', // roomId (use sessionId for Agent Call)
+          3600,
+          planetKitConfig.apiSecret
+        );
 
-      // Update config with userId and accessToken
-      setPlanetKitConfig({
-        ...planetKitConfig,
-        userId: profile.userId,
-        displayName: profile.displayName,
-        accessToken: token,
-        environment: 'eval' // Always use eval for Agent Call
-      });
+        // Update config with userId and accessToken
+        setPlanetKitConfig({
+          ...planetKitConfig,
+          userId: profile.userId,
+          displayName: profile.displayName,
+          accessToken: token,
+          environment: 'eval' // Always use eval for Agent Call
+        });
 
-      setIsInitializing(false);
-    }
-  }, [isLoggedIn, profile]);
+        setIsInitializing(false);
+      }
+    };
+
+    initializeConfig();
+  }, [isLoggedIn, profile, sessionId]);
 
   const handleDisconnect = () => {
     console.log('[AgentCallMeeting] Call ended, navigating to setup');
