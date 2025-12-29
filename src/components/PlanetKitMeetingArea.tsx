@@ -192,13 +192,32 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
             },
 
             evtDisconnected: (disconnectDetails: any) => {
-              console.log('[Agent Call] Call disconnected:', disconnectDetails);
-              // 로컬 미디어 스트림 정리
+              console.log('[Agent Call] Call disconnected by server:', disconnectDetails);
+
+              // Note: Server has already disconnected the call, so we just clean up local resources
+              // Do NOT call planetKitCall.disconnect() here - connection is already closed
+
+              // Clean up local media stream
               if (localVideoRef.current && localVideoRef.current.srcObject) {
                 const stream = localVideoRef.current.srcObject as MediaStream;
-                stream.getTracks().forEach(track => track.stop());
+                console.log('[Agent Call] Stopping local media tracks:', stream.getTracks().length);
+                stream.getTracks().forEach(track => {
+                  console.log('[Agent Call] Stopping track:', track.kind, track.label, 'readyState:', track.readyState);
+                  track.stop();
+                  console.log('[Agent Call] Track stopped, new readyState:', track.readyState);
+                });
                 localVideoRef.current.srcObject = null;
+                console.log('[Agent Call] Local video srcObject cleared');
               }
+
+              // Force cleanup of any remaining media streams
+              setTimeout(() => {
+                navigator.mediaDevices.enumerateDevices().then(devices => {
+                  console.log('[Agent Call] Media devices after cleanup:', devices.filter(d => d.kind === 'audioinput').length, 'audio inputs');
+                }).catch(err => {
+                  console.warn('[Agent Call] Could not enumerate devices:', err);
+                });
+              }, 100);
 
               setConnectionStatus({ connected: false, connecting: false });
               setParticipants([]);
