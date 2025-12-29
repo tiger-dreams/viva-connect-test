@@ -1,11 +1,13 @@
-# LINE PlanetKit Video Conference App
+# LINE PlanetKit LIFF Demo
 
-A mobile-first LINE LIFF application for group video conferencing using LINE's PlanetKit Web SDK 5.5.
+A mobile-first LINE LIFF application featuring **Conference Call** (multi-party video) and **Agent Call** (outbound audio caller) using LINE's PlanetKit Web SDK 5.5.
 
 ## Features
 
+### Conference Call (Group Video) 🎥
+
 - **LINE LIFF Integration**: Seamless authentication with LINE login
-- **PlanetKit Video SDK**: Enterprise-grade video conferencing powered by LINE
+- **PlanetKit Conference API**: Enterprise-grade multi-party video conferencing
 - **Mobile-Optimized UI**: Portrait-mode layout optimized for mobile devices
 - **Multi-Room Support**: Choose from Japan, Korea, Taiwan, or Thailand rooms
 - **Real-time Communication**: HD video/audio with low latency
@@ -14,12 +16,27 @@ A mobile-first LINE LIFF application for group video conferencing using LINE's P
 - **Auto-Redirect**: Seamless navigation after call disconnect
 - **Custom Credentials**: Use your own PlanetKit Service ID for integration with existing services
 
+### Agent Call (Outbound Audio Caller) 📞
+
+- **One-click Outbound Calls**: Initiate audio calls to LINE users
+- **Smart Timeout System**: 60-second call acceptance window with clear notification
+- **Automatic Retry**: User-controlled retry scheduling (5-minute intervals, max 3 attempts)
+- **LINE Push Notifications**: Real-time notifications with interactive buttons
+- **Auto-accept Flow**: Seamless call connection from notification tap
+- **Multi-language Support**: Korean and English (default for international users)
+- **QStash Integration**: Reliable delayed job scheduling for retries
+- **Database Tracking**: Full session and event logging with Vercel Postgres
+
 ## Tech Stack
 
 - **Frontend**: Vite + React 18 + TypeScript
 - **Styling**: Tailwind CSS + shadcn/ui components
-- **Video SDK**: LINE PlanetKit Web SDK 5.5.0
+- **Video/Audio SDK**: LINE PlanetKit Web SDK 5.5.0 (Conference + Agent Call)
 - **Authentication**: LINE LIFF (LINE Front-end Framework)
+- **Backend**: Vercel Serverless Functions
+- **Database**: Vercel Postgres (powered by Neon)
+- **Job Scheduling**: Upstash QStash
+- **Notifications**: LINE Messaging API
 - **State Management**: React Context API + localStorage
 - **Routing**: React Router DOM
 
@@ -58,6 +75,20 @@ VITE_PLANETKIT_EVAL_API_SECRET=your-eval-api-secret
 VITE_PLANETKIT_REAL_SERVICE_ID=your-real-service-id
 VITE_PLANETKIT_REAL_API_KEY=your-real-api-key
 VITE_PLANETKIT_REAL_API_SECRET=your-real-api-secret
+
+# PlanetKit Agent Call
+PLANETKIT_AGENT_CALL_BASE_URL=https://vpnx-stn-api.line-apps-rc.com
+VITE_PLANETKIT_AUDIO_FILE_GREETING=contentId-for-greeting
+
+# LINE Messaging API (for Agent Call notifications)
+LINE_CHANNEL_ID=your-channel-id
+LINE_CHANNEL_SECRET=your-channel-secret
+
+# Upstash QStash (for Agent Call retry scheduling)
+QSTASH_TOKEN=your-qstash-token
+
+# Database (Auto-configured by Vercel)
+POSTGRES_URL=postgres://...
 ```
 
 ## Development
@@ -81,13 +112,16 @@ npm run lint
 ```
 src/
 ├── components/
-│   ├── ui/                    # shadcn/ui components
+│   ├── ui/                        # shadcn/ui components
 │   ├── PlanetKitConfigPanel.tsx   # Configuration panel
 │   ├── PlanetKitMeetingArea.tsx   # Main meeting interface
 │   └── TileView.tsx               # Video grid layout
 ├── pages/
 │   ├── SetupPage.tsx              # Setup and configuration
-│   └── PlanetKitMeeting.tsx       # Meeting page
+│   ├── PlanetKitMeeting.tsx       # Conference call meeting page
+│   ├── AgentCallTrigger.tsx       # Agent call trigger page
+│   ├── AgentCallMeeting.tsx       # Agent call meeting page
+│   └── ScheduleRetry.tsx          # Retry scheduling page
 ├── contexts/
 │   ├── LiffContext.tsx            # LINE LIFF state management
 │   └── VideoSDKContext.tsx        # PlanetKit config management
@@ -97,29 +131,69 @@ src/
 │   └── video-sdk.ts               # TypeScript interfaces
 └── utils/
     └── token-generator.ts         # JWT token generation
+
+api/
+├── agent-call-callback.ts         # Agent Call status callback
+├── one-to-one-call-callback.ts    # Call end/timeout callback
+├── notify-callback.ts             # PlanetKit notify callback
+├── schedule-retry.ts              # Retry scheduling endpoint
+├── execute-retry.ts               # QStash retry execution
+└── get-line-token.ts              # LINE token endpoint
+
+docs/
+├── ARCHITECTURE.md                # System architecture documentation
+├── RELEASE_NOTES.md               # Release notes (Markdown)
+└── RELEASE_NOTES_PLAIN.txt        # Release notes (Plain text)
 ```
 
 ## Usage
 
-### 1. Setup
+### Conference Call (Group Video)
 
+#### 1. Setup
 - Open the app in LINE browser (LIFF)
 - Log in with your LINE account
 - Select environment (Evaluation or Real)
 - Choose a room (Japan, Korea, Taiwan, or Thailand)
 - Generate access token
 
-### 2. Join Meeting
-
+#### 2. Join Meeting
 - Click "참여하기" (Join) button
 - Allow camera and microphone permissions
 - Start video conferencing
 
-### 3. In-Meeting Controls
-
+#### 3. In-Meeting Controls
 - **Video Toggle**: Turn camera on/off
 - **Audio Toggle**: Mute/unmute microphone
 - **Disconnect**: End call and return to setup
+
+### Agent Call (Outbound Audio Caller)
+
+#### 1. Initiate Call
+- Navigate to `/agent-call` in LIFF
+- Call is automatically initiated
+- LIFF window closes after 2 seconds
+
+#### 2. Receive Call
+- Receive LINE push notification
+- Notification shows: "📞 Incoming call! Please accept within 60 seconds"
+- Tap "Accept Call" button
+- Call connects automatically
+
+#### 3. Call Timeout & Retry
+- If call not answered within 60 seconds:
+  - Receive timeout notification
+  - Option: "5분 후 다시 받기" (Retry in 5 min)
+  - Confirmation: "You will receive a call in about 5 minutes"
+  - System automatically retries after 5 minutes
+  - Maximum 3 retry attempts
+
+#### 4. During Call
+- Audio-only conversation
+- Call ends when either party disconnects
+- Automatically redirects to setup page
+
+For detailed architecture and data flow, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Custom Credentials (Advanced Settings)
 
@@ -239,27 +313,46 @@ Make sure to set environment variables in Vercel dashboard.
 
 ## Recent Updates
 
-### December 2024
-- **Custom Credentials Feature**: Added support for using custom PlanetKit Service ID, API Key, and API Secret
-- **Advanced Settings UI**: New settings section for entering custom credentials
-- **Feature Restrictions**: Clear indication of limited features when using custom credentials
-- **localStorage Integration**: Automatic saving and restoration of custom credentials
-- Mobile-first UI optimization for portrait mode
-- Removed unused LiveKit/Agora code
-- Simplified setup flow
-- Fixed video grid layout for 2-person calls
-- Added auto-redirect after disconnect
+### December 28, 2025
+- **Agent Call Feature**: Complete outbound audio caller system
+  - One-click call initiation with auto-close
+  - 60-second timeout with clear warnings
+  - Smart retry system with QStash scheduling
+  - Multi-language support (Korean + English default)
+  - Auto-accept and auto-redirect flow
+  - LINE push notifications with interactive buttons
+- **Backend Infrastructure**: Vercel Functions + Neon DB + QStash
+- **Callback System**: Multiple PlanetKit callback handlers
+- **Documentation**: Added ARCHITECTURE.md and RELEASE_NOTES.md
+
+### December 26, 2025
+- **Custom Credentials Feature**: Use your own PlanetKit Service credentials
+- **Advanced Settings UI**: Toggle and input fields for custom credentials
+- **Feature Restrictions**: Clear indication of limitations with custom credentials
+- **localStorage Integration**: Automatic saving and restoration
 
 ### November 2024
 - Upgraded to PlanetKit 5.5
 - Added LINE LIFF integration
 - Implemented multi-room support
-- Enhanced mobile responsiveness
+- Mobile-first UI optimization
 
 ## License
 
 MIT
 
+## Documentation
+
+- **[Architecture Guide](docs/ARCHITECTURE.md)**: Detailed system architecture, data flows, and technical details
+- **[Release Notes (MD)](docs/RELEASE_NOTES.md)**: Customer-facing release notes in Markdown format
+- **[Release Notes (TXT)](docs/RELEASE_NOTES_PLAIN.txt)**: Plain text version for LINE Official Account messages
+
 ## Support
 
 For issues and questions, please create an issue in the GitHub repository.
+
+## Links
+
+- **Live Demo**: https://viva-connect-test.vercel.app
+- **LINE PlanetKit Docs**: https://docs.lineplanet.me/
+- **LINE LIFF Docs**: https://developers.line.biz/en/docs/liff/

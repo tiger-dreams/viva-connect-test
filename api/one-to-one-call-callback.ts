@@ -33,8 +33,10 @@ export default async function handler(
       userId,
       timestamp,
       sid,
-      rel_code_str,        // Timeout detection (NO_ANSWER)
-      disconnect_reason,   // Timeout detection (1203)
+      terminate,           // Q.850 standard code (18 = NO_ANSWER)
+      rel_code_str,        // Debug: Timeout detection (NO_ANSWER)
+      disconnect_reason,   // Debug: Timeout detection (1203)
+      rel_code,            // Debug: Release code
       ...additionalData
     } = data;
 
@@ -44,6 +46,8 @@ export default async function handler(
       userId,
       timestamp,
       sid,
+      terminate,
+      rel_code,
       rel_code_str,
       disconnect_reason,
       method: request.method,
@@ -62,9 +66,9 @@ export default async function handler(
       });
     }
 
-    // Check for timeout (rel_code_str === 'NO_ANSWER' OR disconnect_reason === '1203')
-    if (rel_code_str === 'NO_ANSWER' || disconnect_reason === '1203' || disconnect_reason === 1203) {
-      console.log('[1-to-1 Call Callback] Timeout detected (NO_ANSWER/1203)');
+    // Check for timeout (terminate === '18' OR rel_code_str === 'NO_ANSWER' OR disconnect_reason === '1203')
+    if (terminate === '18' || terminate === 18 || rel_code_str === 'NO_ANSWER' || disconnect_reason === '1203' || disconnect_reason === 1203) {
+      console.log('[1-to-1 Call Callback] Timeout detected:', { terminate, rel_code_str, disconnect_reason });
 
       try {
         // Get session data first (include 'failed' status for race condition)
@@ -90,6 +94,8 @@ export default async function handler(
               ended_at = NOW(),
               data = COALESCE(data, '{}'::jsonb) || ${JSON.stringify({
                 timeout_detected_at: Date.now(),
+                terminate,
+                rel_code,
                 rel_code_str,
                 disconnect_reason,
                 timeout_source: 'planetkit_callback'
@@ -144,6 +150,8 @@ export default async function handler(
             ${JSON.stringify({
               userId,
               cc_call_id,
+              terminate,
+              rel_code,
               rel_code_str,
               disconnect_reason,
               ...additionalData
