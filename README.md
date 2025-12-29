@@ -158,7 +158,7 @@ docs/
 - Generate access token
 
 #### 2. Join Meeting
-- Click "참여하기" (Join) button
+- Click "Join Meeting" button
 - Allow camera and microphone permissions
 - Start video conferencing
 
@@ -183,7 +183,7 @@ docs/
 #### 3. Call Timeout & Retry
 - If call not answered within 60 seconds:
   - Receive timeout notification
-  - Option: "5분 후 다시 받기" (Retry in 5 min)
+  - Option: "Retry in 5 min" button
   - Confirmation: "You will receive a call in about 5 minutes"
   - System automatically retries after 5 minutes
   - Maximum 3 retry attempts
@@ -199,62 +199,62 @@ For detailed architecture and data flow, see [docs/ARCHITECTURE.md](docs/ARCHITE
 
 ### Overview
 
-기존 고객님의 요청에 따라, 이미 PlanetKit App Service를 운영 중인 고객사가 자신들의 Service ID, API Key, API Secret을 사용하여 이 LIFF Demo와 연동할 수 있는 기능을 추가하였습니다. 이를 통해 기존 서비스와 LIFF 간 Group Call이 가능합니다.
+This feature allows customers who are already operating a PlanetKit App Service to integrate their own Service ID, API Key, and API Secret with this LIFF Demo, enabling Group Calls between existing services and LIFF.
 
 ### How to Use
 
-1. **Setup 페이지**에서 "고급 설정 (Advanced Settings)" 섹션을 찾습니다
-2. **Switch를 ON**으로 변경합니다
-3. 다음 정보를 입력합니다:
-   - **Environment**: Evaluation 또는 Real 선택
-   - **Service ID**: 귀사의 PlanetKit Service ID
-   - **API Key**: 귀사의 PlanetKit API Key
-   - **API Secret**: 귀사의 PlanetKit API Secret
-4. 입력한 정보는 **localStorage에 자동 저장**되어 재방문 시에도 유지됩니다
-5. 룸 선택 후 참여하시면 귀사의 credentials로 Group Call이 생성됩니다
+1. Go to **Setup Page** and find the "Advanced Settings" section
+2. Toggle the switch to **ON**
+3. Enter the following information:
+   - **Environment**: Select Evaluation or Real
+   - **Service ID**: Your PlanetKit Service ID
+   - **API Key**: Your PlanetKit API Key
+   - **API Secret**: Your PlanetKit API Secret
+4. All information is **automatically saved to localStorage** and persists across visits
+5. After selecting a room and joining, Group Calls will be created using your credentials
 
 ### Security & Privacy
 
-- ⚠️ **모든 인증 정보는 사용자의 브라우저 localStorage에만 저장됩니다**
-- ✅ **LIFF Demo 개발자는 입력하신 Service ID, API Key, API Secret 정보를 수집하거나 취득하지 않습니다**
-- ⚠️ **토큰 생성은 클라이언트 측에서 이루어지므로, 프로덕션 환경에서는 서버 측 토큰 생성을 권장합니다**
-- 🔒 **API Secret은 password 필드로 입력되며 화면에 표시되지 않습니다**
+- ⚠️ **All credentials are stored only in the user's browser localStorage**
+- ✅ **LIFF Demo developers do NOT collect or access your Service ID, API Key, or API Secret**
+- ⚠️ **Token generation occurs client-side; server-side token generation is recommended for production**
+- 🔒 **API Secret is entered as a password field and is not displayed on screen**
 
 ### Feature Limitations
 
-Custom credentials를 사용하시는 경우, 다음 기능이 제한됩니다:
+When using custom credentials, the following features are restricted:
 
-#### ❌ 사용 불가능한 기능
-- **최근 통화 상대 목록**: Group Call callback 정보가 다른 Service ID와 매칭되지 않아 사용할 수 없습니다
-- **전체 사용자 목록**: Database에 저장된 사용자 정보가 LIFF Demo의 Service ID 기반이므로 조회되지 않습니다
-- **직접 LINE 메시지 초대**: LIFF Demo의 LINE Channel credentials를 사용하므로 작동하지 않습니다
+#### ❌ Unavailable Features
+- **Recent Call Contacts**: Group Call callback information doesn't match different Service IDs
+- **User Directory**: Database stores user information based on LIFF Demo's Service ID only
+- **Direct LINE Message Invites**: Uses LIFF Demo's LINE Channel credentials
 
-#### ✅ 계속 사용 가능한 기능
-- **LIFF Share Target Picker**: LINE의 친구 선택 화면을 통한 초대는 정상 작동합니다
-- **초대 URL 복사**: 초대 링크를 복사하여 공유하는 기능은 정상 작동합니다
-- **Group Call 기본 기능**: 영상/음성 통화, 화면 공유 등 모든 Group Call 기능은 정상 작동합니다
+#### ✅ Available Features
+- **LIFF Share Target Picker**: Friend selection screen for invitations works normally
+- **Copy Invitation URL**: Link copying and sharing functionality works normally
+- **Group Call Core Features**: All video/audio calling and screen sharing features work normally
 
 ### Technical Details
 
 **Credentials Priority:**
 ```
-1순위: Custom Credentials (사용자가 입력한 정보)
-2순위: Environment Variables (LIFF Demo 기본 설정)
-3순위: Default Empty Values
+1st: Custom Credentials (User-entered information)
+2nd: Environment Variables (LIFF Demo default settings)
+3rd: Default Empty Values
 ```
 
-**Group Call Callback 제한 이유:**
-- PlanetKit Group Call callback은 Service ID별로 관리됩니다
-- LIFF Demo의 Database는 Demo용 Service ID의 callback 정보만 저장합니다
-- 다른 Service ID로 생성된 Group Call의 callback 정보는 LIFF Demo Database에 저장되지 않습니다
-- 따라서 Custom credentials 사용 시 최근 통화 상대 목록 기능이 작동하지 않습니다
+**Why Group Call Callbacks Are Limited:**
+- PlanetKit Group Call callbacks are managed per Service ID
+- LIFF Demo's Database only stores callback information for the demo Service ID
+- Callback information from Group Calls created with different Service IDs is not stored in LIFF Demo Database
+- Therefore, recent call contacts feature does not work when using custom credentials
 
 ### Disabling Custom Credentials
 
-고급 설정의 Switch를 **OFF**로 변경하시면:
-- 즉시 LIFF Demo의 기본 credentials(환경 변수)로 복원됩니다
-- 모든 제한 기능이 다시 활성화됩니다
-- 입력하신 Custom credentials 정보는 localStorage에 보관되어 재사용 가능합니다
+When you toggle the switch to **OFF**:
+- Immediately reverts to LIFF Demo's default credentials (environment variables)
+- All restricted features are re-enabled
+- Your custom credentials remain saved in localStorage for reuse
 
 ## Mobile UI Layout
 
@@ -354,5 +354,6 @@ For issues and questions, please create an issue in the GitHub repository.
 ## Links
 
 - **Live Demo**: https://viva-connect-test.vercel.app
+- **LINE Official Account**: https://line.me/R/ti/p/@005fevgv
 - **LINE PlanetKit Docs**: https://docs.lineplanet.me/
 - **LINE LIFF Docs**: https://developers.line.biz/en/docs/liff/
