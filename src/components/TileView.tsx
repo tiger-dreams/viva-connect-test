@@ -155,7 +155,7 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
         <div
           key={participant.id}
           data-participant-id={participant.id}
-          className={`relative bg-black rounded-lg overflow-hidden ${getTileSpan(index, visibleParticipants.length)} ${participant.isSpeaking ? 'ring-2 ring-emerald-400' : ''}`}
+          className={`relative bg-black rounded-lg overflow-hidden ${getTileSpan(index, visibleParticipants.length)} ${participant.isSpeaking || participant.isTalking ? 'ring-4 ring-emerald-500 shadow-lg shadow-emerald-500/50' : ''}`}
         >
           {/* 비디오 컨테이너 */}
           <div className="video-container w-full h-full relative">
@@ -378,7 +378,7 @@ export const TileView = ({ participants, maxVisibleTiles = 4, showVideoStats = f
 
           {/* 말하고 있는 상태 표시 (향후 확장) */}
           {participant.isAudioOn && (
-            <div className={`absolute inset-0 border-2 rounded-lg pointer-events-none transition-opacity duration-200 ${participant.isSpeaking ? 'opacity-100 border-emerald-400' : 'opacity-0'}`} />
+            <div className={`absolute inset-0 border-4 rounded-lg pointer-events-none transition-opacity duration-200 ${participant.isSpeaking || participant.isTalking ? 'opacity-100 border-emerald-500 shadow-lg shadow-emerald-500/50' : 'opacity-0'}`} />
           )}
         </div>
       ))}
