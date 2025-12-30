@@ -64,6 +64,11 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
   // 원격 참가자 비디오 엘리먼트 맵
   const remoteVideoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
 
+  // 로컬 오디오 레벨 감지용 refs
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const localAudioStreamRef = useRef<MediaStream | null>(null);
+
   // 페이지 타이틀 업데이트
   useEffect(() => {
     if (connectionStatus.connected) {
@@ -98,6 +103,80 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
       if (interval) clearInterval(interval);
     };
   }, [connectionStatus.connected, connectionStartTime]);
+
+  // 로컬 오디오 레벨 감지 (자기 자신의 talking indicator)
+  useEffect(() => {
+    if (!connectionStatus.connected || !isAudioOn) {
+      // 연결 안 됐거나 마이크 꺼져있으면 감지 안 함
+      return;
+    }
+
+    let animationFrameId: number;
+
+    const startAudioMonitoring = async () => {
+      try {
+        // 마이크 스트림 가져오기
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        localAudioStreamRef.current = stream;
+
+        // AudioContext와 AnalyserNode 생성
+        const audioContext = new AudioContext();
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.8;
+
+        const source = audioContext.createMediaStreamSource(stream);
+        source.connect(analyser);
+
+        audioContextRef.current = audioContext;
+        analyserRef.current = analyser;
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+        // 오디오 레벨 체크 (약 100ms마다)
+        const checkAudioLevel = () => {
+          if (!analyserRef.current) return;
+
+          analyser.getByteFrequencyData(dataArray);
+
+          // 평균 오디오 레벨 계산
+          const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+
+          // 임계값: 30 이상이면 말하는 것으로 간주
+          const isTalking = average > 30;
+
+          // 로컬 참가자의 isTalking 상태 업데이트
+          setParticipants(prev => prev.map(p => {
+            if (p.id === config.userId) {
+              return { ...p, isTalking, isSpeaking: isTalking };
+            }
+            return p;
+          }));
+
+          animationFrameId = requestAnimationFrame(checkAudioLevel);
+        };
+
+        checkAudioLevel();
+      } catch (error) {
+        console.error('[Audio Monitoring] Failed to start:', error);
+      }
+    };
+
+    startAudioMonitoring();
+
+    // Cleanup
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+      if (localAudioStreamRef.current) {
+        localAudioStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [connectionStatus.connected, isAudioOn, config.userId]);
 
   // Auto-accept call if autoAccept parameter is present
   useEffect(() => {
@@ -292,8 +371,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
           // Conference 방식 (Group Call)
           const planetKitConference = new PlanetKitModule.Conference();
 
-          // Proxy to log all delegate events for debugging
-          const originalDelegate = {
+          const conferenceDelegate = {
             evtConnected: () => {
               setConnectionStatus({ connected: true, connecting: false });
               setConnectionStartTime(new Date());
@@ -587,25 +665,6 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
             });
           }
         };
-
-        // Create a proxy to log all delegate method calls for debugging talking status
-        const conferenceDelegate = new Proxy(originalDelegate, {
-          get(target, prop) {
-            const original = target[prop as keyof typeof target];
-            if (typeof original === 'function') {
-              return function(...args: any[]) {
-                // Log all event calls, especially talking-related ones
-                if (prop.toString().toLowerCase().includes('talk') ||
-                    prop.toString().toLowerCase().includes('speak') ||
-                    prop.toString().toLowerCase().includes('audio')) {
-                  console.log(`[PlanetKit Event] ${prop.toString()}:`, args);
-                }
-                return original.apply(target, args);
-              };
-            }
-            return original;
-          }
-        });
 
         const conferenceParams = {
           myId: config.userId,
