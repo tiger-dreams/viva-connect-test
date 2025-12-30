@@ -197,9 +197,9 @@ const BetaSetupPage = () => {
               }
               navigate(`/beta/agent-call-meeting?${urlParams.toString()}`);
             } else {
-              console.log('[BetaSetupPage] Auto-navigating to meeting page...');
-              setDebugInfo(prev => prev ? { ...prev, status: '🚀 Navigating to meeting...' } : null);
-              navigate('/planetkit_meeting');
+              console.log('[BetaSetupPage] Auto-navigating to beta meeting page...');
+              setDebugInfo(prev => prev ? { ...prev, status: '🚀 Navigating to beta meeting...' } : null);
+              navigate('/beta/planetkit_meeting');
             }
           }, 500);
         }).catch(error => {

@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import SetupPage from "./pages/SetupPage";
 import BetaSetupPage from "./pages/BetaSetupPage";
 import PlanetKitMeeting from "./pages/PlanetKitMeeting";
+import BetaPlanetKitMeeting from "./pages/BetaPlanetKitMeeting";
 import MeetingPage from "./pages/MeetingPage";
 import AdminLogs from "./pages/AdminLogs";
 import AdminRooms from "./pages/AdminRooms";
@@ -46,6 +47,7 @@ const App = () => (
 
               {/* PlanetKit 미팅 페이지 */}
               <Route path="/planetkit_meeting" element={<PlanetKitMeeting />} />
+              <Route path="/beta/planetkit_meeting" element={<BetaPlanetKitMeeting />} />
 
               {/* Agent Call 페이지 - Beta (테스트용) - 별도 컴포넌트 사용 */}
               <Route path="/beta/agent-call" element={<BetaAgentCallTrigger />} />
