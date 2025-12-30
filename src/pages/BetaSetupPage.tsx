@@ -273,7 +273,7 @@ const BetaSetupPage = () => {
 
   const handleJoinMeeting = () => {
     if (isConfigured) {
-      navigate('/planetkit_meeting');
+      navigate('/beta/planetkit_meeting');
     }
   };
 
