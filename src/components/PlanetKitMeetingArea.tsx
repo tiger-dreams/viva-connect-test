@@ -155,8 +155,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
           // 평균 오디오 레벨 계산
           const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
 
-          // 임계값: 30 이상이면 말하는 것으로 간주
-          const isTalking = average > 30;
+          // 임계값: 20 이상이면 말하는 것으로 간주 (PlanetKit과 함께 사용 시 레벨이 낮음)
+          const isTalking = average > 20;
 
           // 1초마다 로그 (너무 많이 찍히지 않도록)
           const now = Date.now();
@@ -164,7 +164,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
             console.log('[Audio Monitoring] Audio level:', {
               average: average.toFixed(2),
               isTalking,
-              threshold: 30
+              threshold: 20
             });
             lastLogTime = now;
           }
