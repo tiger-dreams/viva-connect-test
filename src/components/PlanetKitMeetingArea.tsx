@@ -299,11 +299,12 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
               setConnectionStartTime(new Date());
 
               setParticipants([{
-                id: "local",
+                id: config.userId, // Use actual userId instead of "local" for PlanetKit event matching
                 name: config.displayName || config.userId,
                 isVideoOn: true,
                 isAudioOn: true,
-                videoElement: localVideoRef.current || undefined
+                videoElement: localVideoRef.current || undefined,
+                isLocal: true // Add flag to identify local participant in TileView
               }]);
 
               // 로컬 비디오 미러링 활성화 (비디오 엘리먼트가 완전히 렌더링된 후 호출)
@@ -447,15 +448,16 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
               });
 
               // 로컬 참가자 + 업데이트된 원격 참가자
-              const localParticipant = updated.find(p => p.id === "local") || {
-                id: "local",
+              const localParticipant = updated.find(p => p.id === config.userId) || {
+                id: config.userId,
                 name: config.displayName || config.userId,
                 isVideoOn: isVideoOn,
                 isAudioOn: isAudioOn,
-                videoElement: localVideoRef.current || undefined
+                videoElement: localVideoRef.current || undefined,
+                isLocal: true
               };
 
-              const remoteParticipants = updated.filter(p => p.id !== "local");
+              const remoteParticipants = updated.filter(p => p.id !== config.userId);
               return [localParticipant, ...remoteParticipants, ...newParticipants];
             });
           },
@@ -567,11 +569,16 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
             console.log('[PlanetKit] Talking status updated:', talkingPeers);
 
             talkingPeers.forEach((talkingInfo: any) => {
-              const peerId = talkingInfo.userId || talkingInfo.peerId || talkingInfo.id;
-              const isTalking = talkingInfo.isTalking || talkingInfo.talking || false;
+              // PlanetKit sends {active: [...], inactive: [...]} structure
+              const activeUsers = talkingInfo.active || [];
+              const inactiveUsers = talkingInfo.inactive || [];
 
               setParticipants(prev => prev.map(p => {
-                if (p.id === peerId) {
+                // Check if user is in active or inactive list
+                const isTalking = activeUsers.includes(p.id);
+                const isInactive = inactiveUsers.includes(p.id);
+
+                if (isTalking || isInactive) {
                   // Update both isTalking and isSpeaking for TileView compatibility
                   return { ...p, isTalking, isSpeaking: isTalking };
                 }

@@ -44,6 +44,7 @@ export interface Participant {
   isAudioOn: boolean;
   isScreenSharing?: boolean;
   isTalking?: boolean; // Visual indicator for speaking participants
+  isLocal?: boolean; // Flag to identify local participant
   role?: ParticipantRole;
   permissions?: RolePermissions;
   isHost?: boolean;
