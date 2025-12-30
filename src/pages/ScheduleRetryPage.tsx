@@ -1,12 +1,17 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useLiff } from '@/contexts/LiffContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, CheckCircle, XCircle, Calendar } from 'lucide-react';
 
 export const ScheduleRetryPage = () => {
+  const location = useLocation();
   const { profile, isLoggedIn, liff } = useLiff();
   const { language } = useLanguage();
+
+  // Beta 환경 감지
+  const isBeta = location.pathname.startsWith('/beta');
 
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
@@ -86,6 +91,11 @@ export const ScheduleRetryPage = () => {
           <CardTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5" />
             {language === 'ko' ? '재시도 예약' : 'Schedule Retry'}
+            {isBeta && (
+              <span className="ml-auto px-2 py-0.5 text-xs font-semibold bg-yellow-500 text-black rounded">
+                BETA
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useVideoSDK } from '@/contexts/VideoSDKContext';
 import { useLiff } from '@/contexts/LiffContext';
 import { PlanetKitMeetingArea } from '@/components/PlanetKitMeetingArea';
@@ -8,13 +8,17 @@ import { Loader2 } from 'lucide-react';
 
 export const AgentCallMeeting = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { planetKitConfig, setPlanetKitConfig } = useVideoSDK();
   const { profile, isLoggedIn } = useLiff();
   const sessionId = searchParams.get('sid');
   const [isInitializing, setIsInitializing] = useState(true);
 
-  console.log('[AgentCallMeeting] Rendering with sessionId:', sessionId);
+  // Beta 환경 감지
+  const isBeta = location.pathname.startsWith('/beta');
+
+  console.log('[AgentCallMeeting] Rendering with sessionId:', sessionId, 'isBeta:', isBeta);
 
   // Initialize PlanetKit config when LIFF profile is available
   useEffect(() => {
@@ -71,6 +75,7 @@ export const AgentCallMeeting = () => {
         config={planetKitConfig}
         mode="agent-call"
         sessionId={sessionId || undefined}
+        isBeta={isBeta}
         onDisconnect={handleDisconnect}
       />
     </div>

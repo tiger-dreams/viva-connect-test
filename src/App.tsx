@@ -39,7 +39,12 @@ const App = () => (
               {/* PlanetKit 미팅 페이지 */}
               <Route path="/planetkit_meeting" element={<PlanetKitMeeting />} />
 
-              {/* Agent Call 페이지 */}
+              {/* Agent Call 페이지 - Beta (테스트용) */}
+              <Route path="/beta/agent-call" element={<AgentCallTrigger />} />
+              <Route path="/beta/agent-call-meeting" element={<AgentCallMeeting />} />
+              <Route path="/beta/schedule-retry" element={<ScheduleRetryPage />} />
+
+              {/* Agent Call 페이지 - Production */}
               <Route path="/agent-call" element={<AgentCallTrigger />} />
               <Route path="/agent-call-meeting" element={<AgentCallMeeting />} />
               <Route path="/schedule-retry" element={<ScheduleRetryPage />} />

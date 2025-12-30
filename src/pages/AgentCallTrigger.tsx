@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useLiff } from '@/contexts/LiffContext';
 import { useVideoSDK } from '@/contexts/VideoSDKContext';
 import { useToast } from '@/hooks/use-toast';
@@ -11,10 +11,14 @@ import type { AgentCallInitiateResponse } from '@/types/api';
 
 export const AgentCallTrigger = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile, isLoggedIn, liff } = useLiff();
   const { planetKitConfig } = useVideoSDK();
   const { toast } = useToast();
   const { language } = useLanguage();
+
+  // Beta 환경 감지
+  const isBeta = location.pathname.startsWith('/beta');
 
   const [calling, setCalling] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -102,6 +106,11 @@ export const AgentCallTrigger = () => {
           <CardTitle className="flex items-center gap-2">
             <Phone className="w-5 h-5" />
             {language === 'ko' ? 'Agent Call' : 'Agent Call'}
+            {isBeta && (
+              <span className="ml-auto px-2 py-0.5 text-xs font-semibold bg-yellow-500 text-black rounded">
+                BETA
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">

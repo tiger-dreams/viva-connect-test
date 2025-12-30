@@ -29,9 +29,10 @@ interface PlanetKitMeetingAreaProps {
   onDisconnect?: () => void;
   mode?: 'group' | 'agent-call';
   sessionId?: string;
+  isBeta?: boolean;
 }
 
-export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: PlanetKitMeetingAreaProps) => {
+export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, isBeta = false }: PlanetKitMeetingAreaProps) => {
   const { toast } = useToast();
   const { language } = useLanguage();
   const t = getTranslations(language);
@@ -885,14 +886,21 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId }: 
               </div>
               <div className="flex items-center gap-2">
                 <LanguageSelector />
-                <div className="text-xs text-white/70 font-medium">
-                  {isAgentCall
-                    ? (language === 'ko' ? '음성 통화' : 'Voice Call')
-                    : config.roomId && config.environment
-                    ? `${config.roomId} - ${config.environment === 'eval' ? 'Eval' : 'Real'}`
-                    : config.roomId
-                    ? config.roomId
-                    : 'PlanetKit'}
+                <div className="flex items-center gap-2">
+                  <div className="text-xs text-white/70 font-medium">
+                    {isAgentCall
+                      ? (language === 'ko' ? '음성 통화' : 'Voice Call')
+                      : config.roomId && config.environment
+                      ? `${config.roomId} - ${config.environment === 'eval' ? 'Eval' : 'Real'}`
+                      : config.roomId
+                      ? config.roomId
+                      : 'PlanetKit'}
+                  </div>
+                  {isBeta && (
+                    <span className="px-2 py-0.5 text-xs font-semibold bg-yellow-500 text-black rounded">
+                      BETA
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
