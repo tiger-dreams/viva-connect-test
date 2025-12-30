@@ -292,7 +292,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
           // Conference 방식 (Group Call)
           const planetKitConference = new PlanetKitModule.Conference();
 
-          const conferenceDelegate = {
+          // Proxy to log all delegate events for debugging
+          const originalDelegate = {
             evtConnected: () => {
               setConnectionStatus({ connected: true, connecting: false });
               setConnectionStartTime(new Date());
@@ -579,6 +580,25 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
             });
           }
         };
+
+        // Create a proxy to log all delegate method calls for debugging talking status
+        const conferenceDelegate = new Proxy(originalDelegate, {
+          get(target, prop) {
+            const original = target[prop as keyof typeof target];
+            if (typeof original === 'function') {
+              return function(...args: any[]) {
+                // Log all event calls, especially talking-related ones
+                if (prop.toString().toLowerCase().includes('talk') ||
+                    prop.toString().toLowerCase().includes('speak') ||
+                    prop.toString().toLowerCase().includes('audio')) {
+                  console.log(`[PlanetKit Event] ${prop.toString()}:`, args);
+                }
+                return original.apply(target, args);
+              };
+            }
+            return original;
+          }
+        });
 
         const conferenceParams = {
           myId: config.userId,
