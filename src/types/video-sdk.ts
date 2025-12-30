@@ -43,6 +43,7 @@ export interface Participant {
   isVideoOn: boolean;
   isAudioOn: boolean;
   isScreenSharing?: boolean;
+  isTalking?: boolean; // Visual indicator for speaking participants
   role?: ParticipantRole;
   permissions?: RolePermissions;
   isHost?: boolean;

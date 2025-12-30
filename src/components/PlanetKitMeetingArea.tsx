@@ -557,6 +557,26 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
                 return p;
               }));
             });
+          },
+
+          // 말하는 상태 업데이트 이벤트 (Issue #10: Speaking indicator)
+          evtPeersTalkingStatusUpdated: (talkingInfoArray: any) => {
+            const talkingPeers = Array.isArray(talkingInfoArray) ? talkingInfoArray : [talkingInfoArray];
+
+            console.log('[PlanetKit] Talking status updated:', talkingPeers);
+
+            talkingPeers.forEach((talkingInfo: any) => {
+              const peerId = talkingInfo.userId || talkingInfo.peerId || talkingInfo.id;
+              const isTalking = talkingInfo.isTalking || talkingInfo.talking || false;
+
+              setParticipants(prev => prev.map(p => {
+                if (p.id === peerId) {
+                  // Update both isTalking and isSpeaking for TileView compatibility
+                  return { ...p, isTalking, isSpeaking: isTalking };
+                }
+                return p;
+              }));
+            });
           }
         };
 
@@ -569,7 +589,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
           accessToken: config.accessToken,
           mediaType: "video",
           mediaHtmlElement: { roomAudio: audioElementRef.current, localVideo: localVideoRef.current },
-          delegate: conferenceDelegate
+          delegate: conferenceDelegate,
+          enableTalkingStatusEvent: true // Enable speaking indicator events
         };
 
         await planetKitConference.joinConference(conferenceParams);
