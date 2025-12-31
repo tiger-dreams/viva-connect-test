@@ -145,6 +145,51 @@ src/
 3. Test with multiple users in different rooms
 4. Verify mobile responsiveness on actual devices
 
+#### Beta/Production Deployment Policy
+
+**IMPORTANT**: This project uses a Beta/Production separation strategy for safe feature testing.
+
+**Beta Environment** (`/beta/*` routes):
+- Used for testing new features before production release
+- Completely isolated component tree from production
+- Safe to deploy and test without affecting live users
+- Automatically deployed to Vercel on `main` branch push
+
+**Production Environment** (`/` routes):
+- Serves actual users and live traffic
+- Should only contain stable, well-tested features
+
+**Deployment Rules**:
+1. ✅ **Always deploy Beta features automatically** after implementation and testing
+2. ❌ **NEVER automatically update Production code** based on Beta testing
+3. ⏸️ **Wait for explicit user approval** before copying Beta features to Production
+4. 🚀 **Only deploy to Production when user explicitly requests** with clear confirmation
+
+**Workflow**:
+```
+1. Implement feature in Beta components (e.g., BetaPlanetKitMeetingArea)
+2. Deploy and test in Beta environment (/beta/*)
+3. Report results to user and wait for feedback
+4. If user says "deploy to production" or "update production":
+   → Copy changes from Beta to Production components
+   → Deploy to Production
+5. If user doesn't explicitly request:
+   → Do NOT update Production components
+   → Keep Beta and Production separate
+```
+
+**Example Phrases That Trigger Production Deployment**:
+- "프로덕션에 배포해줘" / "Deploy to production"
+- "리얼 쪽도 업데이트해줘" / "Update the real environment too"
+- "프로덕션 코드에도 적용해줘" / "Apply to production code"
+
+**Example Phrases That Do NOT Trigger Production Deployment**:
+- "베타에서 테스트해줘" / "Test in beta"
+- "확인했어" / "Confirmed"
+- "잘 작동해" / "Working well"
+
+**Key Principle**: Be conservative with Production deployments. When in doubt, ask the user explicitly.
+
 ### Environment Variables
 
 Required environment variables:
