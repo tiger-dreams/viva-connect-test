@@ -88,7 +88,7 @@ export const WebPushTestPage = () => {
         setStatus('Subscribed successfully');
 
         // Save subscription to backend
-        const response = await fetch('/api/save-push-subscription', {
+        const response = await fetch('/api/web-push?action=subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -140,7 +140,7 @@ export const WebPushTestPage = () => {
     const target = targetUserId || testUserId;
 
     try {
-      const response = await fetch('/api/notify-call', {
+      const response = await fetch('/api/web-push?action=notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -172,7 +172,7 @@ export const WebPushTestPage = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/init-push-db');
+      const response = await fetch('/api/web-push?action=init-db');
       const result = await response.json();
 
       if (result.success) {

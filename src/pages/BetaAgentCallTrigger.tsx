@@ -47,7 +47,7 @@ export const BetaAgentCallTrigger = () => {
     try {
       console.log('[BetaAgentCallTrigger] Initiating agent call for user:', profile.userId);
 
-      const response = await fetch('/api/agent-call-initiate', {
+      const response = await fetch('/api/agent-call?action=initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
