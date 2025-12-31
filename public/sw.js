@@ -1,7 +1,7 @@
 // Service Worker for Web Push Notifications
 // Viva Connect Test - Desktop Browser Support
 
-const SW_VERSION = '1.0.0';
+const SW_VERSION = '1.0.1';
 
 // Service Worker Installation
 self.addEventListener('install', (event) => {
@@ -18,11 +18,19 @@ self.addEventListener('activate', (event) => {
 // Push Event Handler
 self.addEventListener('push', (event) => {
   console.log('[Service Worker] Push event received');
+  console.log('[Service Worker] Event data:', event.data);
 
   let data = {};
 
   try {
-    data = event.data ? event.data.json() : {};
+    if (event.data) {
+      const text = event.data.text();
+      console.log('[Service Worker] Raw push data:', text);
+      data = JSON.parse(text);
+      console.log('[Service Worker] Parsed push data:', data);
+    } else {
+      console.warn('[Service Worker] No data in push event');
+    }
   } catch (error) {
     console.error('[Service Worker] Failed to parse push data:', error);
     data = { title: 'Incoming Call', body: 'You have an incoming call' };
@@ -38,6 +46,15 @@ self.addEventListener('push', (event) => {
     icon = '/vite.svg',
     badge = '/vite.svg'
   } = data;
+
+  console.log('[Service Worker] Notification config:', {
+    title,
+    body,
+    callId,
+    callerId,
+    callerName,
+    roomId
+  });
 
   const notificationOptions = {
     body,
@@ -70,6 +87,12 @@ self.addEventListener('push', (event) => {
 
   event.waitUntil(
     self.registration.showNotification(title, notificationOptions)
+      .then(() => {
+        console.log('[Service Worker] Notification displayed successfully');
+      })
+      .catch((error) => {
+        console.error('[Service Worker] Failed to show notification:', error);
+      })
   );
 });
 
