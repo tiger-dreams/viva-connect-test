@@ -21,6 +21,7 @@ import { ScheduleRetryPage } from "./pages/ScheduleRetryPage";
 import { BetaAgentCallTrigger } from "./pages/BetaAgentCallTrigger";
 import { BetaAgentCallMeeting } from "./pages/BetaAgentCallMeeting";
 import { BetaScheduleRetryPage } from "./pages/BetaScheduleRetryPage";
+import { WebPushTestPage } from "./pages/WebPushTestPage";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +54,9 @@ const App = () => (
               <Route path="/beta/agent-call" element={<BetaAgentCallTrigger />} />
               <Route path="/beta/agent-call-meeting" element={<BetaAgentCallMeeting />} />
               <Route path="/beta/schedule-retry" element={<BetaScheduleRetryPage />} />
+
+              {/* Web Push Test 페이지 - Beta Only */}
+              <Route path="/beta/web-push-test" element={<WebPushTestPage />} />
 
               {/* Agent Call 페이지 - Production */}
               <Route path="/agent-call" element={<AgentCallTrigger />} />
