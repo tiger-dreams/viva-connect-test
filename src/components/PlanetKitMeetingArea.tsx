@@ -64,11 +64,6 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
   // 원격 참가자 비디오 엘리먼트 맵
   const remoteVideoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
 
-  // 로컬 오디오 레벨 감지용 refs
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const localAudioStreamRef = useRef<MediaStream | null>(null);
-
   // 페이지 타이틀 업데이트
   useEffect(() => {
     if (connectionStatus.connected) {
@@ -104,110 +99,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
     };
   }, [connectionStatus.connected, connectionStartTime]);
 
-  // 로컬 오디오 레벨 감지 (자기 자신의 talking indicator)
-  useEffect(() => {
-    console.log('[Audio Monitoring] Effect triggered:', {
-      connected: connectionStatus.connected,
-      isAudioOn,
-      userId: config.userId
-    });
-
-    if (!connectionStatus.connected || !isAudioOn) {
-      console.log('[Audio Monitoring] Skipping - not connected or audio off');
-      return;
-    }
-
-    let animationFrameId: number;
-    let lastLogTime = 0;
-
-    const startAudioMonitoring = async () => {
-      try {
-        console.log('[Audio Monitoring] Starting audio monitoring...');
-
-        // 마이크 스트림 가져오기
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        localAudioStreamRef.current = stream;
-        console.log('[Audio Monitoring] Got microphone stream:', stream.id);
-
-        // AudioContext와 AnalyserNode 생성
-        const audioContext = new AudioContext();
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 512;
-        analyser.smoothingTimeConstant = 0.8;
-
-        const source = audioContext.createMediaStreamSource(stream);
-        source.connect(analyser);
-
-        audioContextRef.current = audioContext;
-        analyserRef.current = analyser;
-
-        console.log('[Audio Monitoring] AudioContext and AnalyserNode created successfully');
-
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        let lastTalkingState = false;
-
-        // 오디오 레벨 체크 (약 60fps)
-        const checkAudioLevel = () => {
-          if (!analyserRef.current) return;
-
-          analyser.getByteFrequencyData(dataArray);
-
-          // 평균 오디오 레벨 계산
-          const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-
-          // 임계값: 20 이상이면 말하는 것으로 간주 (PlanetKit과 함께 사용 시 레벨이 낮음)
-          const isTalking = average > 20;
-
-          // 1초마다 로그 (너무 많이 찍히지 않도록)
-          const now = Date.now();
-          if (now - lastLogTime > 1000) {
-            console.log('[Audio Monitoring] Audio level:', {
-              average: average.toFixed(2),
-              isTalking,
-              threshold: 20
-            });
-            lastLogTime = now;
-          }
-
-          // 상태 변경 시 로그
-          if (isTalking !== lastTalkingState) {
-            console.log('[Audio Monitoring] Talking state changed:', lastTalkingState, '->', isTalking);
-            lastTalkingState = isTalking;
-          }
-
-          // 로컬 참가자의 isTalking 상태 업데이트
-          setParticipants(prev => prev.map(p => {
-            if (p.id === config.userId) {
-              return { ...p, isTalking, isSpeaking: isTalking };
-            }
-            return p;
-          }));
-
-          animationFrameId = requestAnimationFrame(checkAudioLevel);
-        };
-
-        checkAudioLevel();
-      } catch (error) {
-        console.error('[Audio Monitoring] Failed to start:', error);
-      }
-    };
-
-    startAudioMonitoring();
-
-    // Cleanup
-    return () => {
-      console.log('[Audio Monitoring] Cleaning up');
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
-      if (localAudioStreamRef.current) {
-        localAudioStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [connectionStatus.connected, isAudioOn, config.userId]);
+  // Note: Local user talking status is now handled by PlanetKit's evtMyTalkingStatusUpdated event
+  // No need for manual AudioContext monitoring
 
   // Auto-accept call if autoAccept parameter is present
   useEffect(() => {
@@ -671,11 +564,23 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
             });
           },
 
-          // 말하는 상태 업데이트 이벤트 (Issue #10: Speaking indicator)
+          // 로컬 사용자(나 자신)의 말하는 상태 업데이트 (Issue #10: Speaking indicator)
+          evtMyTalkingStatusUpdated: (isActive: boolean) => {
+            console.log('[PlanetKit] My talking status updated:', isActive);
+
+            setParticipants(prev => prev.map(p => {
+              if (p.id === config.userId) {
+                return { ...p, isTalking: isActive, isSpeaking: isActive };
+              }
+              return p;
+            }));
+          },
+
+          // 원격 참가자들의 말하는 상태 업데이트 이벤트 (Issue #10: Speaking indicator)
           evtPeersTalkingStatusUpdated: (talkingInfoArray: any) => {
             const talkingPeers = Array.isArray(talkingInfoArray) ? talkingInfoArray : [talkingInfoArray];
 
-            console.log('[PlanetKit] Talking status updated:', talkingPeers);
+            console.log('[PlanetKit] Peers talking status updated:', talkingPeers);
 
             talkingPeers.forEach((talkingInfo: any) => {
               // PlanetKit sends {active: [...], inactive: [...]} structure
