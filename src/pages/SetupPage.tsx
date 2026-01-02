@@ -118,39 +118,46 @@ const SetupPage = () => {
     const ccParamValue = searchParams.get('cc_param');
     const isAgentCall = modeParam === 'agent-call';
 
-    // 디버그 정보 업데이트
-    let status = 'Waiting for conditions...';
-    if (!roomParam) {
-      status = 'No room parameter in URL';
-    } else if (!isLoggedIn) {
-      status = 'Waiting for login...';
-    } else if (!profile) {
-      status = 'Waiting for profile...';
-    } else if (!planetKitConfig.roomId) {
-      status = 'Room ID not set';
-    } else if (!planetKitConfig.serviceId || !planetKitConfig.apiKey) {
-      status = 'Configuration incomplete';
-    } else if (planetKitConfig.accessToken) {
-      status = 'Token already generated';
-    } else if (autoTokenGeneratedRef.current) {
-      status = 'Token generation in progress...';
-    } else {
-      status = 'Ready to generate token';
-    }
+    // 디버그 정보 업데이트 (room 파라미터가 있을 때만)
+    if (roomParam) {
+      let status = 'Waiting for conditions...';
+      if (!isLoggedIn) {
+        status = 'Waiting for login...';
+      } else if (!profile) {
+        status = 'Waiting for profile...';
+      } else if (!planetKitConfig.roomId) {
+        status = 'Room ID not set';
+      } else if (!planetKitConfig.serviceId || !planetKitConfig.apiKey) {
+        status = 'Configuration incomplete';
+      } else if (planetKitConfig.accessToken) {
+        status = 'Token already generated';
+      } else if (autoTokenGeneratedRef.current) {
+        status = 'Token generation in progress...';
+      } else {
+        status = 'Ready to generate token';
+      }
 
-    setDebugInfo({
-      roomParam,
-      isLoggedIn,
-      hasProfile: !!profile,
-      roomId: planetKitConfig.roomId,
-      hasToken: !!planetKitConfig.accessToken,
-      alreadyGenerated: autoTokenGeneratedRef.current,
-      serviceId: !!planetKitConfig.serviceId,
-      apiKey: !!planetKitConfig.apiKey,
-      userId: planetKitConfig.userId || '',
-      status,
-    });
-    console.log('[SetupPage] Auto-token useEffect triggered', { status, mode: modeParam, sid: sidParam });
+      console.log('[SetupPage] Auto-token useEffect triggered', {
+        status,
+        mode: modeParam,
+        sid: sidParam,
+        hasToken: !!planetKitConfig.accessToken,
+        alreadyGenerated: autoTokenGeneratedRef.current
+      });
+
+      setDebugInfo({
+        roomParam,
+        isLoggedIn,
+        hasProfile: !!profile,
+        roomId: planetKitConfig.roomId,
+        hasToken: !!planetKitConfig.accessToken,
+        alreadyGenerated: autoTokenGeneratedRef.current,
+        serviceId: !!planetKitConfig.serviceId,
+        apiKey: !!planetKitConfig.apiKey,
+        userId: planetKitConfig.userId || '',
+        status,
+      });
+    }
 
     // 조건: URL에 room 파라미터가 있고, 로그인 완료, 토큰이 없고, 아직 자동 생성하지 않음
     if (roomParam && isLoggedIn && profile && planetKitConfig.roomId && !planetKitConfig.accessToken && !autoTokenGeneratedRef.current) {
