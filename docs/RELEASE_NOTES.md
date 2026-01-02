@@ -4,6 +4,46 @@ All release notes for the LIFF Demo project.
 
 ---
 
+## 🎉 Version 1.2.0 - January 2, 2026
+
+### 🎨 UI/UX Improvements
+
+**Speaking Indicator Enhancement**
+- Video grid now highlights the speaking participant with a prominent border
+- Makes it easy to identify who is currently talking at a glance
+- Improved visual feedback for better meeting experience
+
+### 🐛 Bug Fixes
+
+**First-Time Room Join Failure Fixed**
+- Resolved intermittent connection failure when joining a room for the first time
+- Fixed issue occurring with fresh browser sessions or new devices
+- Optimized SetupPage rendering to prevent state management conflicts
+- Users can now reliably join rooms on their first attempt
+
+### ⚙️ Technical Improvements
+
+**API Consolidation**
+- Reduced serverless function count from 15 to 11 (Vercel Hobby plan optimization)
+- Consolidated Web Push APIs (3 → 1 unified endpoint with query parameters)
+- Consolidated Agent Call APIs (2 → 1 unified endpoint with query parameters)
+- Improved deployment stability and response time
+- Better resource utilization and cost efficiency
+
+**Performance Optimization**
+- Eliminated unnecessary useEffect re-renders in SetupPage
+- Improved initial page load stability
+- Enhanced token generation reliability
+- Reduced console log spam for cleaner debugging
+
+### 🚀 Deployment
+
+**Affected Environments**: Beta and Production
+**Platforms**: All browsers (Desktop, Mobile, WebView)
+**Deployment URL**: https://viva-connect-test.vercel.app
+
+---
+
 ## 🎉 Version 1.1.0 - December 28, 2025
 
 ### NEW: Agent Call (Audio Caller)
