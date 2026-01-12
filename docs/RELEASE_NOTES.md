@@ -4,6 +4,182 @@ All release notes for the LIFF Demo project.
 
 ---
 
+## 🎉 Version 1.3.0 - January 9, 2026
+
+### 🚀 NEW: Share & Invite to Conference Call
+
+Now you can easily invite others to join your conference call!
+
+#### 📤 How It Works:
+
+**1. Start or Join a Conference**
+- Enter a conference room as usual
+- Look for the "Invite" button in the meeting interface
+
+**2. Share Invitation**
+- Tap the "Invite" button
+- Native LINE share picker appears
+- Select recipients:
+  - **LINE Friends** 👥 - Individual friends
+  - **Groups** 👨‍👩‍👧‍👦 - Group chats you're part of
+  - **Chatrooms** 💬 - Multi-person chatrooms
+
+**3. Recipient Receives Invitation**
+- Invitation message appears in LINE chat
+- Contains direct link to join the conference
+- Shows room name and current participant count
+
+**4. Join Without Prior Setup** ✨
+- Recipients tap the invitation link
+- **No need to add Official Account first!**
+- Prompted to add Official Account (one-time)
+- Automatically enters the conference room
+- Seamlessly connects with other participants
+
+#### 🎯 Key Features
+
+**Frictionless Invitation**
+- ✅ **Native LINE sharing** - Uses LIFF's built-in share API
+- ✅ **Multiple recipient types** - Friends, groups, or chatrooms
+- ✅ **No pre-requisites** - Recipients don't need prior setup
+- ✅ **One-tap join** - Direct link to conference room
+- ✅ **Smart OA handling** - Prompts to add Official Account during first join
+
+**Smart Official Account (OA) Integration**
+- ✅ **Add on demand** - Only when accepting invitation
+- ✅ **Automatic friend request** - Handled by LIFF
+- ✅ **No manual steps** - Seamless flow from invitation to call
+- ✅ **Persistent access** - Once added, future joins are instant
+
+#### 📋 User Flow
+
+```
+Participant in call → Tap "Invite" → Select recipients
+  ↓
+LINE Share Picker → Choose friends/groups/chatrooms → Send
+  ↓
+Recipient taps link → Add OA (if needed) → Join conference
+  ↓
+Connected! → Start video/audio conversation
+```
+
+#### 🔧 Technical Highlights
+
+**LIFF Share API Integration**
+- Uses `liff.shareTargetPicker()` for native sharing
+- Supports multiple message types (text, link, image)
+- Preserves room state and participant info
+- Dynamic invitation message generation
+
+**Official Account Management**
+- LIFF "Add friend option" feature
+- Automatic friend request during join flow
+- No manual navigation required
+- One-time setup per user
+
+**Deep Linking**
+- Conference room ID embedded in invitation URL
+- Automatic room navigation from invite link
+- Preserves room settings (region, environment)
+- Direct entry to active conference
+
+#### 🌟 Benefits
+
+**For Meeting Hosts:**
+- 📤 Easy to invite multiple people at once
+- 🎯 Share to relevant groups directly
+- 💬 No need to copy/paste room IDs
+- ⚡ Real-time participant updates
+
+**For Invitees:**
+- 📱 One-tap join from LINE
+- 🚀 No app installation required
+- 🔓 No pre-setup needed
+- ✨ Seamless conference entry
+
+#### 💡 Use Cases
+
+Perfect for:
+- 👨‍💼 **Business meetings** - Quick team collaboration
+- 🎓 **Online classes** - Invite students to virtual classroom
+- 👪 **Family calls** - Group video chats with relatives
+- 🎮 **Gaming sessions** - Coordinate with teammates
+- 📢 **Community events** - Public conference invitations
+
+#### 📚 Implementation Details
+
+**Environment Variables** (no changes required):
+```bash
+# Uses existing LIFF and PlanetKit configuration
+VITE_LIFF_ID=your-liff-id
+VITE_PLANETKIT_EVAL_SERVICE_ID=your-service-id
+VITE_PLANETKIT_EVAL_API_KEY=your-api-key
+VITE_PLANETKIT_EVAL_API_SECRET=your-api-secret
+```
+
+**LIFF Configuration**:
+- "Add friend option" must be set to "Displayed"
+- "Linked OA" must be connected to Messaging API channel
+- See [SETUP_GUIDE.md](../SETUP_GUIDE.md) Step 5 and Step 6
+
+#### 🎨 UI Updates
+
+**New Components:**
+- "Invite" button in conference interface
+- Share target picker (native LINE UI)
+- Invitation message template with room info
+- OA friend request prompt (handled by LIFF)
+
+**Visual Enhancements:**
+- Clear "Invite" icon and button placement
+- Participant count visible to hosts
+- Active room indicator in invitation message
+
+#### 🚀 Deployment
+
+**Affected Environments**: Beta and Production
+**Platforms**: All browsers (Desktop, Mobile, WebView)
+**Deployment URL**: https://viva-connect-test.vercel.app
+
+#### 🔐 Privacy & Security
+
+- ✅ Invitations only to user-selected recipients
+- ✅ No automatic friend list access
+- ✅ Official Account consent required
+- ✅ Room access via secure LIFF authentication
+- ✅ No data stored without user permission
+
+#### 📱 Compatibility
+
+**Supported Platforms:**
+- LINE iOS app (v10.0+)
+- LINE Android app (v10.0+)
+- LINE Desktop app
+- LIFF browser (in-app)
+
+**Requirements:**
+- Active LINE account
+- Internet connection
+- Camera/microphone permissions (for conference)
+
+#### 🆕 What's New Summary
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Share & Invite | Native LINE sharing to friends/groups/chatrooms | ✅ Live |
+| No pre-setup | Join without adding OA first | ✅ Live |
+| Smart OA prompt | Automatic friend request during join | ✅ Live |
+| Deep linking | Direct conference room access from invite | ✅ Live |
+| Multi-recipient | Share to multiple targets at once | ✅ Live |
+
+#### 🐛 Known Limitations
+
+- ⚠️ Maximum 10 recipients per share action (LINE limitation)
+- ⚠️ Invitation link expires after 24 hours (configurable)
+- ⚠️ Some regions may have different share picker UI
+
+---
+
 ## 🎉 Version 1.2.0 - January 2, 2026
 
 ### 🎨 UI/UX Improvements
