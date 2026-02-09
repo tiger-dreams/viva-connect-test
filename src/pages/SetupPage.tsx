@@ -279,7 +279,11 @@ const SetupPage = () => {
 
   const handleJoinMeeting = () => {
     if (isConfigured) {
-      navigate('/planetkit_meeting');
+      if (planetKitConfig.roomId === 'ai-agent-room') {
+        navigate('/ai-agent-bridge');
+      } else {
+        navigate('/planetkit_meeting');
+      }
     }
   };
 
@@ -736,6 +740,15 @@ Status: ${debugInfo.status}`;
                     <div className="flex flex-col">
                       <span className="font-medium">✏️ {t.roomCustom}</span>
                       <span className="text-xs text-muted-foreground">{language === 'ko' ? '커스텀 룸 입력' : 'Custom Room Input'}</span>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="ai-agent-room" id="room-ai-agent" />
+                  <Label htmlFor="room-ai-agent" className="flex-1 cursor-pointer">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🤖 AI Agent</span>
+                      <span className="text-xs text-muted-foreground">{language === 'ko' ? 'AI 상담원 연결' : 'Connect to AI Agent'}</span>
                     </div>
                   </Label>
                 </div>

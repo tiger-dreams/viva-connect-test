@@ -108,6 +108,21 @@ export const LiffProvider = ({ children }: LiffProviderProps) => {
 
   const login = async () => {
     if (!liff.isLoggedIn()) {
+      // Allow bypass for PC debugging if env variable is set
+      const isDevelopment = import.meta.env.MODE === 'development';
+      const shouldMock = isDevelopment && !liff.isInClient();
+      
+      if (shouldMock) {
+        console.warn('[LiffContext] PC environment detected. Mocking login for development.');
+        setIsLoggedIn(true);
+        setProfile({
+          userId: 'U_MOCK_USER_ID',
+          displayName: 'PC Debugger',
+          pictureUrl: 'https://via.placeholder.com/150'
+        });
+        return;
+      }
+      
       liff.login();
     }
   };
