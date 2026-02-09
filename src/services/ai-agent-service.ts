@@ -98,8 +98,9 @@ export class AIAgentService {
   private micStream: MediaStream | null = null;
   private workletNode: AudioWorkletNode | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
-  private playbackQueue: Float32Array[] = [];
-  private isPlaying = false;
+
+  // private playbackQueue: Float32Array[] = []; // Removed buffering
+  // private isPlaying = false; // Removed buffering
   private state: AIAgentState = 'idle';
   private isMuted = false;
   private sessionConfig: SessionResponse | null = null;
@@ -317,9 +318,9 @@ export class AIAgentService {
               this.setState('speaking');
               const pcmBytes = this.base64ToArrayBuffer(part.inlineData.data);
               const float32 = this.pcm16ToFloat32(new Int16Array(pcmBytes));
-              this.playbackQueue.push(float32);
+
+              // Emit immediately - let the consumer handle scheduling
               this.emit('audioOutput', float32);
-              this.drainPlaybackQueue();
             }
             // Text transcript
             if (part.text) {
@@ -363,14 +364,14 @@ export class AIAgentService {
     // Register worklet from inline code
     const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' });
     const workletUrl = URL.createObjectURL(blob);
-    
+
     if (this.audioContext.audioWorklet) {
       await this.audioContext.audioWorklet.addModule(workletUrl);
     } else {
       // Fallback or error for browsers without AudioWorklet support
       throw new Error('AudioWorklet is not supported in this browser');
     }
-    
+
     URL.revokeObjectURL(workletUrl);
 
     this.sourceNode = this.audioContext.createMediaStreamSource(this.micStream);
@@ -406,33 +407,7 @@ export class AIAgentService {
 
   // --- Audio Playback ---
 
-  private drainPlaybackQueue(): void {
-    if (this.isPlaying || this.playbackQueue.length === 0) return;
-    this.isPlaying = true;
 
-    const playNext = () => {
-      if (this.playbackQueue.length === 0) {
-        this.isPlaying = false;
-        if (this.state === 'speaking') {
-          this.setState('listening');
-        }
-        return;
-      }
-
-      const float32 = this.playbackQueue.shift()!;
-      
-      // Emit audioOutput event for external handling (e.g., bridge to conference)
-      // Note: We don't play locally here - let the bridge handle routing
-      this.emit('audioOutput', float32);
-
-      // Schedule next chunk after a delay (simulate playback timing)
-      // 24kHz = 24000 samples per second
-      const durationMs = (float32.length / OUTPUT_SAMPLE_RATE) * 1000;
-      setTimeout(playNext, durationMs);
-    };
-
-    playNext();
-  }
 
   private resample(input: Float32Array, fromRate: number, toRate: number): Float32Array {
     const ratio = fromRate / toRate;
@@ -500,12 +475,12 @@ export class AIAgentService {
 
     // Close audio context
     if (this.audioContext && this.audioContext.state !== 'closed') {
-      this.audioContext.close().catch(() => {});
+      this.audioContext.close().catch(() => { });
       this.audioContext = null;
     }
 
-    this.playbackQueue = [];
-    this.isPlaying = false;
+    // this.playbackQueue = [];
+    // this.isPlaying = false;
     this.sessionConfig = null;
   }
 

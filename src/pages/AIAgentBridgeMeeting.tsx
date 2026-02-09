@@ -46,7 +46,8 @@ export const AIAgentBridgeMeeting = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const audioElementRef = useRef<HTMLAudioElement>(null);
-  const aiAudioBufferRef = useRef<Float32Array[]>([]);
+  const nextStartTimeRef = useRef<number>(0);
+  // const aiAudioBufferRef = useRef<Float32Array[]>([]); // Removed unused ref
 
   // Initialize call on mount
   useEffect(() => {
@@ -139,7 +140,7 @@ export const AIAgentBridgeMeeting = () => {
 
     try {
       const audioCtx = audioContextRef.current;
-      
+
       if (audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
@@ -150,15 +151,15 @@ export const AIAgentBridgeMeeting = () => {
 
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
-      
+
       // Route 1: To PlanetKit Conference (The primary path for the room)
       source.connect(mediaStreamDestRef.current);
-      
+
       // Route 2: Local Monitor (Tiger hearing the AI)
       // Muting local speaker to prevent double audio (echo) 
       // since PlanetKit will play the AI audio back to you anyway.
       // source.connect(audioCtx.destination);
-      
+
       source.start();
     } catch (err) {
       console.error('[AIAgentBridge] Failed to route AI audio:', err);
@@ -167,7 +168,7 @@ export const AIAgentBridgeMeeting = () => {
 
   const setupAIAgent = () => {
     console.log('[AIAgentBridge] Setting up AI Agent service');
-    
+
     aiAgentService.on('stateChange', handleStateChange);
     aiAgentService.on('error', handleError);
     aiAgentService.on('transcript', handleTranscript);
@@ -234,9 +235,9 @@ export const AIAgentBridgeMeeting = () => {
       evtPeerListUpdated: (peerUpdateInfo: any) => {
         const addedPeers = peerUpdateInfo.addedPeers || [];
         const removedPeers = peerUpdateInfo.removedPeers || [];
-        
+
         console.log('[AIAgentBridge] Peer list updated:', { added: addedPeers.length, removed: removedPeers.length });
-        
+
         setParticipantCount(prev => prev + addedPeers.length - removedPeers.length);
       },
 
@@ -360,7 +361,7 @@ export const AIAgentBridgeMeeting = () => {
 
   const cleanupAudioBridge = () => {
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current.close().catch(() => { });
       audioContextRef.current = null;
     }
     mediaStreamDestRef.current = null;
@@ -438,9 +439,8 @@ export const AIAgentBridgeMeeting = () => {
         <div className="flex justify-center mb-8">
           <div className="relative">
             <div
-              className={`w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-2xl ${
-                agentState === 'speaking' ? 'animate-pulse' : ''
-              }`}
+              className={`w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-2xl ${agentState === 'speaking' ? 'animate-pulse' : ''
+                }`}
             >
               <svg
                 className="w-16 h-16 text-white"
@@ -468,7 +468,7 @@ export const AIAgentBridgeMeeting = () => {
           <p className="text-white text-lg font-medium">{profile?.displayName || 'User'}</p>
           <p className="text-gray-300 text-sm">Connected to: {roomId}</p>
           <p className="text-gray-400 text-xs mt-1">
-            {participantCount > 1 
+            {participantCount > 1
               ? `${participantCount} participants in room`
               : 'Waiting for other participants...'}
           </p>
@@ -535,11 +535,10 @@ export const AIAgentBridgeMeeting = () => {
           size="lg"
           variant="ghost"
           onClick={handleToggleMute}
-          className={`w-16 h-16 rounded-full ${
-            isMuted
+          className={`w-16 h-16 rounded-full ${isMuted
               ? 'bg-red-500/80 hover:bg-red-600/80'
               : 'bg-white/20 hover:bg-white/30'
-          } backdrop-blur-sm`}
+            } backdrop-blur-sm`}
         >
           {isMuted ? (
             <MicOff className="w-8 h-8 text-white" />
