@@ -10,8 +10,23 @@
  * 4. Mock audio streaming simulation
  */
 
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
 const API_BASE = process.env.TEST_API_BASE || 'http://localhost:8080';
-const GEMINI_API_KEY = 'AIzaSyAShfKv38PiHzyCtewUTHyE6J3rsEvHDKU';
+const fs = require('fs');
+const path = require('path');
+try {
+  const envPath = path.resolve(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    const envConfig = require('dotenv').parse(fs.readFileSync(envPath));
+    for (const k in envConfig) {
+      process.env[k] = envConfig[k];
+    }
+  }
+} catch (e) { }
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Color codes for terminal output
 const colors = {
@@ -128,11 +143,11 @@ async function testGeminiWebSocket() {
         setup: {
           model: 'models/gemini-2.5-flash-native-audio-latest',
           generationConfig: {
-            responseModalities: ['AUDIO', 'TEXT'],
+            responseModalities: ['AUDIO'],
             speechConfig: {
               voiceConfig: {
                 prebuiltVoiceConfig: {
-                  voiceName: 'Kore',
+                  voiceName: 'Puck',
                 },
               },
             },

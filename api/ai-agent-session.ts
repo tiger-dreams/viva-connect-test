@@ -71,15 +71,15 @@ export default async function handler(
     return response.status(200).json({
       mockMode: false,
       provider: 'gemini',
-      model: 'models/gemini-2.0-flash-exp',
-      wsEndpoint: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent',
+      model: 'models/gemini-2.5-flash-native-audio-latest',
+      wsEndpoint: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
       apiKey,
       config: {
         voice,
         language,
         systemPrompt,
         sampleRate: 16000,
-        responseModalities: ['AUDIO', 'TEXT'],
+        responseModalities: ['AUDIO'],
       }
     });
   } catch (error: any) {
