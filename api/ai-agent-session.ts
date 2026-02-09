@@ -1,0 +1,92 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
+/**
+ * AI Agent Session API
+ * Returns Gemini 2.0 Multimodal Live API configuration for WebSocket connections.
+ * Falls back to mock mode when GEMINI_API_KEY is not configured.
+ *
+ * POST /api/ai-agent-session
+ *   - Returns WebSocket endpoint and config for Gemini 2.0 Live API
+ *   - Returns: { provider, model, wsEndpoint, apiKey, config } or { mockMode: true, message }
+ */
+
+const GEMINI_VOICES = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir', 'Leda'] as const;
+type GeminiVoice = typeof GEMINI_VOICES[number];
+
+interface SessionRequest {
+  language?: 'ko' | 'en';
+  voice?: string;
+  systemPrompt?: string;
+}
+
+function validateVoice(voice: string | undefined): GeminiVoice {
+  if (voice && GEMINI_VOICES.includes(voice as GeminiVoice)) {
+    return voice as GeminiVoice;
+  }
+  return 'Kore';
+}
+
+export default async function handler(
+  request: VercelRequest,
+  response: VercelResponse
+) {
+  // CORS headers
+  response.setHeader('Access-Control-Allow-Credentials', 'true');
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (request.method === 'OPTIONS') {
+    return response.status(200).end();
+  }
+
+  if (request.method !== 'POST') {
+    return response.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  const body: SessionRequest = request.body || {};
+  const language = body.language || 'ko';
+  const voice = validateVoice(body.voice);
+
+  const defaultSystemPrompt = language === 'ko'
+    ? '당신은 LINE 고객 지원 AI 어시스턴트입니다. 한국어로 친절하고 도움이 되게 응답하세요. 짧고 간결하게 대화하세요.'
+    : 'You are a LINE customer support AI assistant. Respond helpfully and concisely.';
+
+  const systemPrompt = body.systemPrompt || defaultSystemPrompt;
+
+  // If no API key, return mock mode indicator
+  if (!apiKey) {
+    console.log('[AI Agent Session] No GEMINI_API_KEY configured, returning mock mode');
+    return response.status(200).json({
+      mockMode: true,
+      message: 'Gemini API key not configured. Using mock mode.',
+      config: { language, voice, systemPrompt }
+    });
+  }
+
+  try {
+    console.log('[AI Agent Session] Returning Gemini 2.0 Live API configuration');
+
+    return response.status(200).json({
+      mockMode: false,
+      provider: 'gemini',
+      model: 'models/gemini-2.5-flash-native-audio-latest',
+      wsEndpoint: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
+      apiKey,
+      config: {
+        voice,
+        language,
+        systemPrompt,
+        sampleRate: 16000,
+        responseModalities: ['AUDIO', 'TEXT'],
+      }
+    });
+  } catch (error: any) {
+    console.error('[AI Agent Session] Error:', error);
+    return response.status(500).json({
+      error: 'Failed to create AI agent session',
+      details: error.message
+    });
+  }
+}

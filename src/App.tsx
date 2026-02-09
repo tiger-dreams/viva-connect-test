@@ -22,6 +22,7 @@ import { BetaAgentCallTrigger } from "./pages/BetaAgentCallTrigger";
 import { BetaAgentCallMeeting } from "./pages/BetaAgentCallMeeting";
 import { BetaScheduleRetryPage } from "./pages/BetaScheduleRetryPage";
 import { WebPushTestPage } from "./pages/WebPushTestPage";
+import { AIAgentCallMeeting } from "./pages/AIAgentCallMeeting";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,9 @@ const App = () => (
               <Route path="/agent-call" element={<AgentCallTrigger />} />
               <Route path="/agent-call-meeting" element={<AgentCallMeeting />} />
               <Route path="/schedule-retry" element={<ScheduleRetryPage />} />
+              
+              {/* AI Agent Call - Gemini Voice Call */}
+              <Route path="/ai-agent-call" element={<AIAgentCallMeeting />} />
               {/* LIFF Endpoint URL이 /setup인 경우를 위한 리다이렉트 */}
               {/* Beta 경로 */}
               <Route path="/setup/beta/agent-call" element={<BetaAgentCallTrigger />} />
