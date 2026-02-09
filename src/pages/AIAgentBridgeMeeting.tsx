@@ -152,15 +152,28 @@ export const AIAgentBridgeMeeting = () => {
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
 
+      // Schedule playback
+      const now = audioCtx.currentTime;
+      // If nextStartTime is in the past (gap happened), reset to now
+      // Small buffer (0.05s) to prevent immediate start glitches
+      if (nextStartTimeRef.current < now) {
+        nextStartTimeRef.current = now + 0.05;
+      }
+
+      // Play at the scheduled time
+      source.start(nextStartTimeRef.current);
+
+      // Advance the schedule
+      nextStartTimeRef.current += buffer.duration;
+
       // Route 1: To PlanetKit Conference (The primary path for the room)
       source.connect(mediaStreamDestRef.current);
 
       // Route 2: Local Monitor (Tiger hearing the AI)
-      // Muting local speaker to prevent double audio (echo) 
-      // since PlanetKit will play the AI audio back to you anyway.
-      // source.connect(audioCtx.destination);
+      // Unmuted so the user hosting the bridge can hear the AI too.
+      // Note: If this device is in the same room as others, use headphones to prevent feedback loop.
+      source.connect(audioCtx.destination);
 
-      source.start();
     } catch (err) {
       console.error('[AIAgentBridge] Failed to route AI audio:', err);
     }
@@ -536,8 +549,8 @@ export const AIAgentBridgeMeeting = () => {
           variant="ghost"
           onClick={handleToggleMute}
           className={`w-16 h-16 rounded-full ${isMuted
-              ? 'bg-red-500/80 hover:bg-red-600/80'
-              : 'bg-white/20 hover:bg-white/30'
+            ? 'bg-red-500/80 hover:bg-red-600/80'
+            : 'bg-white/20 hover:bg-white/30'
             } backdrop-blur-sm`}
         >
           {isMuted ? (
