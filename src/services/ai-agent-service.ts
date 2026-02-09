@@ -261,9 +261,23 @@ export class AIAgentService {
     if (!this.ws || !this.sessionConfig) return;
 
     const cfg = this.sessionConfig.config!;
+    const cfg = this.sessionConfig.config!;
     const setup = {
       setup: {
         model: this.sessionConfig.model,
+        generationConfig: {
+          responseModalities: cfg.responseModalities,
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: cfg.voice,
+              },
+            },
+          },
+        },
+        systemInstruction: {
+          parts: [{ text: cfg.systemPrompt }],
+        },
       },
     };
 

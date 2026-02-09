@@ -71,7 +71,7 @@ export default async function handler(
     return response.status(200).json({
       mockMode: false,
       provider: 'gemini',
-      model: 'models/gemini-2.0-flash-exp',
+      model: 'models/gemini-2.5-flash',
       wsEndpoint: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
       apiKey,
       config: {
