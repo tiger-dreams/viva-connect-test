@@ -22,7 +22,7 @@ import * as PlanetKitEval from '@line/planet-kit/dist/planet-kit-eval';
 export const AIAgentBridgeMeeting = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { profile, isLoggedIn } = useLiff();
+  const { profile, isLoggedIn, isInitialized } = useLiff();
   const { toast } = useToast();
 
   // URL parameters
@@ -50,6 +50,9 @@ export const AIAgentBridgeMeeting = () => {
 
   // Initialize call on mount
   useEffect(() => {
+    // Wait for LIFF to initialize
+    if (!isInitialized) return;
+
     if (!isLoggedIn || !profile) {
       toast({
         title: 'Authentication Required',
@@ -100,7 +103,7 @@ export const AIAgentBridgeMeeting = () => {
       cleanupPlanetKit();
       cleanupAudioBridge();
     };
-  }, [isLoggedIn, profile, language, voice, roomId]);
+  }, [isInitialized, isLoggedIn, profile, language, voice, roomId]);
 
   const handleStateChange = (newState: AIAgentState) => {
     console.log('[AIAgentBridge] AI State changed:', newState);
