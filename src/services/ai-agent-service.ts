@@ -264,19 +264,6 @@ export class AIAgentService {
     const setup = {
       setup: {
         model: this.sessionConfig.model,
-        generationConfig: {
-          responseModalities: cfg.responseModalities,
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: cfg.voice,
-              },
-            },
-          },
-        },
-        systemInstruction: {
-          parts: [{ text: cfg.systemPrompt }],
-        },
       },
     };
 
