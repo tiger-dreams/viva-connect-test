@@ -44,6 +44,7 @@ export interface AIAgentEventMap {
   error: string;
   transcript: { text: string; isFinal: boolean };
   audioLevel: number;
+  audioOutput: Float32Array;
 }
 
 type EventCallback<T> = (data: T) => void;
@@ -312,6 +313,7 @@ export class AIAgentService {
               const pcmBytes = this.base64ToArrayBuffer(part.inlineData.data);
               const float32 = this.pcm16ToFloat32(new Int16Array(pcmBytes));
               this.playbackQueue.push(float32);
+              this.emit('audioOutput', float32);
               this.drainPlaybackQueue();
             }
             // Text transcript

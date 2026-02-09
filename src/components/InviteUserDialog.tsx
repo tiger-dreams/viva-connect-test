@@ -89,7 +89,7 @@ export const InviteUserDialog = ({
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/call-history?userId=${encodeURIComponent(currentUserId)}&days=30`);
+      const response = await fetch(`/api/admin?action=call-history&userId=${encodeURIComponent(currentUserId)}&days=30`);
       const result = await response.json();
 
       if (result.success) {
@@ -124,7 +124,7 @@ export const InviteUserDialog = ({
 
     setAppUsersLoading(true);
     try {
-      const response = await fetch(`/api/get-followers?requesterId=${encodeURIComponent(currentUserId)}&days=90`);
+      const response = await fetch(`/api/line?action=get-followers&requesterId=${encodeURIComponent(currentUserId)}&days=90`);
       const result = await response.json();
 
       if (result.success) {
@@ -281,7 +281,7 @@ export const InviteUserDialog = ({
   const sendInvite = async (toUserId: string, toUserName: string) => {
     setSending(toUserId);
     try {
-      const response = await fetch('/api/send-invite', {
+      const response = await fetch('/api/line?action=send-invite', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

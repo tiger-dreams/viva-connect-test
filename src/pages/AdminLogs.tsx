@@ -56,7 +56,8 @@ const AdminLogs = () => {
       if (eventType && eventType !== 'all') params.append('eventType', eventType);
       if (userId) params.append('userId', userId);
 
-      const response = await fetch(`/api/logs?${params.toString()}`);
+      params.append('action', 'logs');
+      const response = await fetch(`/api/admin?${params.toString()}`);
       const result = await response.json();
 
       if (result.success) {

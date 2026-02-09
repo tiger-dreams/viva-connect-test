@@ -40,7 +40,7 @@ export const ScheduleRetryPage = () => {
 
       console.log('[Schedule Retry] Scheduling retry for SID:', sid);
 
-      const response = await fetch('/api/schedule-retry', {
+      const response = await fetch('/api/retry?action=schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

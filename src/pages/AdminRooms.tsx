@@ -42,7 +42,7 @@ const AdminRooms = () => {
   const fetchActiveRooms = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/active-rooms?minutes=60');
+      const response = await fetch('/api/admin?action=active-rooms&minutes=60');
       const result = await response.json();
 
       if (result.success) {
