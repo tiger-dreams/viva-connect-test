@@ -261,7 +261,6 @@ export class AIAgentService {
     if (!this.ws || !this.sessionConfig) return;
 
     const cfg = this.sessionConfig.config!;
-    const cfg = this.sessionConfig.config!;
     const setup = {
       setup: {
         model: this.sessionConfig.model,
