@@ -133,38 +133,33 @@ export const AIAgentBridgeMeeting = () => {
   };
 
   const handleAudioOutput = (audioData: Float32Array) => {
-    console.log('[AIAgentBridge] Received AI audio output:', audioData.length, 'samples');
-    
     if (!audioContextRef.current || !mediaStreamDestRef.current) {
-      console.warn('[AIAgentBridge] Audio bridge not ready, skipping routing');
       return;
     }
 
     try {
       const audioCtx = audioContextRef.current;
       
-      // Ensure AudioContext is running (important for mobile browsers)
       if (audioCtx.state === 'suspended') {
-        console.log('[AIAgentBridge] Resuming suspended AudioContext');
         audioCtx.resume();
       }
 
-      console.log('[AIAgentBridge] AudioContext state:', audioCtx.state);
-      
+      // Create buffer at exactly 24kHz to match Gemini's native output
       const buffer = audioCtx.createBuffer(1, audioData.length, 24000);
       buffer.getChannelData(0).set(audioData);
 
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
       
-      // Route 1: To PlanetKit Conference (via MediaStreamDestination)
+      // Route 1: To PlanetKit Conference (The primary path for the room)
       source.connect(mediaStreamDestRef.current);
       
-      // Route 2: To Local Speaker (so the bridge user can hear the AI)
-      source.connect(audioCtx.destination);
+      // Route 2: Local Monitor (Tiger hearing the AI)
+      // Muting local speaker to prevent double audio (echo) 
+      // since PlanetKit will play the AI audio back to you anyway.
+      // source.connect(audioCtx.destination);
       
       source.start();
-      console.log('[AIAgentBridge] AI audio routed to BOTH PlanetKit and local speaker');
     } catch (err) {
       console.error('[AIAgentBridge] Failed to route AI audio:', err);
     }
