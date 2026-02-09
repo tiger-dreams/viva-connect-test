@@ -230,7 +230,7 @@ DEPLOYMENT INSTRUCTIONS
 ================================================================================
 
 1. Set Environment Variable:
-   export GEMINI_API_KEY="AIzaSyAShfKv38PiHzyCtewUTHyE6J3rsEvHDKU"
+   export GEMINI_API_KEY="your-gemini-api-key"
 
 2. Deploy to Vercel:
    vercel --prod
