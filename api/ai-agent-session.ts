@@ -10,7 +10,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
  *   - Returns: { provider, model, wsEndpoint, apiKey, config } or { mockMode: true, message }
  */
 
-const GEMINI_VOICES = ['Kore', 'Puck', 'Charon', 'Aoede', 'Fenrir', 'Leda'] as const;
+const GEMINI_VOICES = ['Puck', 'Charon', 'Aoede', 'Fenrir', 'Leda'] as const;
 type GeminiVoice = typeof GEMINI_VOICES[number];
 
 interface SessionRequest {
@@ -23,7 +23,7 @@ function validateVoice(voice: string | undefined): GeminiVoice {
   if (voice && GEMINI_VOICES.includes(voice as GeminiVoice)) {
     return voice as GeminiVoice;
   }
-  return 'Kore';
+  return 'Puck';
 }
 
 export default async function handler(
@@ -71,7 +71,7 @@ export default async function handler(
     return response.status(200).json({
       mockMode: false,
       provider: 'gemini',
-      model: 'models/gemini-2.5-flash-native-audio-latest',
+      model: 'models/gemini-2.0-flash-exp',
       wsEndpoint: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent',
       apiKey,
       config: {
