@@ -357,7 +357,14 @@ export class AIAgentService {
     // Register worklet from inline code
     const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' });
     const workletUrl = URL.createObjectURL(blob);
-    await this.audioContext.addModule(workletUrl);
+    
+    if (this.audioContext.audioWorklet) {
+      await this.audioContext.audioWorklet.addModule(workletUrl);
+    } else {
+      // Fallback or error for browsers without AudioWorklet support
+      throw new Error('AudioWorklet is not supported in this browser');
+    }
+    
     URL.revokeObjectURL(workletUrl);
 
     this.sourceNode = this.audioContext.createMediaStreamSource(this.micStream);
@@ -407,28 +414,15 @@ export class AIAgentService {
       }
 
       const float32 = this.playbackQueue.shift()!;
-      const playbackCtx = this.audioContext;
-      if (!playbackCtx) {
-        this.isPlaying = false;
-        return;
-      }
+      
+      // Emit audioOutput event for external handling (e.g., bridge to conference)
+      // Note: We don't play locally here - let the bridge handle routing
+      this.emit('audioOutput', float32);
 
-      // Gemini outputs at 24kHz, our context may be at 16kHz - resample if needed
-      const outputRate = playbackCtx.sampleRate;
-      let samples = float32;
-
-      if (outputRate !== OUTPUT_SAMPLE_RATE) {
-        samples = this.resample(float32, OUTPUT_SAMPLE_RATE, outputRate);
-      }
-
-      const buffer = playbackCtx.createBuffer(1, samples.length, outputRate);
-      buffer.getChannelData(0).set(samples);
-
-      const source = playbackCtx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(playbackCtx.destination);
-      source.onended = playNext;
-      source.start();
+      // Schedule next chunk after a delay (simulate playback timing)
+      // 24kHz = 24000 samples per second
+      const durationMs = (float32.length / OUTPUT_SAMPLE_RATE) * 1000;
+      setTimeout(playNext, durationMs);
     };
 
     playNext();

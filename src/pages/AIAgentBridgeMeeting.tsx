@@ -135,22 +135,36 @@ export const AIAgentBridgeMeeting = () => {
   const handleAudioOutput = (audioData: Float32Array) => {
     console.log('[AIAgentBridge] Received AI audio output:', audioData.length, 'samples');
     
-    if (!audioContextRef.current || !mediaStreamDestRef.current || !conferenceRef.current) {
+    if (!audioContextRef.current || !mediaStreamDestRef.current) {
       console.warn('[AIAgentBridge] Audio bridge not ready, skipping routing');
       return;
     }
 
     try {
       const audioCtx = audioContextRef.current;
+      
+      // Ensure AudioContext is running (important for mobile browsers)
+      if (audioCtx.state === 'suspended') {
+        console.log('[AIAgentBridge] Resuming suspended AudioContext');
+        audioCtx.resume();
+      }
+
+      console.log('[AIAgentBridge] AudioContext state:', audioCtx.state);
+      
       const buffer = audioCtx.createBuffer(1, audioData.length, 24000);
       buffer.getChannelData(0).set(audioData);
 
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
+      
+      // Route 1: To PlanetKit Conference (via MediaStreamDestination)
       source.connect(mediaStreamDestRef.current);
+      
+      // Route 2: To Local Speaker (so the bridge user can hear the AI)
+      source.connect(audioCtx.destination);
+      
       source.start();
-
-      console.log('[AIAgentBridge] AI audio routed to PlanetKit conference');
+      console.log('[AIAgentBridge] AI audio routed to BOTH PlanetKit and local speaker');
     } catch (err) {
       console.error('[AIAgentBridge] Failed to route AI audio:', err);
     }
@@ -270,10 +284,15 @@ export const AIAgentBridgeMeeting = () => {
     const aiAudioStream = mediaStreamDestRef.current.stream;
     console.log('[AIAgentBridge] Created MediaStream for AI audio:', aiAudioStream.id);
 
-    if (conferenceRef.current && typeof conferenceRef.current.updateMyVideo === 'function') {
+    if (conferenceRef.current) {
       try {
-        await conferenceRef.current.updateMyVideo(aiAudioStream);
-        console.log('[AIAgentBridge] AI audio stream connected to PlanetKit');
+        // Use the official setCustomMediaStream method to inject AI audio into PlanetKit
+        if (typeof conferenceRef.current.setCustomMediaStream === 'function') {
+          await conferenceRef.current.setCustomMediaStream(aiAudioStream);
+          console.log('[AIAgentBridge] AI audio stream injected into PlanetKit');
+        } else {
+          console.warn('[AIAgentBridge] setCustomMediaStream not found on conference object');
+        }
       } catch (err) {
         console.warn('[AIAgentBridge] Could not connect AI audio to PlanetKit:', err);
       }
