@@ -303,6 +303,24 @@ export class AIAgentService {
     this.ws.send(JSON.stringify(setup));
   }
 
+  sendTextMessage(text: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+    const message = {
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [{ text: `(System: ${text})` }],
+          },
+        ],
+        turnComplete: true,
+      },
+    };
+
+    this.ws.send(JSON.stringify(message));
+  }
+
   private sendInitialGreeting(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.sessionConfig) return;
 
