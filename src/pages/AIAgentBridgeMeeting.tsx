@@ -48,6 +48,8 @@ export const AIAgentBridgeMeeting = () => {
   const heartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const aiActiveRef = useRef(false);
+  const speakingSourcesRef = useRef<AudioBufferSourceNode[]>([]);
+  const analyserRef = useRef<AnalyserNode | null>(null);
 
   const userId = profile?.userId || 'ai-bridge-user';
   const userName = profile?.displayName || 'User';
@@ -68,10 +70,16 @@ export const AIAgentBridgeMeeting = () => {
     try {
       const data: LockStatus = await lockApi('status');
       setLockStatus(data);
+      
+      // Auto-activate AI if room is empty (not locked) and we are the only participant (or first to try)
+      if (!aiActiveRef.current && !data.locked && !isTogglingAI) {
+        console.log('[AIAgentBridge] Auto-activating AI for first user');
+        handleToggleAI();
+      }
     } catch {
       // silently ignore polling errors
     }
-  }, [lockApi]);
+  }, [lockApi, isTogglingAI, handleToggleAI]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -270,6 +278,12 @@ export const AIAgentBridgeMeeting = () => {
 
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
+      
+      // Store reference to current speaking sources for interruption
+      speakingSourcesRef.current.push(source);
+      source.onended = () => {
+        speakingSourcesRef.current = speakingSourcesRef.current.filter(s => s !== source);
+      };
 
       const now = audioCtx.currentTime;
       if (nextStartTimeRef.current < now) nextStartTimeRef.current = now + 0.05;
@@ -350,10 +364,35 @@ export const AIAgentBridgeMeeting = () => {
   const setupAudioContext = async () => {
     audioContextRef.current = new AudioContext({ sampleRate: 48000 });
     mediaStreamDestRef.current = audioContextRef.current.createMediaStreamDestination();
+    
+    // Setup analyzer for barge-in detection
+    analyserRef.current = audioContextRef.current.createAnalyser();
+    analyserRef.current.fftSize = 256;
+    const bufferLength = analyserRef.current.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const checkAudioLevel = () => {
+      if (!analyserRef.current || !aiActiveRef.current) return;
+      analyserRef.current.getByteFrequencyData(dataArray);
+      const sum = dataArray.reduce((a, b) => a + b, 0);
+      const average = sum / bufferLength;
+
+      // If local audio level is high and AI is speaking, interrupt
+      if (average > 30 && speakingSourcesRef.current.length > 0) {
+        console.log('[AIAgentBridge] Barge-in detected, interrupting AI');
+        speakingSourcesRef.current.forEach(source => {
+          try { source.stop(); } catch (e) {}
+        });
+        speakingSourcesRef.current = [];
+        nextStartTimeRef.current = audioContextRef.current?.currentTime || 0;
+      }
+      requestAnimationFrame(checkAudioLevel);
+    };
+    requestAnimationFrame(checkAudioLevel);
   };
 
   const createAudioBridge = async (isHandoff: boolean) => {
-    if (!audioContextRef.current || !mediaStreamDestRef.current) {
+    if (!audioContextRef.current || !mediaStreamDestRef.current || !analyserRef.current) {
       throw new Error('Audio context not initialized');
     }
 
@@ -364,6 +403,7 @@ export const AIAgentBridgeMeeting = () => {
 
     const micSource = audioContextRef.current.createMediaStreamSource(micStream);
     micSource.connect(mediaStreamDestRef.current);
+    micSource.connect(analyserRef.current); // Connect mic to analyzer for barge-in
 
     const systemPrompt =
       language === 'ko'
@@ -385,8 +425,18 @@ export const AIAgentBridgeMeeting = () => {
 
     if (audioElementRef.current) {
       try {
-        const roomStream = (audioElementRef.current as any).captureStream() as MediaStream;
-        aiAgentService.addAudioSource(roomStream);
+        // captureStream() might require a user interaction to work in some browsers
+        // and needs to be called on the element playing the room audio
+        const roomStream = (audioElementRef.current as any).captureStream?.() || (audioElementRef.current as any).mozCaptureStream?.();
+        if (roomStream) {
+          aiAgentService.addAudioSource(roomStream);
+          
+          // Also connect room audio to the analyzer to allow other participants to interrupt AI
+          if (audioContextRef.current && analyserRef.current) {
+            const roomSource = audioContextRef.current.createMediaStreamSource(roomStream);
+            roomSource.connect(analyserRef.current);
+          }
+        }
       } catch (err) {
         console.warn('[AIAgentBridge] Could not capture room audio for Gemini:', err);
       }

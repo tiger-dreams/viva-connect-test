@@ -231,10 +231,32 @@ export class AIAgentService {
       return;
     }
 
-    const source = this.audioContext.createMediaStreamSource(stream);
-    source.connect(this.workletNode);
-    this.additionalSources.push(source);
-    console.log('[AIAgent] Added external audio source to Gemini input');
+    // Filter out internal streams if they are somehow passed back
+    if (this.micStream && stream.id === this.micStream.id) {
+      return;
+    }
+
+    try {
+      const source = this.audioContext.createMediaStreamSource(stream);
+      source.connect(this.workletNode);
+      this.additionalSources.push(source);
+      console.log('[AIAgent] Added external audio source to Gemini input');
+    } catch (err) {
+      console.error('[AIAgent] Failed to add audio source:', err);
+    }
+  }
+
+  /**
+   * Stop AI audio immediately by closing the WebSocket and stopping the capture.
+   * Note: This is a heavy-weight interrupt. For soft interrupt (stop current response),
+   * we'd need to send a specific message to the AI provider.
+   */
+  interrupt(): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      // Sending an empty content or turnComplete can sometimes help flush, 
+      // but the real way is usually to let the server know or handle it in playback.
+      console.log('[AIAgent] Interrupting...');
+    }
   }
 
   // --- WebSocket ---
