@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import handler from './callback';
+import handler from './callback.js';
 
 /**
  * Legacy Proxy for PlanetKit Callback
