@@ -591,12 +591,12 @@ async function handlePlanetKitCallback(
       console.log('[Callback API] planetkit: Received GET callback:', rawParams);
 
       body = {
-        eventType: determineEventType(rawParams),
+        eventType: '', // will be determined below
         serviceId: rawParams.svc_id || rawParams.service_id || rawParams.svcId,
         roomId: rawParams.id || rawParams.room_id || rawParams.roomId,
         userId: rawParams.user_id || rawParams.userId,
         displayName: rawParams.display_name || rawParams.displayName,
-        timestamp: parseInt((rawParams.ts || rawParams.timestamp || Date.now()).toString()),
+        timestamp: parseInt((rawParams.ts || rawParams.timestamp || Date.now()).toString()) || Date.now(),
         ...rawParams,
       };
     } else {
@@ -604,18 +604,17 @@ async function handlePlanetKitCallback(
       console.log('[Callback API] planetkit: Received POST callback:', rawParams);
 
       body = {
-        eventType: rawParams.eventType || rawParams.event_type || determineEventType(rawParams),
+        eventType: rawParams.eventType || rawParams.event_type || '',
         serviceId: rawParams.svc_id || rawParams.service_id || rawParams.svcId,
         roomId: rawParams.id || rawParams.room_id || rawParams.roomId,
         userId: rawParams.user_id || rawParams.userId,
         displayName: rawParams.display_name || rawParams.displayName,
-        timestamp: parseInt((rawParams.ts || rawParams.timestamp || Date.now()).toString()),
+        timestamp: parseInt((rawParams.ts || rawParams.timestamp || Date.now()).toString()) || Date.now(),
         ...rawParams,
       };
     }
 
     const {
-      eventType,
       serviceId,
       roomId,
       userId,
@@ -624,6 +623,8 @@ async function handlePlanetKitCallback(
       ...additionalData
     } = body;
 
+    const eventType = determineEventType(body);
+    
     console.log('[Callback API] planetkit: Parsed data:', {
       eventType,
       serviceId,
@@ -633,28 +634,33 @@ async function handlePlanetKitCallback(
       timestamp,
     });
 
-    const result = await sql`
-      INSERT INTO planetkit_events (
-        event_type,
-        service_id,
-        room_id,
-        user_id,
-        display_name,
-        timestamp,
-        data
-      ) VALUES (
-        ${eventType},
-        ${serviceId || null},
-        ${roomId || null},
-        ${userId || null},
-        ${displayName || null},
-        ${timestamp || Date.now()},
-        ${JSON.stringify(additionalData)}
-      )
-      RETURNING id
-    `;
-
-    console.log('[Callback API] planetkit: Event stored with ID:', result.rows[0]?.id);
+    let eventId = null;
+    try {
+      const result = await sql`
+        INSERT INTO planetkit_events (
+          event_type,
+          service_id,
+          room_id,
+          user_id,
+          display_name,
+          timestamp,
+          data
+        ) VALUES (
+          ${eventType},
+          ${serviceId || null},
+          ${roomId || null},
+          ${userId || null},
+          ${displayName || null},
+          ${timestamp || Date.now()},
+          ${JSON.stringify(additionalData)}
+        )
+        RETURNING id
+      `;
+      eventId = result.rows[0]?.id;
+      console.log('[Callback API] planetkit: Event stored with ID:', eventId);
+    } catch (dbError) {
+      console.error('[Callback API] planetkit: Database storage failed (continuing):', dbError);
+    }
 
     if (eventType === 'GCALL_EVT_START') {
       const baseUrl = request.headers.origin || `https://${request.headers.host}`;
