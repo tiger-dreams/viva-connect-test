@@ -70,16 +70,10 @@ export const AIAgentBridgeMeeting = () => {
     try {
       const data: LockStatus = await lockApi('status');
       setLockStatus(data);
-      
-      // Auto-activate AI if room is empty (not locked) and we are the only participant (or first to try)
-      if (!aiActiveRef.current && !data.locked && !isTogglingAI) {
-        console.log('[AIAgentBridge] Auto-activating AI for first user');
-        handleToggleAI();
-      }
     } catch {
       // silently ignore polling errors
     }
-  }, [lockApi, isTogglingAI, handleToggleAI]);
+  }, [lockApi]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -101,7 +95,15 @@ export const AIAgentBridgeMeeting = () => {
         setIsConnecting(false);
         callStartTimeRef.current = Date.now();
         startDurationTimer();
-        await fetchLockStatus();
+        
+        // Check room status and auto-activate if empty
+        const data: LockStatus = await lockApi('status');
+        setLockStatus(data);
+        if (!data.locked) {
+          console.log('[AIAgentBridge] Auto-activating AI for first user');
+          await activateAI(); 
+        }
+        
         startPolling();
       } catch (error: any) {
         toast({
@@ -162,7 +164,7 @@ export const AIAgentBridgeMeeting = () => {
     }
   };
 
-  const handleToggleAI = async () => {
+  const handleToggleAI = useCallback(async () => {
     if (isTogglingAI) return;
     setIsTogglingAI(true);
     try {
@@ -174,7 +176,7 @@ export const AIAgentBridgeMeeting = () => {
     } finally {
       setIsTogglingAI(false);
     }
-  };
+  }, [isTogglingAI, aiActive, activateAI, deactivateAI]);
 
   const activateAI = async () => {
     const prevLock: LockStatus = await lockApi('status');
