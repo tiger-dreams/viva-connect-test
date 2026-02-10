@@ -460,7 +460,13 @@ export class AIAgentService {
     };
 
     this.sourceNode.connect(this.workletNode);
-    this.workletNode.connect(this.audioContext.destination); // required to keep worklet running
+    
+    // Connect to a GainNode with 0 volume to keep the worklet alive 
+    // without routing mic audio to speakers (which causes loops)
+    const silentGain = this.audioContext.createGain();
+    silentGain.gain.value = 0;
+    this.workletNode.connect(silentGain);
+    silentGain.connect(this.audioContext.destination);
 
     this.setState('listening');
     console.log('[AIAgent] Microphone capture started');

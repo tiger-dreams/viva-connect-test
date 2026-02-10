@@ -90,7 +90,6 @@ export const AIAgentBridgeMeeting = () => {
       try {
         setupAIAgentListeners();
         await joinPlanetKitConference();
-        await setupAudioContext();
         setIsConnecting(false);
         callStartTimeRef.current = Date.now();
         startDurationTimer();
@@ -187,6 +186,7 @@ export const AIAgentBridgeMeeting = () => {
     }
 
     try {
+      await setupAudioContext(); // Initialize audio graph only when activating
       const isHandoff = prevLock.locked && prevLock.holder?.userId !== userId;
       await createAudioBridge(isHandoff);
       aiActiveRef.current = true;
@@ -198,6 +198,7 @@ export const AIAgentBridgeMeeting = () => {
       });
     } catch (err: any) {
       await lockApi('release');
+      cleanupAudioBridge();
       toast({
         title: 'AI Connection Failed',
         description: err.message,
@@ -209,6 +210,17 @@ export const AIAgentBridgeMeeting = () => {
   const deactivateAI = async () => {
     stopHeartbeat();
     cleanupAIBridge();
+    cleanupAudioBridge();
+    
+    // Reset PlanetKit back to default microphone if possible
+    if (conferenceRef.current && typeof conferenceRef.current.setCustomMediaStream === 'function') {
+      try {
+        await conferenceRef.current.setCustomMediaStream(null);
+      } catch (err) {
+        console.warn('[AIAgentBridge] Failed to reset custom media stream:', err);
+      }
+    }
+
     await lockApi('release');
     aiActiveRef.current = false;
     setAiActive(false);
