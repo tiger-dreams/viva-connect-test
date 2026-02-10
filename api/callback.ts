@@ -680,7 +680,7 @@ async function handlePlanetKitCallback(
     return response.status(200).json({
       success: true,
       message: 'Event processed successfully',
-      eventId: result.rows[0]?.id,
+      eventId: eventId,
     });
   } catch (error: any) {
     console.error('[Callback API] Error in planetkit:', error);
