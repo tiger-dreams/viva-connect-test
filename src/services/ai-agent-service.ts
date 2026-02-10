@@ -135,7 +135,7 @@ export class AIAgentService {
    * Connect to the AI agent. Fetches session config from backend,
    * opens WebSocket to Gemini, and starts microphone capture.
    */
-  async connect(config: AIAgentSessionConfig, externalMicStream?: MediaStream): Promise<void> {
+  async connect(config: AIAgentSessionConfig): Promise<void> {
     if (this.state === 'connected' || this.state === 'connecting') {
       console.warn('[AIAgent] Already connected or connecting');
       return;
@@ -171,8 +171,8 @@ export class AIAgentService {
       // 3. Send setup message
       this.sendSetupMessage();
 
-      // 4. Start audio processing pipeline
-      await this.startAudioPipeline(externalMicStream);
+      // 4. Start microphone capture
+      await this.startMicCapture();
 
       this.setState('connected');
       console.log('[AIAgent] Connected successfully');
@@ -231,32 +231,10 @@ export class AIAgentService {
       return;
     }
 
-    // Filter out internal streams if they are somehow passed back
-    if (this.micStream && stream.id === this.micStream.id) {
-      return;
-    }
-
-    try {
-      const source = this.audioContext.createMediaStreamSource(stream);
-      source.connect(this.workletNode);
-      this.additionalSources.push(source);
-      console.log('[AIAgent] Added external audio source to Gemini input');
-    } catch (err) {
-      console.error('[AIAgent] Failed to add audio source:', err);
-    }
-  }
-
-  /**
-   * Stop AI audio immediately by closing the WebSocket and stopping the capture.
-   * Note: This is a heavy-weight interrupt. For soft interrupt (stop current response),
-   * we'd need to send a specific message to the AI provider.
-   */
-  interrupt(): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      // Sending an empty content or turnComplete can sometimes help flush, 
-      // but the real way is usually to let the server know or handle it in playback.
-      console.log('[AIAgent] Interrupting...');
-    }
+    const source = this.audioContext.createMediaStreamSource(stream);
+    source.connect(this.workletNode);
+    this.additionalSources.push(source);
+    console.log('[AIAgent] Added external audio source to Gemini input');
   }
 
   // --- WebSocket ---
@@ -325,24 +303,6 @@ export class AIAgentService {
     this.ws.send(JSON.stringify(setup));
   }
 
-  sendTextMessage(text: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-
-    const message = {
-      clientContent: {
-        turns: [
-          {
-            role: 'user',
-            parts: [{ text: `(System: ${text})` }],
-          },
-        ],
-        turnComplete: true,
-      },
-    };
-
-    this.ws.send(JSON.stringify(message));
-  }
-
   private sendInitialGreeting(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.sessionConfig) return;
 
@@ -387,11 +347,6 @@ export class AIAgentService {
         return;
       }
 
-      // Input transcription (what Gemini heard from user)
-      if (msg.inputTranscription) {
-        console.log('[AIAgent] 🎤 USER HEARD BY GEMINI:', JSON.stringify(msg.inputTranscription));
-      }
-
       // Server content (audio response from Gemini)
       if (msg.serverContent) {
         const content = msg.serverContent;
@@ -434,22 +389,18 @@ export class AIAgentService {
     }
   }
 
-  // --- Audio Pipeline ---
+  // --- Microphone Capture ---
 
-  private async startAudioPipeline(externalMicStream?: MediaStream): Promise<void> {
-    if (externalMicStream) {
-      this.micStream = externalMicStream;
-    } else {
-      this.micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: INPUT_SAMPLE_RATE,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-    }
+  private async startMicCapture(): Promise<void> {
+    this.micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        sampleRate: INPUT_SAMPLE_RATE,
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
 
     this.audioContext = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
 
@@ -466,24 +417,15 @@ export class AIAgentService {
 
     URL.revokeObjectURL(workletUrl);
 
-    // Log mic track state for diagnostics
-    const tracks = this.micStream.getAudioTracks();
-    console.log(`[AIAgent] Mic tracks: ${tracks.length}, enabled: ${tracks[0]?.enabled}, readyState: ${tracks[0]?.readyState}, label: ${tracks[0]?.label}`);
-
     this.sourceNode = this.audioContext.createMediaStreamSource(this.micStream);
     this.workletNode = new AudioWorkletNode(this.audioContext, AUDIO_WORKLET_NAME);
 
-    let chunksSent = 0;
     this.workletNode.port.onmessage = (ev) => {
       if (this.isMuted) return;
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
       const pcm16Buffer: ArrayBuffer = ev.data.pcm16;
       const base64 = this.arrayBufferToBase64(pcm16Buffer);
-
-      chunksSent++;
-      if (chunksSent === 1) console.log('[AIAgent] First mic chunk sent to Gemini ✅');
-      if (chunksSent % 100 === 0) console.log(`[AIAgent] Mic chunks sent: ${chunksSent}`);
 
       const message = {
         realtimeInput: {
@@ -500,14 +442,10 @@ export class AIAgentService {
     };
 
     this.sourceNode.connect(this.workletNode);
-    
-    const silentGain = this.audioContext.createGain();
-    silentGain.gain.value = 0;
-    this.workletNode.connect(silentGain);
-    silentGain.connect(this.audioContext.destination);
+    this.workletNode.connect(this.audioContext.destination); // required to keep worklet running
 
     this.setState('listening');
-    console.log('[AIAgent] Audio pipeline started');
+    console.log('[AIAgent] Microphone capture started');
   }
 
   // --- Audio Playback ---

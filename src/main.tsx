@@ -1,10 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
-import { initRemoteLogger } from './utils/remote-logger'
-
-// Activate remote logging (ships console.* to /api/debug-logs)
-initRemoteLogger();
 
 // SIP.js 콘솔 로그 필터링
 const originalLog = console.log;
