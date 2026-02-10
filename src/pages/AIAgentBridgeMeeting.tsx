@@ -90,28 +90,44 @@ export const AIAgentBridgeMeeting = () => {
 
     const init = async () => {
       try {
+        console.log('[AIAgentBridge] Starting initialization');
         setupAIAgentListeners();
+        
+        // 1. Join Conference first
         await joinPlanetKitConference();
+        console.log('[AIAgentBridge] PlanetKit joined');
+        
+        // 2. Release loading screen immediately to show the room UI
         setIsConnecting(false);
         callStartTimeRef.current = Date.now();
         startDurationTimer();
         
-        // Check room status and auto-activate if empty
-        const data: LockStatus = await lockApi('status');
-        setLockStatus(data);
-        if (!data.locked) {
-          console.log('[AIAgentBridge] Auto-activating AI for first user');
-          await activateAI(); 
-        }
-        
+        // 3. Start polling for room status
         startPolling();
+
+        // 4. Try auto-activation in the next tick to prevent blocking the UI
+        setTimeout(async () => {
+          try {
+            const data: LockStatus = await lockApi('status');
+            setLockStatus(data);
+            if (!data.locked && !aiActiveRef.current) {
+              console.log('[AIAgentBridge] Attempting auto-activation');
+              await activateAI(); 
+            }
+          } catch (err) {
+            console.warn('[AIAgentBridge] Auto-activation check failed:', err);
+          }
+        }, 500);
+
       } catch (error: any) {
+        console.error('[AIAgentBridge] Init failed:', error);
         toast({
           title: 'Connection Failed',
           description: error.message || 'Failed to initialize AI Agent Bridge',
           variant: 'destructive',
         });
-        setTimeout(() => navigate('/setup'), 2000);
+        setIsConnecting(false); // Make sure to hide loader even on error
+        setTimeout(() => navigate('/setup'), 3000);
       }
     };
 
@@ -179,10 +195,12 @@ export const AIAgentBridgeMeeting = () => {
   }, [isTogglingAI, aiActive, activateAI, deactivateAI]);
 
   const activateAI = async () => {
+    console.log('[AIAgentBridge] activateAI requested');
     const prevLock: LockStatus = await lockApi('status');
     const result = await lockApi('acquire');
 
     if (!result.acquired) {
+      console.warn('[AIAgentBridge] Lock acquisition failed', result.holder);
       toast({
         title: language === 'ko' ? 'AI 활성화 불가' : 'Cannot Activate AI',
         description:
@@ -196,17 +214,22 @@ export const AIAgentBridgeMeeting = () => {
     }
 
     try {
-      await setupAudioContext(); // Initialize audio graph only when activating
+      console.log('[AIAgentBridge] Initializing audio/bridge');
+      await setupAudioContext(); 
       const isHandoff = prevLock.locked && prevLock.holder?.userId !== userId;
       await createAudioBridge(isHandoff);
+      
       aiActiveRef.current = true;
       setAiActive(true);
       startHeartbeat();
+      
+      console.log('[AIAgentBridge] AI Activation complete');
       toast({
         title: language === 'ko' ? 'AI 활성화됨' : 'AI Activated',
         description: language === 'ko' ? 'Gemini AI가 연결되었습니다' : 'Gemini AI connected',
       });
     } catch (err: any) {
+      console.error('[AIAgentBridge] AI Activation failed:', err);
       await lockApi('release');
       cleanupAudioBridge();
       toast({
@@ -364,33 +387,45 @@ export const AIAgentBridgeMeeting = () => {
   };
 
   const setupAudioContext = async () => {
-    audioContextRef.current = new AudioContext({ sampleRate: 48000 });
-    mediaStreamDestRef.current = audioContextRef.current.createMediaStreamDestination();
+    console.log('[AIAgentBridge] Setting up AudioContext');
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContext({ sampleRate: 48000 });
+    }
+    
+    const audioCtx = audioContextRef.current;
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+    }
+
+    if (!mediaStreamDestRef.current) {
+      mediaStreamDestRef.current = audioCtx.createMediaStreamDestination();
+    }
     
     // Setup analyzer for barge-in detection
-    analyserRef.current = audioContextRef.current.createAnalyser();
-    analyserRef.current.fftSize = 256;
-    const bufferLength = analyserRef.current.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+    if (!analyserRef.current) {
+      analyserRef.current = audioCtx.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      const bufferLength = analyserRef.current.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
 
-    const checkAudioLevel = () => {
-      if (!analyserRef.current || !aiActiveRef.current) return;
-      analyserRef.current.getByteFrequencyData(dataArray);
-      const sum = dataArray.reduce((a, b) => a + b, 0);
-      const average = sum / bufferLength;
+      const checkAudioLevel = () => {
+        if (!analyserRef.current || !aiActiveRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const sum = dataArray.reduce((a, b) => a + b, 0);
+        const average = sum / bufferLength;
 
-      // If local audio level is high and AI is speaking, interrupt
-      if (average > 30 && speakingSourcesRef.current.length > 0) {
-        console.log('[AIAgentBridge] Barge-in detected, interrupting AI');
-        speakingSourcesRef.current.forEach(source => {
-          try { source.stop(); } catch (e) {}
-        });
-        speakingSourcesRef.current = [];
-        nextStartTimeRef.current = audioContextRef.current?.currentTime || 0;
-      }
+        if (average > 30 && speakingSourcesRef.current.length > 0) {
+          console.log('[AIAgentBridge] Barge-in detected, interrupting AI');
+          speakingSourcesRef.current.forEach(source => {
+            try { source.stop(); } catch (e) {}
+          });
+          speakingSourcesRef.current = [];
+          nextStartTimeRef.current = audioCtx.currentTime;
+        }
+        requestAnimationFrame(checkAudioLevel);
+      };
       requestAnimationFrame(checkAudioLevel);
-    };
-    requestAnimationFrame(checkAudioLevel);
+    }
   };
 
   const createAudioBridge = async (isHandoff: boolean) => {
