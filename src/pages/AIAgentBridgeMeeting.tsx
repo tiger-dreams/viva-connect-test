@@ -672,11 +672,8 @@ export const AIAgentBridgeMeeting = () => {
               size="lg"
               variant="ghost"
               onClick={handleToggleMute}
-              disabled={!aiActive}
               className={`w-14 h-14 rounded-full ${
-                !aiActive
-                  ? 'bg-white/10 opacity-40 cursor-not-allowed'
-                  : isMuted
+                isMuted
                   ? 'bg-red-500/80 hover:bg-red-600/80'
                   : 'bg-white/20 hover:bg-white/30'
               } backdrop-blur-sm`}
