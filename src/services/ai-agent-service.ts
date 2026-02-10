@@ -387,6 +387,11 @@ export class AIAgentService {
         return;
       }
 
+      // Input transcription (what Gemini heard from user)
+      if (msg.inputTranscription) {
+        console.log('[AIAgent] 🎤 USER HEARD BY GEMINI:', JSON.stringify(msg.inputTranscription));
+      }
+
       // Server content (audio response from Gemini)
       if (msg.serverContent) {
         const content = msg.serverContent;
@@ -461,15 +466,24 @@ export class AIAgentService {
 
     URL.revokeObjectURL(workletUrl);
 
+    // Log mic track state for diagnostics
+    const tracks = this.micStream.getAudioTracks();
+    console.log(`[AIAgent] Mic tracks: ${tracks.length}, enabled: ${tracks[0]?.enabled}, readyState: ${tracks[0]?.readyState}, label: ${tracks[0]?.label}`);
+
     this.sourceNode = this.audioContext.createMediaStreamSource(this.micStream);
     this.workletNode = new AudioWorkletNode(this.audioContext, AUDIO_WORKLET_NAME);
 
+    let chunksSent = 0;
     this.workletNode.port.onmessage = (ev) => {
       if (this.isMuted) return;
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
       const pcm16Buffer: ArrayBuffer = ev.data.pcm16;
       const base64 = this.arrayBufferToBase64(pcm16Buffer);
+
+      chunksSent++;
+      if (chunksSent === 1) console.log('[AIAgent] First mic chunk sent to Gemini ✅');
+      if (chunksSent % 100 === 0) console.log(`[AIAgent] Mic chunks sent: ${chunksSent}`);
 
       const message = {
         realtimeInput: {
