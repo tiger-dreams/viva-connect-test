@@ -263,7 +263,9 @@ export const AIAgentBridgeMeeting = () => {
       roomId: roomId,
       roomServiceId: serviceId,
       accessToken: accessToken,
-      mediaType: 'video', // Must match PlanetKitMeetingArea's "video" svckey (groupcall.video) for cross-participant audio routing
+      mediaType: 'video', // Must match PlanetKitMeetingArea's "video" svckey (groupcall.video)
+      cameraOn: false,    // Fix Issue 1: Force camera off (audio-only mode in video call)
+      micOn: true,        // Fix Issue 3: Ensure mic is on for audio transmission
       mediaHtmlElement: { roomAudio: audioElementRef.current },
       delegate: conferenceDelegate,
     };
