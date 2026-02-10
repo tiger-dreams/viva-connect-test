@@ -56,72 +56,64 @@ export const AIAgentBridgeMeeting = () => {
 
   const lockApi = useCallback(
     async (action: string, extra: Record<string, string> = {}) => {
-      const res = await fetch('/api/ai-agent-lock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, roomId, userId, userName, ...extra }),
-      });
-      return res.json();
+      try {
+        const res = await fetch('/api/ai-agent-lock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, roomId, userId, userName, ...extra }),
+        });
+        return await res.json();
+      } catch (e) {
+        console.error('[AIAgentBridge] Lock API error:', e);
+        return { success: false };
+      }
     },
     [roomId, userId, userName]
   );
 
   const fetchLockStatus = useCallback(async () => {
-    try {
-      const data: LockStatus = await lockApi('status');
-      setLockStatus(data);
-    } catch {
-      // ignore
-    }
+    const data: LockStatus = await lockApi('status');
+    if (data) setLockStatus(data);
   }, [lockApi]);
 
-  // Initial Setup
+  // Initial Logic
   useEffect(() => {
     if (!isInitialized) return;
-
     if (!isLoggedIn || !profile) {
-      toast({
-        title: 'Authentication Required',
-        description: 'Please log in with LINE to use AI Agent Bridge',
-        variant: 'destructive',
-      });
       navigate('/setup');
       return;
     }
 
-    const init = async () => {
+    const startSession = async () => {
       try {
-        console.log('[AIAgentBridge] Starting initial connection');
-        
+        console.log('[AIAgentBridge] 1. Setting up listeners');
         setupAIAgentListeners();
+
+        console.log('[AIAgentBridge] 2. Joining PlanetKit');
         await joinPlanetKitConference();
         
+        console.log('[AIAgentBridge] 3. Initializing UI');
         setIsConnecting(false);
         callStartTimeRef.current = Date.now();
         startDurationTimer();
         
-        const initialStatus: LockStatus = await lockApi('status');
-        setLockStatus(initialStatus);
+        // Polling and Auto-activation
+        const status = await lockApi('status');
+        setLockStatus(status);
         startPolling();
 
-        if (!initialStatus.locked) {
-          console.log('[AIAgentBridge] Room is empty, auto-activating AI');
+        if (!status.locked) {
+          console.log('[AIAgentBridge] 4. Auto-activating AI');
           await activateAI();
         }
-
       } catch (error: any) {
         console.error('[AIAgentBridge] Initialization failed:', error);
-        toast({
-          title: 'Connection Failed',
-          description: error.message || 'Failed to initialize AI Agent Bridge',
-          variant: 'destructive',
-        });
-        setIsConnecting(false);
+        toast({ title: 'Join Failed', description: error.message, variant: 'destructive' });
         setTimeout(() => navigate('/setup'), 3000);
       }
     };
 
-    init();
+    startSession();
 
     return () => {
       stopDurationTimer();
@@ -130,45 +122,9 @@ export const AIAgentBridgeMeeting = () => {
       cleanupAIAgent();
       cleanupPlanetKit();
       cleanupAudioBridge();
-      if (aiActiveRef.current) {
-        lockApi('release').catch(() => {});
-      }
+      if (aiActiveRef.current) lockApi('release').catch(() => {});
     };
   }, [isInitialized, isLoggedIn, profile]);
-
-  const startPolling = () => {
-    if (!pollTimerRef.current) {
-      pollTimerRef.current = setInterval(fetchLockStatus, POLL_INTERVAL_MS);
-    }
-  };
-
-  const stopPolling = () => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-  };
-
-  const startHeartbeat = () => {
-    if (!heartbeatTimerRef.current) {
-      heartbeatTimerRef.current = setInterval(async () => {
-        try {
-          const data = await lockApi('heartbeat');
-          if (!data.alive) {
-            console.warn('[AIAgentBridge] Heartbeat failed, deactivating AI');
-            deactivateAI();
-          }
-        } catch { /* ignore */ }
-      }, HEARTBEAT_INTERVAL_MS);
-    }
-  };
-
-  const stopHeartbeat = () => {
-    if (heartbeatTimerRef.current) {
-      clearInterval(heartbeatTimerRef.current);
-      heartbeatTimerRef.current = null;
-    }
-  };
 
   const handleToggleAI = async () => {
     if (isTogglingAI) return;
@@ -182,34 +138,22 @@ export const AIAgentBridgeMeeting = () => {
   };
 
   const activateAI = async () => {
+    console.log('[AIAgentBridge] Attempting to acquire lock');
     const result = await lockApi('acquire');
     if (!result.acquired) {
-      toast({
-        title: language === 'ko' ? 'AI 활성화 불가' : 'Cannot Activate AI',
-        description: language === 'ko' 
-          ? `이미 다른 참여자가 AI를 활성화 하였습니다 (활성화 유저: ${result.holder?.userName})`
-          : `AI is already activated by ${result.holder?.userName}`,
-        variant: 'destructive',
-      });
-      await fetchLockStatus();
+      toast({ title: 'Notice', description: `AI is active by ${result.holder?.userName}` });
       return;
     }
 
     try {
-      await setupAudioGraph(); 
       await createAudioBridge();
       aiActiveRef.current = true;
       setAiActive(true);
       startHeartbeat();
-      toast({
-        title: language === 'ko' ? 'AI 활성화됨' : 'AI Activated',
-        description: language === 'ko' ? 'Gemini AI와 대화할 수 있습니다' : 'Gemini AI is ready',
-      });
     } catch (err: any) {
-      console.error('[AIAgentBridge] activateAI failed:', err);
+      console.error('[AIAgentBridge] activation error:', err);
       await lockApi('release');
       cleanupAudioBridge();
-      toast({ title: 'AI Connection Failed', description: err.message, variant: 'destructive' });
     }
   };
 
@@ -217,133 +161,96 @@ export const AIAgentBridgeMeeting = () => {
     stopHeartbeat();
     cleanupAIBridge();
     cleanupAudioBridge();
-    
     if (conferenceRef.current?.setCustomMediaStream) {
-      try { await conferenceRef.current.setCustomMediaStream(null); } catch (e) {}
+      await conferenceRef.current.setCustomMediaStream(null);
     }
-
     await lockApi('release');
     aiActiveRef.current = false;
     setAiActive(false);
-    await fetchLockStatus();
-    toast({
-      title: language === 'ko' ? 'AI 비활성화됨' : 'AI Deactivated',
-      description: language === 'ko' ? 'Gemini AI 연결이 해제되었습니다' : 'Gemini AI disconnected',
-    });
+    fetchLockStatus();
   };
 
-  const setupAudioGraph = async () => {
+  const createAudioBridge = async () => {
+    // 1. Context Init
     if (!audioContextRef.current) {
       audioContextRef.current = new AudioContext({ sampleRate: 48000 });
     }
     const audioCtx = audioContextRef.current;
     if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-    if (!mediaStreamDestRef.current) {
-      mediaStreamDestRef.current = audioCtx.createMediaStreamDestination();
-    }
-    
-    if (!analyserRef.current) {
-      analyserRef.current = audioCtx.createAnalyser();
-      analyserRef.current.fftSize = 256;
-      const bufferLength = analyserRef.current.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
+    mediaStreamDestRef.current = audioCtx.createMediaStreamDestination();
+    const dest = mediaStreamDestRef.current;
 
-      const checkInterruption = () => {
-        if (!analyserRef.current || !aiActiveRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
-
-        if (average > 35 && speakingSourcesRef.current.length > 0) {
-          console.log('[AIAgentBridge] Interruption detected');
-          speakingSourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
-          speakingSourcesRef.current = [];
-          nextStartTimeRef.current = audioCtx.currentTime;
-        }
-        requestAnimationFrame(checkInterruption);
-      };
-      requestAnimationFrame(checkInterruption);
-    }
-  };
-
-  const createAudioBridge = async () => {
-    const audioCtx = audioContextRef.current!;
-    const dest = mediaStreamDestRef.current!;
-
-    // 1. Unified Mic Capture with Enhanced Noise Suppression for Gym/Background
+    // 2. High-Performance Mic Capture with GYM-NOISE FILTERS
     const micStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
-        // Optional hints for some browsers
-        channelCount: 1,
       },
     });
     micStreamRef.current = micStream;
     
     const micSource = audioCtx.createMediaStreamSource(micStream);
-    micSource.connect(dest);
-    micSource.connect(analyserRef.current!);
+    
+    // Add Physical Filter for background music/humming (High Pass Filter)
+    // Most music/ambient hum is in low frequencies. 
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 200; // Cut off sounds below 200Hz
+    micSource.connect(filter);
 
-    // 2. AI Connect - PASSING THE UNIFIED STREAM
+    // 3. Connect to mixing and AI
+    filter.connect(dest);
+    
+    // AI Connection (Pass the FILTERED stream to AI for better VAD)
     const systemPrompt = language === 'ko'
-      ? '당신은 그룹 통화에 참여한 AI 비서입니다. 한국어로 자연스럽고 친근하게 대화하세요.'
-      : 'You are an AI assistant in a group call. Respond naturally in English.';
+      ? '당신은 인공지능 비서 해밀입니다. 주변 소음이 있더라도 사용자의 말을 잘 파악하여 짧고 친근하게 대답하세요.'
+      : 'I am Haemil, an AI. Please be concise.';
+    
     await aiAgentService.connect({ language, voice, systemPrompt }, micStream);
 
-    // 3. Inject Mixed Stream to PlanetKit
+    // 4. PlanetKit Outbound
     if (conferenceRef.current?.setCustomMediaStream) {
       await conferenceRef.current.setCustomMediaStream(dest.stream);
     }
 
-    // 4. Room -> AI Hearing
+    // 5. Room -> AI
     if (audioElementRef.current) {
       const roomStream = (audioElementRef.current as any).captureStream?.() || (audioElementRef.current as any).mozCaptureStream?.();
-      if (roomStream) {
-        aiAgentService.addAudioSource(roomStream);
-        const roomSource = audioCtx.createMediaStreamSource(roomStream);
-        roomSource.connect(analyserRef.current!);
-      }
+      if (roomStream) aiAgentService.addAudioSource(roomStream);
     }
   };
 
-  // Listeners & Cleanup
-  const handleStateChange = (s: AIAgentState) => setAgentState(s);
-  const handleError = (e: string) => toast({ title: 'AI Error', description: e, variant: 'destructive' });
-  const handleTranscript = ({ text, isFinal }: { text: string; isFinal: boolean }) => {
-    setTranscript(prev => isFinal ? prev + '\n' + text : prev + text);
+  // UI Handlers
+  const handleToggleMute = () => {
+    const newMuted = aiAgentService.toggleMute();
+    setIsMuted(newMuted);
   };
 
-  const handleAudioOutput = (audioData: Float32Array) => {
-    if (!audioContextRef.current || !mediaStreamDestRef.current) return;
-    try {
+  const handleEndCall = () => {
+    navigate('/setup');
+  };
+
+  const setupAIAgentListeners = () => {
+    aiAgentService.on('stateChange', setAgentState);
+    aiAgentService.on('transcript', ({ text, isFinal }) => {
+      setTranscript(prev => isFinal ? prev + '\n' + text : prev + text);
+    });
+    aiAgentService.on('audioOutput', (audioData) => {
+      if (!audioContextRef.current || !mediaStreamDestRef.current) return;
       const audioCtx = audioContextRef.current;
       const buffer = audioCtx.createBuffer(1, audioData.length, 24000);
       buffer.getChannelData(0).set(audioData);
-
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
-      speakingSourcesRef.current.push(source);
-      source.onended = () => {
-        speakingSourcesRef.current = speakingSourcesRef.current.filter(s => s !== source);
-      };
-
       const now = audioCtx.currentTime;
       if (nextStartTimeRef.current < now) nextStartTimeRef.current = now + 0.05;
       source.start(nextStartTimeRef.current);
       nextStartTimeRef.current += buffer.duration;
-
       source.connect(mediaStreamDestRef.current);
       source.connect(audioCtx.destination);
-    } catch (err) { console.error('[AIAgentBridge] Playback error:', err); }
-  };
-
-  const setupAIAgentListeners = () => {
-    aiAgentService.on('stateChange', handleStateChange);
-    aiAgentService.on('error', handleError);
-    aiAgentService.on('transcript', handleTranscript);
-    aiAgentService.on('audioOutput', handleAudioOutput);
+    });
   };
 
   const joinPlanetKitConference = async () => {
@@ -360,148 +267,95 @@ export const AIAgentBridgeMeeting = () => {
       myId: userId, displayName: userName, myServiceId: serviceId, roomId, roomServiceId: serviceId,
       accessToken, mediaType: 'audio', mediaHtmlElement: { roomAudio: audioElementRef.current },
       delegate: {
-        evtConnected: () => { setConferenceConnected(true); setParticipantCount(1); },
-        evtDisconnected: () => { setConferenceConnected(false); setParticipantCount(0); },
+        evtConnected: () => setConferenceConnected(true),
+        evtDisconnected: () => setConferenceConnected(false),
         evtPeerListUpdated: (info: any) => {
           const count = (info.addedPeers || []).length - (info.removedPeers || []).length;
           setParticipantCount(prev => prev + count);
         },
-        evtError: (e: any) => toast({ title: 'Conference Error', description: e?.message, variant: 'destructive' }),
       },
     });
   };
 
-  const cleanupAIBridge = () => {
-    aiAgentService.disconnect();
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach(t => t.stop());
-      micStreamRef.current = null;
-    }
-  };
+  // Timers and Cleanups
+  const startPolling = () => { pollTimerRef.current = setInterval(fetchLockStatus, POLL_INTERVAL_MS); };
+  const stopPolling = () => { clearInterval(pollTimerRef.current!); pollTimerRef.current = null; };
+  const startHeartbeat = () => { heartbeatTimerRef.current = setInterval(async () => { const data = await lockApi('heartbeat'); if (!data.alive) deactivateAI(); }, HEARTBEAT_INTERVAL_MS); };
+  const stopHeartbeat = () => { clearInterval(heartbeatTimerRef.current!); heartbeatTimerRef.current = null; };
+  const startDurationTimer = () => { durationIntervalRef.current = setInterval(() => setCallDuration(d => d + 1), 1000); };
+  const stopDurationTimer = () => { clearInterval(durationIntervalRef.current!); durationIntervalRef.current = null; };
+  const cleanupAIAgent = () => aiAgentService.disconnect();
+  const cleanupPlanetKit = async () => { if (conferenceRef.current?.leaveConference) await conferenceRef.current.leaveConference(); };
+  const cleanupAIBridge = () => { if (micStreamRef.current) micStreamRef.current.getTracks().forEach(t => t.stop()); };
+  const cleanupAudioBridge = () => { if (audioContextRef.current?.state !== 'closed') audioContextRef.current?.close(); };
 
-  const cleanupPlanetKit = async () => {
-    if (conferenceRef.current?.leaveConference) {
-      try { await conferenceRef.current.leaveConference(); } catch (e) {}
-      conferenceRef.current = null;
-    }
-  };
-
-  const cleanupAudioBridge = () => {
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
-    mediaStreamDestRef.current = null;
-    analyserRef.current = null;
-  };
-
-  const startDurationTimer = () => {
-    durationIntervalRef.current = setInterval(() => {
-      setCallDuration(Math.floor((Date.now() - callStartTimeRef.current) / 1000));
-    }, 1000);
-  };
-
-  const stopDurationTimer = () => {
-    if (durationIntervalRef.current) {
-      clearInterval(durationIntervalRef.current);
-      durationIntervalRef.current = null;
-    }
-  };
-
-  const formatDuration = (s: number): string => {
-    const mins = Math.floor(s / 60);
-    const secs = s % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const getStateDisplay = () => {
-    if (!conferenceConnected) return { text: 'Conference Disconnected', color: 'text-red-400' };
-    if (!aiActive) return { text: language === 'ko' ? 'AI 비활성화' : 'AI Inactive', color: 'text-gray-400' };
-    switch (agentState) {
-      case 'connecting': return { text: 'Connecting AI...', color: 'text-yellow-400' };
-      case 'connected': return { text: 'AI Connected', color: 'text-green-400' };
-      case 'listening': return { text: language === 'ko' ? 'AI 듣는 중...' : 'AI Listening...', color: 'text-blue-400' };
-      case 'speaking': return { text: language === 'ko' ? 'AI 말하는 중...' : 'AI Speaking...', color: 'text-purple-400' };
-      default: return { text: 'AI Disconnected', color: 'text-gray-400' };
-    }
-  };
-
-  const isOccupiedByOther = lockStatus.locked && lockStatus.holder?.userId !== userId;
-  const stateDisplay = getStateDisplay();
+  const formatDuration = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex flex-col overflow-hidden">
+    <div className="h-screen w-screen bg-indigo-950 text-white flex flex-col overflow-hidden">
+      {/* Hidden Room Audio - ALWAYS PRESENT TO PREVENT UI GLITCHES */}
       <audio ref={audioElementRef} autoPlay playsInline className="hidden" />
 
       {isConnecting ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="w-16 h-16 animate-spin text-white" />
-            <p className="text-white text-xl font-semibold">Connecting to room...</p>
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <Loader2 className="w-12 h-12 animate-spin text-indigo-400" />
+          <p className="text-xl font-medium animate-pulse">Entering Room...</p>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col relative h-full">
-          {/* Top Bar */}
-          <div className="h-16 bg-black/30 backdrop-blur-sm border-b border-white/10 flex items-center justify-between px-4 z-10">
+        <div className="flex-1 flex flex-col">
+          {/* Header */}
+          <div className="h-16 px-4 flex items-center justify-between bg-black/20 border-b border-white/5">
             <div className="flex flex-col">
-              <span className="text-white font-semibold text-lg leading-tight">AI Agent Bridge</span>
-              <span className={`text-xs ${stateDisplay.color}`}>{stateDisplay.text}</span>
+              <h1 className="font-bold">AI Agent Bridge</h1>
+              <p className="text-[10px] text-indigo-300">{conferenceConnected ? 'Connected' : 'Reconnecting...'}</p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-white" />
-                <span className="text-white text-sm">{participantCount}</span>
-              </div>
-              <span className="text-white font-mono text-sm">{formatDuration(callDuration)}</span>
+            <div className="flex items-center gap-3 text-sm">
+              <Users className="w-4 h-4" />
+              <span>{participantCount}</span>
+              <span className="font-mono bg-black/30 px-2 py-1 rounded">{formatDuration(callDuration)}</span>
             </div>
           </div>
 
-          {/* Main Content */}
-          <div className="flex-1 overflow-y-auto px-4 py-6">
-            <div className="flex justify-center mb-8 pt-4">
-              <div className={`w-32 h-32 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 ${aiActive ? 'bg-gradient-to-br from-purple-500 to-pink-500' : 'bg-gray-600'} ${agentState === 'speaking' ? 'animate-pulse' : ''}`}>
-                <Bot className="w-16 h-16 text-white" />
+          {/* Main Area */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex justify-center py-4">
+              <div className={`w-36 h-36 rounded-full flex items-center justify-center shadow-[0_0_50px_-12px_rgba(168,85,247,0.5)] transition-all duration-500 ${aiActive ? 'bg-gradient-to-br from-indigo-500 to-purple-600 scale-100' : 'bg-gray-800 scale-90 opacity-50'}`}>
+                <Bot className={`w-20 h-20 ${agentState === 'speaking' ? 'animate-bounce' : ''}`} />
               </div>
             </div>
 
-            <div className="text-center mb-6 text-white">
-              <p className="text-lg font-medium">{userName}</p>
-              <p className="text-gray-300 text-sm">Room: {roomId}</p>
+            <div className="text-center">
+              <h2 className="text-lg font-bold">{userName}</h2>
+              <p className="text-sm text-indigo-300/70">Room ID: {roomId}</p>
             </div>
 
             {isOccupiedByOther && (
-              <Card className="bg-orange-500/20 border-orange-500/30 p-4 mb-4 text-orange-200 text-sm">
-                이미 다른 참여자가 AI를 활성화 하였습니다 (활성화 유저: {lockStatus.holder?.userName})
-              </Card>
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 text-orange-200 text-xs text-center">
+                AI is currently held by <span className="font-bold">{lockStatus.holder?.userName}</span>
+              </div>
             )}
 
-            {transcript && aiActive && (
-              <Card className="bg-white/10 p-4 mb-4 text-white/90 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto">
-                {transcript}
-              </Card>
+            {transcript && (
+              <div className="bg-white/5 rounded-2xl p-4 text-sm text-white/80 leading-relaxed font-light whitespace-pre-wrap italic">
+                "{transcript.slice(-200)}"
+              </div>
             )}
-
-            <Card className="bg-white/5 p-4 mt-6 text-xs text-gray-300">
-              <h3 className="text-white font-semibold mb-2">Bridge Status:</h3>
-              <div className="flex justify-between py-1 border-b border-white/5"><span>AI Active:</span> <span className={aiActive ? 'text-green-400' : 'text-gray-400'}>{aiActive ? 'Active' : 'Inactive'}</span></div>
-              <div className="flex justify-between py-1 border-b border-white/5"><span>Mic → AI + Room:</span> <span className={isMuted ? 'text-red-400' : 'text-green-400'}>{isMuted ? 'Muted' : 'Active'}</span></div>
-              <div className="flex justify-between py-1"><span>Room → AI:</span> <span className={aiActive && conferenceConnected ? 'text-green-400' : 'text-red-400'}>{aiActive && conferenceConnected ? 'Active' : 'Inactive'}</span></div>
-            </Card>
           </div>
 
-          {/* Controls */}
-          <div className="h-28 bg-black/30 backdrop-blur-sm border-t border-white/10 flex items-center justify-center gap-4 px-4 z-10">
-            <Button size="lg" variant="ghost" onClick={handleToggleMute} className={`w-14 h-14 rounded-full ${isMuted ? 'bg-red-500/80' : 'bg-white/20'}`}>
-              {isMuted ? <MicOff className="text-white" /> : <Mic className="text-white" />}
+          {/* Bottom Bar */}
+          <div className="h-32 px-6 flex items-center justify-center gap-6 bg-black/40 backdrop-blur-xl border-t border-white/5">
+            <Button variant="ghost" onClick={handleToggleMute} className={`w-14 h-14 rounded-full ${isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/5'}`}>
+              {isMuted ? <MicOff /> : <Mic />}
             </Button>
 
-            <Button size="lg" onClick={handleToggleAI} disabled={isTogglingAI || isOccupiedByOther} className={`h-16 px-6 rounded-full font-semibold ${isOccupiedByOther ? 'bg-gray-600' : aiActive ? 'bg-purple-500' : 'bg-green-500'}`}>
+            <Button size="lg" onClick={handleToggleAI} disabled={isTogglingAI || isOccupiedByOther} className={`h-16 px-8 rounded-full font-bold shadow-lg transition-all ${isOccupiedByOther ? 'bg-gray-800 text-gray-500' : aiActive ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
               {isTogglingAI ? <Loader2 className="animate-spin mr-2" /> : aiActive ? <BotOff className="mr-2" /> : <Bot className="mr-2" />}
-              {aiActive ? 'AI 비활성화' : 'AI 활성화'}
+              {aiActive ? 'AI Sleep' : 'Wake AI'}
             </Button>
 
-            <Button size="lg" onClick={handleEndCall} className="w-14 h-14 rounded-full bg-red-500"><PhoneOff className="text-white" /></Button>
+            <Button onClick={handleEndCall} className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 shadow-lg">
+              <PhoneOff />
+            </Button>
           </div>
         </div>
       )}
