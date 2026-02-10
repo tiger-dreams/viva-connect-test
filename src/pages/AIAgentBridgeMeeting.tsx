@@ -263,7 +263,7 @@ export const AIAgentBridgeMeeting = () => {
       roomId: roomId,
       roomServiceId: serviceId,
       accessToken: accessToken,
-      mediaType: 'audio',
+      mediaType: 'video', // Must match PlanetKitMeetingArea's "video" svckey (groupcall.video) for cross-participant audio routing
       mediaHtmlElement: { roomAudio: audioElementRef.current },
       delegate: conferenceDelegate,
     };
