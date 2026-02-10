@@ -135,7 +135,7 @@ export class AIAgentService {
    * Connect to the AI agent. Fetches session config from backend,
    * opens WebSocket to Gemini, and starts microphone capture.
    */
-  async connect(config: AIAgentSessionConfig): Promise<void> {
+  async connect(config: AIAgentSessionConfig, externalMicStream?: MediaStream): Promise<void> {
     if (this.state === 'connected' || this.state === 'connecting') {
       console.warn('[AIAgent] Already connected or connecting');
       return;
@@ -171,8 +171,8 @@ export class AIAgentService {
       // 3. Send setup message
       this.sendSetupMessage();
 
-      // 4. Start microphone capture
-      await this.startMicCapture();
+      // 4. Start audio processing pipeline
+      await this.startAudioPipeline(externalMicStream);
 
       this.setState('connected');
       console.log('[AIAgent] Connected successfully');
@@ -429,18 +429,22 @@ export class AIAgentService {
     }
   }
 
-  // --- Microphone Capture ---
+  // --- Audio Pipeline ---
 
-  private async startMicCapture(): Promise<void> {
-    this.micStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        sampleRate: INPUT_SAMPLE_RATE,
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
+  private async startAudioPipeline(externalMicStream?: MediaStream): Promise<void> {
+    if (externalMicStream) {
+      this.micStream = externalMicStream;
+    } else {
+      this.micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: INPUT_SAMPLE_RATE,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+    }
 
     this.audioContext = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
 
@@ -483,15 +487,13 @@ export class AIAgentService {
 
     this.sourceNode.connect(this.workletNode);
     
-    // Connect to a GainNode with 0 volume to keep the worklet alive 
-    // without routing mic audio to speakers (which causes loops)
     const silentGain = this.audioContext.createGain();
     silentGain.gain.value = 0;
     this.workletNode.connect(silentGain);
     silentGain.connect(this.audioContext.destination);
 
     this.setState('listening');
-    console.log('[AIAgent] Microphone capture started');
+    console.log('[AIAgent] Audio pipeline started');
   }
 
   // --- Audio Playback ---

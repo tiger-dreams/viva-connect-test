@@ -93,25 +93,17 @@ export const AIAgentBridgeMeeting = () => {
       try {
         console.log('[AIAgentBridge] Starting initial connection');
         
-        // 1. Listeners
         setupAIAgentListeners();
-        
-        // 2. Join PlanetKit
         await joinPlanetKitConference();
         
-        // 3. Update UI state
         setIsConnecting(false);
         callStartTimeRef.current = Date.now();
         startDurationTimer();
         
-        // 4. Initial status check
         const initialStatus: LockStatus = await lockApi('status');
         setLockStatus(initialStatus);
-        
-        // 5. Start maintenance timers
         startPolling();
 
-        // 6. Auto-activate if room is empty (First user experience)
         if (!initialStatus.locked) {
           console.log('[AIAgentBridge] Room is empty, auto-activating AI');
           await activateAI();
@@ -124,6 +116,7 @@ export const AIAgentBridgeMeeting = () => {
           description: error.message || 'Failed to initialize AI Agent Bridge',
           variant: 'destructive',
         });
+        setIsConnecting(false);
         setTimeout(() => navigate('/setup'), 3000);
       }
     };
@@ -277,20 +270,27 @@ export const AIAgentBridgeMeeting = () => {
     const audioCtx = audioContextRef.current!;
     const dest = mediaStreamDestRef.current!;
 
-    // 1. Mic -> PlanetKit Dest & Analyser
+    // 1. Unified Mic Capture with Enhanced Noise Suppression for Gym/Background
     const micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        // Optional hints for some browsers
+        channelCount: 1,
+      },
     });
     micStreamRef.current = micStream;
+    
     const micSource = audioCtx.createMediaStreamSource(micStream);
     micSource.connect(dest);
     micSource.connect(analyserRef.current!);
 
-    // 2. AI Connect
+    // 2. AI Connect - PASSING THE UNIFIED STREAM
     const systemPrompt = language === 'ko'
       ? '당신은 그룹 통화에 참여한 AI 비서입니다. 한국어로 자연스럽고 친근하게 대화하세요.'
       : 'You are an AI assistant in a group call. Respond naturally in English.';
-    await aiAgentService.connect({ language, voice, systemPrompt });
+    await aiAgentService.connect({ language, voice, systemPrompt }, micStream);
 
     // 3. Inject Mixed Stream to PlanetKit
     if (conferenceRef.current?.setCustomMediaStream) {
@@ -430,22 +430,22 @@ export const AIAgentBridgeMeeting = () => {
   const stateDisplay = getStateDisplay();
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex flex-col">
+    <div className="h-screen w-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex flex-col overflow-hidden">
       <audio ref={audioElementRef} autoPlay playsInline className="hidden" />
 
       {isConnecting ? (
-        <div className="flex-1 flex flex-center items-center justify-center">
+        <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="w-16 h-16 animate-spin text-white" />
             <p className="text-white text-xl font-semibold">Connecting to room...</p>
           </div>
         </div>
       ) : (
-        <>
+        <div className="flex-1 flex flex-col relative h-full">
           {/* Top Bar */}
-          <div className="fixed top-0 left-0 right-0 h-16 bg-black/30 backdrop-blur-sm border-b border-white/10 flex items-center justify-between px-4 z-10">
+          <div className="h-16 bg-black/30 backdrop-blur-sm border-b border-white/10 flex items-center justify-between px-4 z-10">
             <div className="flex flex-col">
-              <span className="text-white font-semibold text-lg">AI Agent Bridge</span>
+              <span className="text-white font-semibold text-lg leading-tight">AI Agent Bridge</span>
               <span className={`text-xs ${stateDisplay.color}`}>{stateDisplay.text}</span>
             </div>
             <div className="flex items-center gap-4">
@@ -458,8 +458,8 @@ export const AIAgentBridgeMeeting = () => {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 overflow-y-auto mt-16 mb-28 px-4 py-6">
-            <div className="flex justify-center mb-8">
+          <div className="flex-1 overflow-y-auto px-4 py-6">
+            <div className="flex justify-center mb-8 pt-4">
               <div className={`w-32 h-32 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 ${aiActive ? 'bg-gradient-to-br from-purple-500 to-pink-500' : 'bg-gray-600'} ${agentState === 'speaking' ? 'animate-pulse' : ''}`}>
                 <Bot className="w-16 h-16 text-white" />
               </div>
@@ -484,14 +484,14 @@ export const AIAgentBridgeMeeting = () => {
 
             <Card className="bg-white/5 p-4 mt-6 text-xs text-gray-300">
               <h3 className="text-white font-semibold mb-2">Bridge Status:</h3>
-              <div className="flex justify-between"><span>AI Active:</span> <span className={aiActive ? 'text-green-400' : 'text-gray-400'}>{aiActive ? 'Active' : 'Inactive'}</span></div>
-              <div className="flex justify-between"><span>Mic → AI + Room:</span> <span className={isMuted ? 'text-red-400' : 'text-green-400'}>{isMuted ? 'Muted' : 'Active'}</span></div>
-              <div className="flex justify-between"><span>Room → AI:</span> <span className={aiActive && conferenceConnected ? 'text-green-400' : 'text-red-400'}>{aiActive && conferenceConnected ? 'Active' : 'Inactive'}</span></div>
+              <div className="flex justify-between py-1 border-b border-white/5"><span>AI Active:</span> <span className={aiActive ? 'text-green-400' : 'text-gray-400'}>{aiActive ? 'Active' : 'Inactive'}</span></div>
+              <div className="flex justify-between py-1 border-b border-white/5"><span>Mic → AI + Room:</span> <span className={isMuted ? 'text-red-400' : 'text-green-400'}>{isMuted ? 'Muted' : 'Active'}</span></div>
+              <div className="flex justify-between py-1"><span>Room → AI:</span> <span className={aiActive && conferenceConnected ? 'text-green-400' : 'text-red-400'}>{aiActive && conferenceConnected ? 'Active' : 'Inactive'}</span></div>
             </Card>
           </div>
 
           {/* Controls */}
-          <div className="fixed bottom-0 left-0 right-0 h-28 bg-black/30 backdrop-blur-sm border-t border-white/10 flex items-center justify-center gap-4 px-4">
+          <div className="h-28 bg-black/30 backdrop-blur-sm border-t border-white/10 flex items-center justify-center gap-4 px-4 z-10">
             <Button size="lg" variant="ghost" onClick={handleToggleMute} className={`w-14 h-14 rounded-full ${isMuted ? 'bg-red-500/80' : 'bg-white/20'}`}>
               {isMuted ? <MicOff className="text-white" /> : <Mic className="text-white" />}
             </Button>
@@ -503,7 +503,7 @@ export const AIAgentBridgeMeeting = () => {
 
             <Button size="lg" onClick={handleEndCall} className="w-14 h-14 rounded-full bg-red-500"><PhoneOff className="text-white" /></Button>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
