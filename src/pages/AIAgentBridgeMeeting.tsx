@@ -47,7 +47,7 @@ export const AIAgentBridgeMeeting = () => {
   const mediaStreamDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const audioElementRef = useRef<HTMLAudioElement>(null);
   const nextStartTimeRef = useRef<number>(0);
-  // const aiAudioBufferRef = useRef<Float32Array[]>([]); // Removed unused ref
+  const micStreamRef = useRef<MediaStream | null>(null);
 
   // Initialize call on mount
   useEffect(() => {
@@ -215,14 +215,6 @@ export const AIAgentBridgeMeeting = () => {
       apiSecret
     );
 
-    // Request microphone permission
-    const localStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: false,
-    });
-
-    console.log('[AIAgentBridge] Microphone access granted');
-
     // Initialize PlanetKit Conference
     const conference = new PlanetKitEval.Conference();
     conferenceRef.current = conference;
@@ -278,35 +270,32 @@ export const AIAgentBridgeMeeting = () => {
 
     await conference.joinConference(conferenceParams);
     console.log('[AIAgentBridge] PlanetKit Conference joined successfully');
-
-    // Stop the initial local stream (we'll use AI-generated audio instead)
-    localStream.getTracks().forEach(track => track.stop());
   };
 
   // Create Audio Bridge
   const createAudioBridge = async () => {
     console.log('[AIAgentBridge] Creating audio bridge');
 
-    audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+    // Use 48kHz — standard WebRTC sample rate for PlanetKit compatibility
+    audioContextRef.current = new AudioContext({ sampleRate: 48000 });
     mediaStreamDestRef.current = audioContextRef.current.createMediaStreamDestination();
 
-    const aiAudioStream = mediaStreamDestRef.current.stream;
-    console.log('[AIAgentBridge] Created MediaStream for AI audio:', aiAudioStream.id);
+    // Step 1: Capture local microphone and mix into PlanetKit output stream.
+    // This ensures other participants hear the bridge user's voice alongside AI audio.
+    const micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+    micStreamRef.current = micStream;
+    const micSource = audioContextRef.current.createMediaStreamSource(micStream);
+    micSource.connect(mediaStreamDestRef.current);
+    console.log('[AIAgentBridge] Local mic mixed into PlanetKit output stream');
 
-    if (conferenceRef.current) {
-      try {
-        // Use the official setCustomMediaStream method to inject AI audio into PlanetKit
-        if (typeof conferenceRef.current.setCustomMediaStream === 'function') {
-          await conferenceRef.current.setCustomMediaStream(aiAudioStream);
-          console.log('[AIAgentBridge] AI audio stream injected into PlanetKit');
-        } else {
-          console.warn('[AIAgentBridge] setCustomMediaStream not found on conference object');
-        }
-      } catch (err) {
-        console.warn('[AIAgentBridge] Could not connect AI audio to PlanetKit:', err);
-      }
-    }
-
+    // Step 2: Connect to Gemini AI first — so the WebSocket and worklet are ready
+    // before we inject the custom stream into PlanetKit.
     await aiAgentService.connect({
       language,
       voice,
@@ -314,6 +303,35 @@ export const AIAgentBridgeMeeting = () => {
         ? `당신은 그룹 통화에 참여한 AI 비서입니다. 한국어로 자연스럽고 친근하게 대화하세요. 간결하고 명확하게 답변하세요.`
         : `You are an AI assistant participating in a group call. Respond naturally and helpfully in English. Keep responses concise and clear.`,
     });
+
+    // Step 3: Inject the mixed stream (mic + AI audio) into PlanetKit.
+    // setCustomMediaStream replaces PlanetKit's internal mic capture, so the mixed
+    // stream is the sole outgoing audio — containing both the user's voice and AI voice.
+    if (conferenceRef.current) {
+      try {
+        const mixedStream = mediaStreamDestRef.current.stream;
+        if (typeof conferenceRef.current.setCustomMediaStream === 'function') {
+          await conferenceRef.current.setCustomMediaStream(mixedStream);
+          console.log('[AIAgentBridge] Mixed stream (mic + AI) injected into PlanetKit');
+        } else {
+          console.warn('[AIAgentBridge] setCustomMediaStream not available on conference');
+        }
+      } catch (err) {
+        console.warn('[AIAgentBridge] Could not set custom media stream:', err);
+      }
+    }
+
+    // Step 4: Capture PlanetKit room audio and feed it to Gemini so the AI can
+    // hear what other conference participants are saying.
+    if (audioElementRef.current) {
+      try {
+        const roomStream = (audioElementRef.current as any).captureStream() as MediaStream;
+        aiAgentService.addAudioSource(roomStream);
+        console.log('[AIAgentBridge] Room audio routed to Gemini');
+      } catch (err) {
+        console.warn('[AIAgentBridge] Could not capture room audio for Gemini:', err);
+      }
+    }
 
     console.log('[AIAgentBridge] Audio bridge created successfully');
   };
@@ -373,6 +391,10 @@ export const AIAgentBridgeMeeting = () => {
   };
 
   const cleanupAudioBridge = () => {
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(track => track.stop());
+      micStreamRef.current = null;
+    }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close().catch(() => { });
       audioContextRef.current = null;
@@ -412,24 +434,23 @@ export const AIAgentBridgeMeeting = () => {
 
   const stateDisplay = getStateDisplay();
 
-  // Show loading screen while connecting
-  if (isConnecting) {
-    return (
-      <div className="h-screen w-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-16 h-16 animate-spin text-white" />
-          <p className="text-white text-xl font-semibold">Initializing AI Agent Bridge...</p>
-          <p className="text-gray-300 text-sm">Room: {roomId}</p>
-          <p className="text-gray-300 text-sm">Language: {language === 'ko' ? '한국어' : 'English'}</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex flex-col">
-      {/* Hidden audio element for PlanetKit room audio */}
-      <audio ref={audioElementRef} autoPlay playsInline />
+    <>
+      {/* Audio element for PlanetKit room audio — always mounted so the ref
+          is available when joinConference is called during the loading phase */}
+      <audio ref={audioElementRef} autoPlay playsInline className="hidden" />
+
+      {isConnecting ? (
+        <div className="h-screen w-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-16 h-16 animate-spin text-white" />
+            <p className="text-white text-xl font-semibold">Initializing AI Agent Bridge...</p>
+            <p className="text-gray-300 text-sm">Room: {roomId}</p>
+            <p className="text-gray-300 text-sm">Language: {language === 'ko' ? '한국어' : 'English'}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="h-screen w-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex flex-col">
 
       {/* Top Bar - Fixed */}
       <div className="fixed top-0 left-0 right-0 h-16 bg-black/30 backdrop-blur-sm border-b border-white/10 flex items-center justify-between px-4 z-10">
@@ -522,9 +543,15 @@ export const AIAgentBridgeMeeting = () => {
           <h3 className="text-white font-semibold text-sm mb-2">Bridge Status:</h3>
           <div className="space-y-1 text-xs text-gray-300">
             <div className="flex justify-between">
-              <span>Local Mic → AI:</span>
+              <span>Local Mic → AI + Room:</span>
               <span className={isMuted ? 'text-red-400' : 'text-green-400'}>
                 {isMuted ? 'Muted' : 'Active'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Room → AI:</span>
+              <span className={conferenceConnected ? 'text-green-400' : 'text-red-400'}>
+                {conferenceConnected ? 'Active' : 'Disconnected'}
               </span>
             </div>
             <div className="flex justify-between">
@@ -570,6 +597,8 @@ export const AIAgentBridgeMeeting = () => {
         </Button>
       </div>
     </div>
+      )}
+    </>
   );
 };
 

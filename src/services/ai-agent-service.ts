@@ -98,9 +98,8 @@ export class AIAgentService {
   private micStream: MediaStream | null = null;
   private workletNode: AudioWorkletNode | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
+  private additionalSources: MediaStreamAudioSourceNode[] = [];
 
-  // private playbackQueue: Float32Array[] = []; // Removed buffering
-  // private isPlaying = false; // Removed buffering
   private state: AIAgentState = 'idle';
   private isMuted = false;
   private sessionConfig: SessionResponse | null = null;
@@ -220,6 +219,22 @@ export class AIAgentService {
         track.enabled = !this.isMuted;
       });
     }
+  }
+
+  /**
+   * Add an external audio source (e.g., room audio) to the Gemini input pipeline.
+   * The browser's audio graph mixes it with the microphone automatically.
+   */
+  addAudioSource(stream: MediaStream): void {
+    if (!this.audioContext || !this.workletNode) {
+      console.warn('[AIAgent] Cannot add audio source: audio pipeline not initialized');
+      return;
+    }
+
+    const source = this.audioContext.createMediaStreamSource(stream);
+    source.connect(this.workletNode);
+    this.additionalSources.push(source);
+    console.log('[AIAgent] Added external audio source to Gemini input');
   }
 
   // --- WebSocket ---
@@ -492,6 +507,8 @@ export class AIAgentService {
     }
 
     // Disconnect audio nodes
+    this.additionalSources.forEach((s) => s.disconnect());
+    this.additionalSources = [];
     if (this.workletNode) {
       this.workletNode.disconnect();
       this.workletNode = null;
