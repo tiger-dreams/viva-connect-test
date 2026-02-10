@@ -50,8 +50,8 @@ export default async function handler(
   const voice = validateVoice(body.voice);
 
   const defaultSystemPrompt = language === 'ko'
-    ? '당신은 LINE 고객 지원 AI 어시스턴트입니다. 한국어로 친절하고 도움이 되게 응답하세요. 짧고 간결하게 대화하세요.'
-    : 'You are a LINE customer support AI assistant. Respond helpfully and concisely.';
+    ? '당신은 전문 심리치료사입니다. 사용자의 마음을 공감하며 들어주고, 따뜻하고 차분한 어조로 상담을 진행하세요. 전문적인 심리학 지식을 바탕으로 치유에 도움이 되는 조언을 제공하세요. 응답은 대화의 흐름을 방해하지 않도록 짧고 간결하게 유지하세요.'
+    : 'You are a professional psychotherapist. Listen with deep empathy and conduct the session in a warm, calm tone. Provide helpful advice based on psychological expertise. Keep responses concise to maintain natural conversation flow.';
 
   const systemPrompt = body.systemPrompt || defaultSystemPrompt;
 
