@@ -71,10 +71,11 @@ export const AIAgentBridgeMeeting = () => {
       const data: LockStatus = await lockApi('status');
       setLockStatus(data);
     } catch {
-      // silently ignore polling errors
+      // ignore
     }
   }, [lockApi]);
 
+  // Initial Setup
   useEffect(() => {
     if (!isInitialized) return;
 
@@ -90,43 +91,39 @@ export const AIAgentBridgeMeeting = () => {
 
     const init = async () => {
       try {
-        console.log('[AIAgentBridge] Starting initialization');
+        console.log('[AIAgentBridge] Starting initial connection');
+        
+        // 1. Listeners
         setupAIAgentListeners();
         
-        // 1. Join Conference first
+        // 2. Join PlanetKit
         await joinPlanetKitConference();
-        console.log('[AIAgentBridge] PlanetKit joined');
         
-        // 2. Release loading screen immediately to show the room UI
+        // 3. Update UI state
         setIsConnecting(false);
         callStartTimeRef.current = Date.now();
         startDurationTimer();
         
-        // 3. Start polling for room status
+        // 4. Initial status check
+        const initialStatus: LockStatus = await lockApi('status');
+        setLockStatus(initialStatus);
+        
+        // 5. Start maintenance timers
         startPolling();
 
-        // 4. Try auto-activation in the next tick to prevent blocking the UI
-        setTimeout(async () => {
-          try {
-            const data: LockStatus = await lockApi('status');
-            setLockStatus(data);
-            if (!data.locked && !aiActiveRef.current) {
-              console.log('[AIAgentBridge] Attempting auto-activation');
-              await activateAI(); 
-            }
-          } catch (err) {
-            console.warn('[AIAgentBridge] Auto-activation check failed:', err);
-          }
-        }, 500);
+        // 6. Auto-activate if room is empty (First user experience)
+        if (!initialStatus.locked) {
+          console.log('[AIAgentBridge] Room is empty, auto-activating AI');
+          await activateAI();
+        }
 
       } catch (error: any) {
-        console.error('[AIAgentBridge] Init failed:', error);
+        console.error('[AIAgentBridge] Initialization failed:', error);
         toast({
           title: 'Connection Failed',
           description: error.message || 'Failed to initialize AI Agent Bridge',
           variant: 'destructive',
         });
-        setIsConnecting(false); // Make sure to hide loader even on error
         setTimeout(() => navigate('/setup'), 3000);
       }
     };
@@ -147,7 +144,9 @@ export const AIAgentBridgeMeeting = () => {
   }, [isInitialized, isLoggedIn, profile]);
 
   const startPolling = () => {
-    pollTimerRef.current = setInterval(fetchLockStatus, POLL_INTERVAL_MS);
+    if (!pollTimerRef.current) {
+      pollTimerRef.current = setInterval(fetchLockStatus, POLL_INTERVAL_MS);
+    }
   };
 
   const stopPolling = () => {
@@ -158,19 +157,17 @@ export const AIAgentBridgeMeeting = () => {
   };
 
   const startHeartbeat = () => {
-    heartbeatTimerRef.current = setInterval(async () => {
-      try {
-        const data = await lockApi('heartbeat');
-        if (!data.alive) {
-          stopHeartbeat();
-          aiActiveRef.current = false;
-          setAiActive(false);
-          cleanupAIBridge();
-        }
-      } catch {
-        // ignore network errors during heartbeat
-      }
-    }, HEARTBEAT_INTERVAL_MS);
+    if (!heartbeatTimerRef.current) {
+      heartbeatTimerRef.current = setInterval(async () => {
+        try {
+          const data = await lockApi('heartbeat');
+          if (!data.alive) {
+            console.warn('[AIAgentBridge] Heartbeat failed, deactivating AI');
+            deactivateAI();
+          }
+        } catch { /* ignore */ }
+      }, HEARTBEAT_INTERVAL_MS);
+    }
   };
 
   const stopHeartbeat = () => {
@@ -180,33 +177,25 @@ export const AIAgentBridgeMeeting = () => {
     }
   };
 
-  const handleToggleAI = useCallback(async () => {
+  const handleToggleAI = async () => {
     if (isTogglingAI) return;
     setIsTogglingAI(true);
     try {
-      if (aiActive) {
-        await deactivateAI();
-      } else {
-        await activateAI();
-      }
+      if (aiActive) await deactivateAI();
+      else await activateAI();
     } finally {
       setIsTogglingAI(false);
     }
-  }, [isTogglingAI, aiActive, activateAI, deactivateAI]);
+  };
 
   const activateAI = async () => {
-    console.log('[AIAgentBridge] activateAI requested');
-    const prevLock: LockStatus = await lockApi('status');
     const result = await lockApi('acquire');
-
     if (!result.acquired) {
-      console.warn('[AIAgentBridge] Lock acquisition failed', result.holder);
       toast({
         title: language === 'ko' ? 'AI 활성화 불가' : 'Cannot Activate AI',
-        description:
-          language === 'ko'
-            ? `이미 다른 참여자가 AI를 활성화 하였습니다 (활성화 유저: ${result.holder?.userName})`
-            : `AI is already activated by another participant (${result.holder?.userName})`,
+        description: language === 'ko' 
+          ? `이미 다른 참여자가 AI를 활성화 하였습니다 (활성화 유저: ${result.holder?.userName})`
+          : `AI is already activated by ${result.holder?.userName}`,
         variant: 'destructive',
       });
       await fetchLockStatus();
@@ -214,29 +203,20 @@ export const AIAgentBridgeMeeting = () => {
     }
 
     try {
-      console.log('[AIAgentBridge] Initializing audio/bridge');
-      await setupAudioContext(); 
-      const isHandoff = prevLock.locked && prevLock.holder?.userId !== userId;
-      await createAudioBridge(isHandoff);
-      
+      await setupAudioGraph(); 
+      await createAudioBridge();
       aiActiveRef.current = true;
       setAiActive(true);
       startHeartbeat();
-      
-      console.log('[AIAgentBridge] AI Activation complete');
       toast({
         title: language === 'ko' ? 'AI 활성화됨' : 'AI Activated',
-        description: language === 'ko' ? 'Gemini AI가 연결되었습니다' : 'Gemini AI connected',
+        description: language === 'ko' ? 'Gemini AI와 대화할 수 있습니다' : 'Gemini AI is ready',
       });
     } catch (err: any) {
-      console.error('[AIAgentBridge] AI Activation failed:', err);
+      console.error('[AIAgentBridge] activateAI failed:', err);
       await lockApi('release');
       cleanupAudioBridge();
-      toast({
-        title: 'AI Connection Failed',
-        description: err.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'AI Connection Failed', description: err.message, variant: 'destructive' });
     }
   };
 
@@ -245,13 +225,8 @@ export const AIAgentBridgeMeeting = () => {
     cleanupAIBridge();
     cleanupAudioBridge();
     
-    // Reset PlanetKit back to default microphone if possible
-    if (conferenceRef.current && typeof conferenceRef.current.setCustomMediaStream === 'function') {
-      try {
-        await conferenceRef.current.setCustomMediaStream(null);
-      } catch (err) {
-        console.warn('[AIAgentBridge] Failed to reset custom media stream:', err);
-      }
+    if (conferenceRef.current?.setCustomMediaStream) {
+      try { await conferenceRef.current.setCustomMediaStream(null); } catch (e) {}
     }
 
     await lockApi('release');
@@ -260,51 +235,95 @@ export const AIAgentBridgeMeeting = () => {
     await fetchLockStatus();
     toast({
       title: language === 'ko' ? 'AI 비활성화됨' : 'AI Deactivated',
-      description:
-        language === 'ko' ? 'Gemini AI 연결이 해제되었습니다' : 'Gemini AI disconnected',
+      description: language === 'ko' ? 'Gemini AI 연결이 해제되었습니다' : 'Gemini AI disconnected',
     });
   };
 
-  const cleanupAIBridge = () => {
-    cleanupAIAgent();
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((t) => t.stop());
-      micStreamRef.current = null;
+  const setupAudioGraph = async () => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContext({ sampleRate: 48000 });
+    }
+    const audioCtx = audioContextRef.current;
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+    if (!mediaStreamDestRef.current) {
+      mediaStreamDestRef.current = audioCtx.createMediaStreamDestination();
+    }
+    
+    if (!analyserRef.current) {
+      analyserRef.current = audioCtx.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      const bufferLength = analyserRef.current.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const checkInterruption = () => {
+        if (!analyserRef.current || !aiActiveRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
+
+        if (average > 35 && speakingSourcesRef.current.length > 0) {
+          console.log('[AIAgentBridge] Interruption detected');
+          speakingSourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
+          speakingSourcesRef.current = [];
+          nextStartTimeRef.current = audioCtx.currentTime;
+        }
+        requestAnimationFrame(checkInterruption);
+      };
+      requestAnimationFrame(checkInterruption);
     }
   };
 
-  const handleStateChange = (newState: AIAgentState) => {
-    setAgentState(newState);
-    if (newState === 'disconnected' || newState === 'error') {
-      stopDurationTimer();
+  const createAudioBridge = async () => {
+    const audioCtx = audioContextRef.current!;
+    const dest = mediaStreamDestRef.current!;
+
+    // 1. Mic -> PlanetKit Dest & Analyser
+    const micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    micStreamRef.current = micStream;
+    const micSource = audioCtx.createMediaStreamSource(micStream);
+    micSource.connect(dest);
+    micSource.connect(analyserRef.current!);
+
+    // 2. AI Connect
+    const systemPrompt = language === 'ko'
+      ? '당신은 그룹 통화에 참여한 AI 비서입니다. 한국어로 자연스럽고 친근하게 대화하세요.'
+      : 'You are an AI assistant in a group call. Respond naturally in English.';
+    await aiAgentService.connect({ language, voice, systemPrompt });
+
+    // 3. Inject Mixed Stream to PlanetKit
+    if (conferenceRef.current?.setCustomMediaStream) {
+      await conferenceRef.current.setCustomMediaStream(dest.stream);
+    }
+
+    // 4. Room -> AI Hearing
+    if (audioElementRef.current) {
+      const roomStream = (audioElementRef.current as any).captureStream?.() || (audioElementRef.current as any).mozCaptureStream?.();
+      if (roomStream) {
+        aiAgentService.addAudioSource(roomStream);
+        const roomSource = audioCtx.createMediaStreamSource(roomStream);
+        roomSource.connect(analyserRef.current!);
+      }
     }
   };
 
-  const handleError = (errorMessage: string) => {
-    toast({ title: 'AI Error', description: errorMessage, variant: 'destructive' });
-  };
-
+  // Listeners & Cleanup
+  const handleStateChange = (s: AIAgentState) => setAgentState(s);
+  const handleError = (e: string) => toast({ title: 'AI Error', description: e, variant: 'destructive' });
   const handleTranscript = ({ text, isFinal }: { text: string; isFinal: boolean }) => {
-    if (isFinal) {
-      setTranscript((prev) => prev + '\n' + text);
-    } else {
-      setTranscript((prev) => prev + text);
-    }
+    setTranscript(prev => isFinal ? prev + '\n' + text : prev + text);
   };
 
   const handleAudioOutput = (audioData: Float32Array) => {
     if (!audioContextRef.current || !mediaStreamDestRef.current) return;
     try {
       const audioCtx = audioContextRef.current;
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-
       const buffer = audioCtx.createBuffer(1, audioData.length, 24000);
       buffer.getChannelData(0).set(audioData);
 
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
-      
-      // Store reference to current speaking sources for interruption
       speakingSourcesRef.current.push(source);
       source.onended = () => {
         speakingSourcesRef.current = speakingSourcesRef.current.filter(s => s !== source);
@@ -317,9 +336,7 @@ export const AIAgentBridgeMeeting = () => {
 
       source.connect(mediaStreamDestRef.current);
       source.connect(audioCtx.destination);
-    } catch (err) {
-      console.error('[AIAgentBridge] Failed to route AI audio:', err);
-    }
+    } catch (err) { console.error('[AIAgentBridge] Playback error:', err); }
   };
 
   const setupAIAgentListeners = () => {
@@ -333,161 +350,49 @@ export const AIAgentBridgeMeeting = () => {
     const serviceId = import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID;
     const apiKey = import.meta.env.VITE_PLANETKIT_EVAL_API_KEY;
     const apiSecret = import.meta.env.VITE_PLANETKIT_EVAL_API_SECRET;
-
-    if (!serviceId || !apiKey || !apiSecret) {
-      throw new Error('PlanetKit credentials not configured');
-    }
-
     const { generatePlanetKitToken } = await import('@/utils/token-generator');
-    const accessToken = await generatePlanetKitToken(
-      serviceId,
-      apiKey,
-      userId,
-      roomId,
-      3600,
-      apiSecret
-    );
+    const accessToken = await generatePlanetKitToken(serviceId, apiKey, userId, roomId, 3600, apiSecret);
 
     const conference = new PlanetKitEval.Conference();
     conferenceRef.current = conference;
 
     await conference.joinConference({
-      myId: userId,
-      displayName: userName,
-      myServiceId: serviceId,
-      roomId,
-      roomServiceId: serviceId,
-      accessToken,
-      mediaType: 'audio',
-      mediaHtmlElement: { roomAudio: audioElementRef.current },
+      myId: userId, displayName: userName, myServiceId: serviceId, roomId, roomServiceId: serviceId,
+      accessToken, mediaType: 'audio', mediaHtmlElement: { roomAudio: audioElementRef.current },
       delegate: {
-        evtConnected: () => {
-          setConferenceConnected(true);
-          setParticipantCount(1);
-          toast({ title: 'Conference Joined', description: `Joined room: ${roomId}` });
-        },
-        evtDisconnected: () => {
-          setConferenceConnected(false);
-          setParticipantCount(0);
-        },
+        evtConnected: () => { setConferenceConnected(true); setParticipantCount(1); },
+        evtDisconnected: () => { setConferenceConnected(false); setParticipantCount(0); },
         evtPeerListUpdated: (info: any) => {
-          const added = (info.addedPeers || []).length;
-          const removed = (info.removedPeers || []).length;
-          setParticipantCount((prev) => prev + added - removed);
+          const count = (info.addedPeers || []).length - (info.removedPeers || []).length;
+          setParticipantCount(prev => prev + count);
         },
-        evtError: (error: any) => {
-          toast({
-            title: 'Conference Error',
-            description: error?.message || 'An error occurred',
-            variant: 'destructive',
-          });
-        },
+        evtError: (e: any) => toast({ title: 'Conference Error', description: e?.message, variant: 'destructive' }),
       },
     });
   };
 
-  const setupAudioContext = async () => {
-    console.log('[AIAgentBridge] Setting up AudioContext');
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContext({ sampleRate: 48000 });
-    }
-    
-    const audioCtx = audioContextRef.current;
-    if (audioCtx.state === 'suspended') {
-      await audioCtx.resume();
-    }
-
-    if (!mediaStreamDestRef.current) {
-      mediaStreamDestRef.current = audioCtx.createMediaStreamDestination();
-    }
-    
-    // Setup analyzer for barge-in detection
-    if (!analyserRef.current) {
-      analyserRef.current = audioCtx.createAnalyser();
-      analyserRef.current.fftSize = 256;
-      const bufferLength = analyserRef.current.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-
-      const checkAudioLevel = () => {
-        if (!analyserRef.current || !aiActiveRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
-        const sum = dataArray.reduce((a, b) => a + b, 0);
-        const average = sum / bufferLength;
-
-        if (average > 30 && speakingSourcesRef.current.length > 0) {
-          console.log('[AIAgentBridge] Barge-in detected, interrupting AI');
-          speakingSourcesRef.current.forEach(source => {
-            try { source.stop(); } catch (e) {}
-          });
-          speakingSourcesRef.current = [];
-          nextStartTimeRef.current = audioCtx.currentTime;
-        }
-        requestAnimationFrame(checkAudioLevel);
-      };
-      requestAnimationFrame(checkAudioLevel);
+  const cleanupAIBridge = () => {
+    aiAgentService.disconnect();
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(t => t.stop());
+      micStreamRef.current = null;
     }
   };
 
-  const createAudioBridge = async (isHandoff: boolean) => {
-    if (!audioContextRef.current || !mediaStreamDestRef.current || !analyserRef.current) {
-      throw new Error('Audio context not initialized');
+  const cleanupPlanetKit = async () => {
+    if (conferenceRef.current?.leaveConference) {
+      try { await conferenceRef.current.leaveConference(); } catch (e) {}
+      conferenceRef.current = null;
     }
+  };
 
-    const micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
-    micStreamRef.current = micStream;
-
-    const micSource = audioContextRef.current.createMediaStreamSource(micStream);
-    micSource.connect(mediaStreamDestRef.current);
-    micSource.connect(analyserRef.current); // Connect mic to analyzer for barge-in
-
-    const systemPrompt =
-      language === 'ko'
-        ? '당신은 그룹 통화에 참여한 AI 비서입니다. 한국어로 자연스럽고 친근하게 대화하세요. 간결하고 명확하게 답변하세요.'
-        : 'You are an AI assistant participating in a group call. Respond naturally and helpfully in English. Keep responses concise and clear.';
-
-    await aiAgentService.connect({ language, voice, systemPrompt });
-
-    if (conferenceRef.current) {
-      try {
-        const mixedStream = mediaStreamDestRef.current.stream;
-        if (typeof conferenceRef.current.setCustomMediaStream === 'function') {
-          await conferenceRef.current.setCustomMediaStream(mixedStream);
-        }
-      } catch (err) {
-        console.warn('[AIAgentBridge] Could not set custom media stream:', err);
-      }
+  const cleanupAudioBridge = () => {
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
     }
-
-    if (audioElementRef.current) {
-      try {
-        // captureStream() might require a user interaction to work in some browsers
-        // and needs to be called on the element playing the room audio
-        const roomStream = (audioElementRef.current as any).captureStream?.() || (audioElementRef.current as any).mozCaptureStream?.();
-        if (roomStream) {
-          aiAgentService.addAudioSource(roomStream);
-          
-          // Also connect room audio to the analyzer to allow other participants to interrupt AI
-          if (audioContextRef.current && analyserRef.current) {
-            const roomSource = audioContextRef.current.createMediaStreamSource(roomStream);
-            roomSource.connect(analyserRef.current);
-          }
-        }
-      } catch (err) {
-        console.warn('[AIAgentBridge] Could not capture room audio for Gemini:', err);
-      }
-    }
-
-    if (isHandoff) {
-      const greetingPrompt =
-        language === 'ko'
-          ? '다른 참여자로부터 AI 대화를 이어받았습니다. 자연스럽게 인사하며 이렇게 말해주세요: "제가 이어서 대화할게요!"'
-          : 'You are continuing the AI conversation from another participant. Greet naturally and say: "I\'ll continue the conversation from here!"';
-      setTimeout(() => {
-        aiAgentService.sendTextMessage(greetingPrompt);
-      }, 2000);
-    }
+    mediaStreamDestRef.current = null;
+    analyserRef.current = null;
   };
 
   const startDurationTimer = () => {
@@ -503,94 +408,21 @@ export const AIAgentBridgeMeeting = () => {
     }
   };
 
-  const handleToggleMute = () => {
-    const newMuted = aiAgentService.toggleMute();
-    setIsMuted(newMuted);
-    toast({
-      title: newMuted ? 'Microphone Muted' : 'Microphone Unmuted',
-      description: newMuted ? 'AI cannot hear you' : 'AI can hear you now',
-    });
-  };
-
-  const handleEndCall = async () => {
-    if (aiActive) {
-      stopHeartbeat();
-      cleanupAIBridge();
-      await lockApi('release').catch(() => {});
-    }
-    stopDurationTimer();
-    stopPolling();
-    cleanupPlanetKit();
-    cleanupAudioBridge();
-    toast({ title: 'Call Ended', description: 'Returning to setup page' });
-    setTimeout(() => navigate('/setup'), 1000);
-  };
-
-  const cleanupAIAgent = () => {
-    aiAgentService.off('stateChange', handleStateChange);
-    aiAgentService.off('error', handleError);
-    aiAgentService.off('transcript', handleTranscript);
-    aiAgentService.off('audioOutput', handleAudioOutput);
-    aiAgentService.disconnect();
-  };
-
-  const cleanupPlanetKit = async () => {
-    if (conferenceRef.current && typeof conferenceRef.current.leaveConference === 'function') {
-      try {
-        await conferenceRef.current.leaveConference();
-      } catch {
-        // ignore
-      }
-      conferenceRef.current = null;
-    }
-  };
-
-  const cleanupAudioBridge = () => {
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((track) => track.stop());
-      micStreamRef.current = null;
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
-    mediaStreamDestRef.current = null;
-  };
-
-  const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+  const formatDuration = (s: number): string => {
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getStateDisplay = (): { text: string; color: string } => {
+  const getStateDisplay = () => {
     if (!conferenceConnected) return { text: 'Conference Disconnected', color: 'text-red-400' };
-    if (!aiActive)
-      return {
-        text: language === 'ko' ? 'AI 비활성화' : 'AI Inactive',
-        color: 'text-gray-400',
-      };
+    if (!aiActive) return { text: language === 'ko' ? 'AI 비활성화' : 'AI Inactive', color: 'text-gray-400' };
     switch (agentState) {
-      case 'connecting':
-        return { text: 'Connecting AI...', color: 'text-yellow-400' };
-      case 'connected':
-        return { text: 'AI Connected', color: 'text-green-400' };
-      case 'listening':
-        return {
-          text: language === 'ko' ? 'AI 듣는 중...' : 'AI Listening...',
-          color: 'text-blue-400',
-        };
-      case 'speaking':
-        return {
-          text: language === 'ko' ? 'AI 말하는 중...' : 'AI Speaking...',
-          color: 'text-purple-400',
-        };
-      case 'error':
-        return { text: 'AI Error', color: 'text-red-400' };
-      case 'disconnected':
-        return { text: 'AI Disconnected', color: 'text-gray-400' };
-      default:
-        return { text: 'Initializing...', color: 'text-gray-400' };
+      case 'connecting': return { text: 'Connecting AI...', color: 'text-yellow-400' };
+      case 'connected': return { text: 'AI Connected', color: 'text-green-400' };
+      case 'listening': return { text: language === 'ko' ? 'AI 듣는 중...' : 'AI Listening...', color: 'text-blue-400' };
+      case 'speaking': return { text: language === 'ko' ? 'AI 말하는 중...' : 'AI Speaking...', color: 'text-purple-400' };
+      default: return { text: 'AI Disconnected', color: 'text-gray-400' };
     }
   };
 
@@ -598,21 +430,19 @@ export const AIAgentBridgeMeeting = () => {
   const stateDisplay = getStateDisplay();
 
   return (
-    <>
+    <div className="h-screen w-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex flex-col">
       <audio ref={audioElementRef} autoPlay playsInline className="hidden" />
 
       {isConnecting ? (
-        <div className="h-screen w-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
+        <div className="flex-1 flex flex-center items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="w-16 h-16 animate-spin text-white" />
-            <p className="text-white text-xl font-semibold">
-              {language === 'ko' ? 'AI Agent Bridge 초기화 중...' : 'Initializing AI Agent Bridge...'}
-            </p>
-            <p className="text-gray-300 text-sm">Room: {roomId}</p>
+            <p className="text-white text-xl font-semibold">Connecting to room...</p>
           </div>
         </div>
       ) : (
-        <div className="h-screen w-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex flex-col">
+        <>
+          {/* Top Bar */}
           <div className="fixed top-0 left-0 right-0 h-16 bg-black/30 backdrop-blur-sm border-b border-white/10 flex items-center justify-between px-4 z-10">
             <div className="flex flex-col">
               <span className="text-white font-semibold text-lg">AI Agent Bridge</span>
@@ -627,206 +457,55 @@ export const AIAgentBridgeMeeting = () => {
             </div>
           </div>
 
+          {/* Main Content */}
           <div className="flex-1 overflow-y-auto mt-16 mb-28 px-4 py-6">
             <div className="flex justify-center mb-8">
-              <div className="relative">
-                <div
-                  className={`w-32 h-32 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 ${
-                    aiActive
-                      ? 'bg-gradient-to-br from-purple-500 to-pink-500'
-                      : 'bg-gradient-to-br from-gray-600 to-gray-700'
-                  } ${agentState === 'speaking' ? 'animate-pulse' : ''}`}
-                >
-                  <svg
-                    className="w-16 h-16 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                    />
-                  </svg>
-                </div>
-                {agentState === 'speaking' && aiActive && (
-                  <div className="absolute inset-0 rounded-full border-4 border-purple-400 animate-ping" />
-                )}
+              <div className={`w-32 h-32 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 ${aiActive ? 'bg-gradient-to-br from-purple-500 to-pink-500' : 'bg-gray-600'} ${agentState === 'speaking' ? 'animate-pulse' : ''}`}>
+                <Bot className="w-16 h-16 text-white" />
               </div>
             </div>
 
-            <div className="text-center mb-6">
-              <p className="text-white text-lg font-medium">{userName}</p>
-              <p className="text-gray-300 text-sm">
-                {language === 'ko' ? '연결된 방:' : 'Connected to:'} {roomId}
-              </p>
-              <p className="text-gray-400 text-xs mt-1">
-                {participantCount > 1
-                  ? `${participantCount} ${language === 'ko' ? '명 참여 중' : 'participants in room'}`
-                  : language === 'ko'
-                  ? '다른 참여자 대기 중...'
-                  : 'Waiting for other participants...'}
-              </p>
+            <div className="text-center mb-6 text-white">
+              <p className="text-lg font-medium">{userName}</p>
+              <p className="text-gray-300 text-sm">Room: {roomId}</p>
             </div>
 
             {isOccupiedByOther && (
-              <Card className="bg-orange-500/20 backdrop-blur-md border-orange-500/30 p-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-orange-400 animate-pulse flex-shrink-0" />
-                  <span className="text-orange-200 text-sm">
-                    {language === 'ko'
-                      ? `이미 다른 참여자가 AI를 활성화 하였습니다 (활성화 유저: ${lockStatus.holder?.userName})`
-                      : `AI is already activated by another participant (${lockStatus.holder?.userName})`}
-                  </span>
-                </div>
-              </Card>
-            )}
-
-            {aiActive && conferenceConnected && (
-              <Card className="bg-green-500/20 backdrop-blur-md border-green-500/30 p-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                  <span className="text-green-300 text-sm font-medium">
-                    {language === 'ko'
-                      ? 'AI 활성 — AI가 방에서 듣고 말할 수 있습니다'
-                      : 'AI Active — AI can hear and speak in the room'}
-                  </span>
-                </div>
+              <Card className="bg-orange-500/20 border-orange-500/30 p-4 mb-4 text-orange-200 text-sm">
+                이미 다른 참여자가 AI를 활성화 하였습니다 (활성화 유저: {lockStatus.holder?.userName})
               </Card>
             )}
 
             {transcript && aiActive && (
-              <Card className="bg-white/10 backdrop-blur-md border-white/20 p-4 mb-4">
-                <div className="text-white/90 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto">
-                  {transcript}
-                </div>
+              <Card className="bg-white/10 p-4 mb-4 text-white/90 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto">
+                {transcript}
               </Card>
             )}
 
-            {agentState === 'listening' && aiActive && (
-              <div className="text-center">
-                <p className="text-blue-300 text-sm animate-pulse">
-                  {language === 'ko' ? '말씀해주세요...' : 'Speak now...'}
-                </p>
-              </div>
-            )}
-
-            <Card className="bg-white/5 backdrop-blur-md border-white/10 p-4 mt-6">
-              <h3 className="text-white font-semibold text-sm mb-2">
-                {language === 'ko' ? '브릿지 상태:' : 'Bridge Status:'}
-              </h3>
-              <div className="space-y-1 text-xs text-gray-300">
-                <div className="flex justify-between">
-                  <span>{language === 'ko' ? 'AI 활성화:' : 'AI Active:'}</span>
-                  <span className={aiActive ? 'text-green-400' : 'text-gray-400'}>
-                    {aiActive
-                      ? language === 'ko'
-                        ? '활성'
-                        : 'Active'
-                      : language === 'ko'
-                      ? '비활성'
-                      : 'Inactive'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>{language === 'ko' ? '마이크 → AI + 방:' : 'Local Mic → AI + Room:'}</span>
-                  <span
-                    className={
-                      !aiActive ? 'text-gray-400' : isMuted ? 'text-red-400' : 'text-green-400'
-                    }
-                  >
-                    {!aiActive ? 'N/A' : isMuted ? 'Muted' : 'Active'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>{language === 'ko' ? '방 → AI:' : 'Room → AI:'}</span>
-                  <span
-                    className={
-                      aiActive && conferenceConnected ? 'text-green-400' : 'text-red-400'
-                    }
-                  >
-                    {aiActive && conferenceConnected ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>
-                    {language === 'ko' ? 'AI → 방 브로드캐스트:' : 'AI → Conference Room:'}
-                  </span>
-                  <span
-                    className={
-                      aiActive && conferenceConnected ? 'text-green-400' : 'text-gray-400'
-                    }
-                  >
-                    {aiActive && conferenceConnected ? 'Broadcasting' : 'Off'}
-                  </span>
-                </div>
-              </div>
+            <Card className="bg-white/5 p-4 mt-6 text-xs text-gray-300">
+              <h3 className="text-white font-semibold mb-2">Bridge Status:</h3>
+              <div className="flex justify-between"><span>AI Active:</span> <span className={aiActive ? 'text-green-400' : 'text-gray-400'}>{aiActive ? 'Active' : 'Inactive'}</span></div>
+              <div className="flex justify-between"><span>Mic → AI + Room:</span> <span className={isMuted ? 'text-red-400' : 'text-green-400'}>{isMuted ? 'Muted' : 'Active'}</span></div>
+              <div className="flex justify-between"><span>Room → AI:</span> <span className={aiActive && conferenceConnected ? 'text-green-400' : 'text-red-400'}>{aiActive && conferenceConnected ? 'Active' : 'Inactive'}</span></div>
             </Card>
           </div>
 
+          {/* Controls */}
           <div className="fixed bottom-0 left-0 right-0 h-28 bg-black/30 backdrop-blur-sm border-t border-white/10 flex items-center justify-center gap-4 px-4">
-            <Button
-              size="lg"
-              variant="ghost"
-              onClick={handleToggleMute}
-              className={`w-14 h-14 rounded-full ${
-                isMuted
-                  ? 'bg-red-500/80 hover:bg-red-600/80'
-                  : 'bg-white/20 hover:bg-white/30'
-              } backdrop-blur-sm`}
-            >
-              {isMuted ? (
-                <MicOff className="w-6 h-6 text-white" />
-              ) : (
-                <Mic className="w-6 h-6 text-white" />
-              )}
+            <Button size="lg" variant="ghost" onClick={handleToggleMute} className={`w-14 h-14 rounded-full ${isMuted ? 'bg-red-500/80' : 'bg-white/20'}`}>
+              {isMuted ? <MicOff className="text-white" /> : <Mic className="text-white" />}
             </Button>
 
-            <Button
-              size="lg"
-              onClick={handleToggleAI}
-              disabled={isTogglingAI || isOccupiedByOther}
-              className={`h-16 px-6 rounded-full font-semibold text-sm transition-all duration-200 shadow-lg ${
-                isOccupiedByOther
-                  ? 'bg-gray-600/60 cursor-not-allowed opacity-60 text-gray-300'
-                  : aiActive
-                  ? 'bg-purple-500 hover:bg-purple-600 text-white'
-                  : 'bg-green-500 hover:bg-green-600 text-white'
-              }`}
-            >
-              {isTogglingAI ? (
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              ) : aiActive ? (
-                <BotOff className="w-5 h-5 mr-2" />
-              ) : (
-                <Bot className="w-5 h-5 mr-2" />
-              )}
-              {isTogglingAI
-                ? language === 'ko'
-                  ? '처리 중...'
-                  : 'Processing...'
-                : aiActive
-                ? language === 'ko'
-                  ? 'AI 비활성화'
-                  : 'Deactivate AI'
-                : language === 'ko'
-                ? 'AI 활성화'
-                : 'Activate AI'}
+            <Button size="lg" onClick={handleToggleAI} disabled={isTogglingAI || isOccupiedByOther} className={`h-16 px-6 rounded-full font-semibold ${isOccupiedByOther ? 'bg-gray-600' : aiActive ? 'bg-purple-500' : 'bg-green-500'}`}>
+              {isTogglingAI ? <Loader2 className="animate-spin mr-2" /> : aiActive ? <BotOff className="mr-2" /> : <Bot className="mr-2" />}
+              {aiActive ? 'AI 비활성화' : 'AI 활성화'}
             </Button>
 
-            <Button
-              size="lg"
-              onClick={handleEndCall}
-              className="w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 shadow-2xl"
-            >
-              <PhoneOff className="w-6 h-6 text-white" />
-            </Button>
+            <Button size="lg" onClick={handleEndCall} className="w-14 h-14 rounded-full bg-red-500"><PhoneOff className="text-white" /></Button>
           </div>
-        </div>
+        </>
       )}
-    </>
+    </div>
   );
 };
 
