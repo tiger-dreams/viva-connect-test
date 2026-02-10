@@ -28,7 +28,8 @@ const SetupPage = () => {
   const { planetKitConfig, setPlanetKitConfig, isConfigured } = useVideoSDK();
   const [liffIdInput, setLiffIdInput] = useState('');
   const [customRoomId, setCustomRoomId] = useState('');
-  const [selectedRoomType, setSelectedRoomType] = useState<string>(''); // 'japan', 'korea', 'taiwan', 'thailand', 'custom', or ''
+  const [selectedRoomType, setSelectedRoomType] = useState<string>(''); // 'japan', 'korea', 'taiwan', 'thailand', 'custom', 'ai-agent-room', or ''
+  const [selectedAiVoice, setSelectedAiVoice] = useState<string>('Kore'); // AI voice for agent bridge
   const [profileDialogOpen, setProfileDialogOpen] = useState(false); // 프로필 다이얼로그 상태
   const autoTokenGeneratedRef = useRef(false); // 토큰 자동 생성 중복 방지
   const [debugInfo, setDebugInfo] = useState<{
@@ -279,8 +280,11 @@ const SetupPage = () => {
 
   const handleJoinMeeting = () => {
     if (isConfigured) {
-      if (planetKitConfig.roomId === 'ai-agent-room') {
-        navigate('/ai-agent-bridge');
+      // Use selectedRoomType (not roomId) to distinguish AI Agent mode from a custom room named the same
+      if (selectedRoomType === 'ai-agent-room') {
+        // AI Agent Bridge: AI joins PlanetKit room "ai-agent-bridge"
+        // Regular users can join the same room by entering "ai-agent-bridge" as a custom room ID
+        navigate(`/ai-agent-bridge?roomId=ai-agent-bridge&voice=${selectedAiVoice}`);
       } else {
         navigate('/planetkit_meeting');
       }
@@ -773,6 +777,43 @@ Status: ${debugInfo.status}`;
                   />
                   <p className="text-xs text-muted-foreground">
                     {language === 'ko' ? '원하는 룸 ID를 입력하세요. 같은 룸 ID를 입력한 사용자들과 통화할 수 있습니다.' : 'Enter your desired room ID. You can communicate with users who enter the same room ID.'}
+                  </p>
+                </div>
+              )}
+              {/* AI Agent Voice Selector - shown only when AI Agent mode is selected */}
+              {selectedRoomType === 'ai-agent-room' && (
+                <div className="space-y-2 pt-1">
+                  <Label className="text-sm">
+                    {language === 'ko' ? '🎙️ AI 목소리 선택' : '🎙️ AI Voice'}
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'Kore', label: language === 'ko' ? '코레 (여성)' : 'Kore (Female)', emoji: '👩' },
+                      { value: 'Aoede', label: language === 'ko' ? '아오에데 (여성)' : 'Aoede (Female)', emoji: '👩' },
+                      { value: 'Leda', label: language === 'ko' ? '레다 (여성)' : 'Leda (Female)', emoji: '👩' },
+                      { value: 'Zephyr', label: language === 'ko' ? '제피르 (여성)' : 'Zephyr (Female)', emoji: '👩' },
+                      { value: 'Puck', label: language === 'ko' ? '퍽 (남성)' : 'Puck (Male)', emoji: '👨' },
+                      { value: 'Charon', label: language === 'ko' ? '카론 (남성)' : 'Charon (Male)', emoji: '👨' },
+                    ].map((v) => (
+                      <button
+                        key={v.value}
+                        type="button"
+                        onClick={() => setSelectedAiVoice(v.value)}
+                        className={`flex items-center gap-2 p-2 rounded-md border text-sm transition-colors ${
+                          selectedAiVoice === v.value
+                            ? 'border-primary bg-primary/10 text-primary font-medium'
+                            : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                        }`}
+                      >
+                        <span>{v.emoji}</span>
+                        <span className="text-xs">{v.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {language === 'ko'
+                      ? `선택된 목소리: ${selectedAiVoice} | 일반 참가자는 Room ID "ai-agent-bridge" 입력으로 참여 가능`
+                      : `Selected: ${selectedAiVoice} | Regular participants join with Room ID "ai-agent-bridge"`}
                   </p>
                 </div>
               )}

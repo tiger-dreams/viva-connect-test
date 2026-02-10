@@ -28,7 +28,7 @@ export const AIAgentBridgeMeeting = () => {
   // URL parameters
   const language = (searchParams.get('lang') || 'ko') as 'ko' | 'en';
   const voice = searchParams.get('voice') || 'Kore';
-  const roomId = searchParams.get('roomId') || 'ai-agent-room';
+  const roomId = searchParams.get('roomId') || 'ai-agent-bridge';
 
   // Component state
   const [agentState, setAgentState] = useState<AIAgentState>('idle');
