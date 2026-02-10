@@ -177,6 +177,9 @@ export class AIAgentService {
 
       this.setState('connected');
       console.log('[AIAgent] Connected successfully');
+
+      // 5. Send initial greeting trigger
+      this.sendInitialGreeting();
     } catch (err: any) {
       console.error('[AIAgent] Connection error:', err);
       this.setState('error');
@@ -283,6 +286,31 @@ export class AIAgentService {
 
     console.log('[AIAgent] Sending setup message');
     this.ws.send(JSON.stringify(setup));
+  }
+
+  private sendInitialGreeting(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.sessionConfig) return;
+
+    const language = this.sessionConfig.config?.language || 'ko';
+    const text = language === 'ko' 
+      ? '안녕하세요, 마음 상담사 "해밀"입니다. 오늘 하루는 어떠셨나요? 제가 들어드릴게요.'
+      : 'Hello, I am "Haemil," your mental health counselor. How was your day? I am here to listen.';
+
+    console.log('[AIAgent] Sending initial greeting trigger');
+    
+    const message = {
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [{ text: `(System: The call has just connected. Please introduce yourself using this text: "${text}")` }]
+          }
+        ],
+        turnComplete: true
+      }
+    };
+
+    this.ws.send(JSON.stringify(message));
   }
 
   private handleServerMessage(rawData: string | Blob): void {
