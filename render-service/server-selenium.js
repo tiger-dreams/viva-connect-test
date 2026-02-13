@@ -40,14 +40,18 @@ app.post('/join-as-agent', async (req, res) => {
   console.log('[Selenium Service] Join request:', { roomId, userId, language, voice });
 
   try {
-    // Check if session already exists
-    if (activeSessions.has(roomId)) {
-      console.log('[Selenium Service] Session already exists for room:', roomId);
+    // Create unique session key (roomId + userId)
+    const sessionKey = `${roomId}_${userId}`;
+
+    // Check if session already exists for this user
+    if (activeSessions.has(sessionKey)) {
+      console.log('[Selenium Service] Session already exists for:', sessionKey);
       return res.json({
         success: true,
         message: 'Session already active',
         roomId,
-        sessionId: activeSessions.get(roomId).sessionId,
+        userId,
+        sessionId: activeSessions.get(sessionKey).sessionId,
       });
     }
 
@@ -289,8 +293,8 @@ app.post('/join-as-agent', async (req, res) => {
       console.error('[Selenium Service] Error details:', JSON.stringify(errorDetails, null, 2));
     }
 
-    // Store session
-    activeSessions.set(roomId, {
+    // Store session with unique key (roomId + userId)
+    activeSessions.set(sessionKey, {
       driver,
       sessionId,
       roomId,
