@@ -88,7 +88,7 @@ COPY package*.json ./
 RUN npm install
 
 # Copy application files
-COPY server-selenium.js ./server.js
+COPY server-selenium.js ./
 COPY start-xvfb.sh ./
 
 # Make start script executable
