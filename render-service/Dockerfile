@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     curl \
     unzip \
+    jq \
     xvfb \
     x11vnc \
     fluxbox \
@@ -53,11 +54,17 @@ RUN CHROME_FULL_VERSION=$(google-chrome --version | awk '{print $3}') && \
     echo "Detected Chrome version: ${CHROME_FULL_VERSION}" && \
     CHROME_MAJOR_VERSION=$(echo ${CHROME_FULL_VERSION} | cut -d'.' -f1) && \
     echo "Chrome major version: ${CHROME_MAJOR_VERSION}" && \
-    # Fetch latest ChromeDriver version for this Chrome major version
+    # Fetch latest ChromeDriver version using jq for reliable JSON parsing
     CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone-with-downloads.json" | \
-        grep -o "\"${CHROME_MAJOR_VERSION}\":{\"version\":\"[^\"]*\"" | \
-        grep -o "[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*" | head -1) && \
+        jq -r ".milestones.\"${CHROME_MAJOR_VERSION}\".version" 2>/dev/null) && \
     echo "Downloading ChromeDriver version: ${CHROMEDRIVER_VERSION}" && \
+    if [ -z "${CHROMEDRIVER_VERSION}" ] || [ "${CHROMEDRIVER_VERSION}" = "null" ]; then \
+        echo "❌ Failed to get ChromeDriver version for Chrome ${CHROME_MAJOR_VERSION}"; \
+        echo "Trying latest stable ChromeDriver..."; \
+        CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json" | \
+            jq -r '.channels.Stable.version'); \
+        echo "Using latest stable ChromeDriver: ${CHROMEDRIVER_VERSION}"; \
+    fi && \
     wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip && \
     unzip /tmp/chromedriver.zip -d /tmp/ && \
     mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/ && \
