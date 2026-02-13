@@ -280,14 +280,10 @@ const SetupPage = () => {
 
   const handleJoinMeeting = () => {
     if (isConfigured) {
-      // Use selectedRoomType (not roomId) to distinguish AI Agent mode from a custom room named the same
-      if (selectedRoomType === 'ai-agent-room') {
-        // AI Agent Bridge: AI joins PlanetKit room "ai-agent-bridge"
-        // Regular users can join the same room by entering "ai-agent-bridge" as a custom room ID
-        navigate(`/ai-agent-bridge?roomId=ai-agent-bridge&voice=${selectedAiVoice}`);
-      } else {
-        navigate('/planetkit_meeting');
-      }
+      // For AI Agent mode, join as a regular user to the "ai-agent-bridge" room
+      // The Headless AI Agent (via Render Service) will already be in this room
+      // No more 2-Conference client-side implementation - use Render Service only
+      navigate('/planetkit_meeting');
     }
   };
 
