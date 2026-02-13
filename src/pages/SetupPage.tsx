@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Activity, LogIn, User, Video, Server, Hash, Settings, Globe, Copy, CheckCircle, XCircle, Bot } from "lucide-react";
+import { Activity, LogIn, User, Video, Server, Hash, Settings, Globe, Copy, CheckCircle, XCircle } from "lucide-react";
 import { useVideoSDK } from "@/contexts/VideoSDKContext";
 import { useLiff } from "@/contexts/LiffContext";
 import { useToast } from "@/hooks/use-toast";
@@ -278,11 +278,69 @@ const SetupPage = () => {
     }
   };
 
-  const handleJoinMeeting = () => {
-    if (isConfigured) {
-      // For AI Agent mode, join as a regular user to the "ai-agent-bridge" room
-      // The Headless AI Agent (via Render Service) will already be in this room
-      // No more 2-Conference client-side implementation - use Render Service only
+  const handleJoinMeeting = async () => {
+    if (!isConfigured) return;
+
+    // AI Agent mode: Call Render Service first, then join meeting
+    if (selectedRoomType === 'ai-agent-room') {
+      const renderServiceUrl = import.meta.env.VITE_RENDER_SERVICE_URL;
+
+      if (!renderServiceUrl) {
+        toast({
+          title: language === 'ko' ? '설정 오류' : 'Configuration Error',
+          description: 'VITE_RENDER_SERVICE_URL not configured',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      try {
+        toast({
+          title: language === 'ko' ? 'AI Agent 호출 중...' : 'Calling AI Agent...',
+          description: language === 'ko' ? 'Headless AI를 회의실에 참여시키는 중입니다...' : 'Joining Headless AI to the room...',
+        });
+
+        const response = await fetch(`${renderServiceUrl}/join-as-agent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            roomId: 'ai-agent-bridge',
+            userId: `AI_HEADLESS_${profile?.userId || 'guest'}`,
+            language: language,
+            voice: selectedAiVoice,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to call Render Service');
+        }
+
+        toast({
+          title: language === 'ko' ? '✅ AI Agent 참여 완료' : '✅ AI Agent Joined',
+          description: language === 'ko'
+            ? '회의실로 입장합니다...'
+            : 'Entering the meeting room...',
+        });
+
+        // Wait a moment for AI to fully connect, then join meeting
+        setTimeout(() => {
+          navigate('/planetkit_meeting');
+        }, 1500);
+
+      } catch (error: any) {
+        console.error('[SetupPage] Failed to call Render Service:', error);
+        toast({
+          title: language === 'ko' ? 'AI Agent 호출 실패' : 'AI Agent Call Failed',
+          description: error.message || 'Failed to call Headless AI Agent',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      // Regular mode: Join meeting directly
       navigate('/planetkit_meeting');
     }
   };
@@ -893,87 +951,6 @@ Status: ${debugInfo.status}`;
                 {t.joinMeeting}
               </Button>
             </div>
-          )}
-
-          {/* Headless AI Agent Test (Render Service) */}
-          {selectedRoomType === 'ai-agent-room' && planetKitConfig.accessToken && (
-            <Card className="bg-purple-500/10 border-purple-500/30">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Bot className="w-4 h-4" />
-                  {language === 'ko' ? '🚀 Headless AI Agent 테스트' : '🚀 Test Headless AI Agent'}
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  {language === 'ko'
-                    ? 'Render.com의 Headless Chrome으로 AI Agent를 회의실에 초대합니다.'
-                    : 'Invite AI Agent to the room via Headless Chrome on Render.com'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  onClick={async () => {
-                    const renderServiceUrl = import.meta.env.VITE_RENDER_SERVICE_URL;
-
-                    if (!renderServiceUrl) {
-                      toast({
-                        title: language === 'ko' ? '설정 오류' : 'Configuration Error',
-                        description: 'VITE_RENDER_SERVICE_URL not configured',
-                        variant: 'destructive',
-                      });
-                      return;
-                    }
-
-                    toast({
-                      title: language === 'ko' ? 'AI Agent 호출 중...' : 'Calling AI Agent...',
-                      description: language === 'ko' ? 'Render 서비스에 요청 중입니다.' : 'Requesting Render service...',
-                    });
-
-                    try {
-                      const response = await fetch(`${renderServiceUrl}/join-as-agent`, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                          roomId: 'ai-agent-bridge',
-                          userId: `AI_HEADLESS_${profile?.userId || 'guest'}`,
-                          language: language,
-                          voice: selectedAiVoice,
-                        }),
-                      });
-
-                      const data = await response.json();
-
-                      if (data.success) {
-                        toast({
-                          title: language === 'ko' ? '✅ AI Agent 참여 성공' : '✅ AI Agent Joined',
-                          description: language === 'ko'
-                            ? `Room: ai-agent-bridge (Browser ID: ${data.browserId})`
-                            : `Room: ai-agent-bridge (Browser ID: ${data.browserId})`,
-                        });
-                      } else {
-                        throw new Error(data.error || 'Failed to call Render Service');
-                      }
-                    } catch (error: any) {
-                      toast({
-                        title: language === 'ko' ? 'Render Service 오류' : 'Render Service Error',
-                        description: error.message || 'Failed to call Headless AI Agent',
-                        variant: 'destructive',
-                      });
-                    }
-                  }}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                >
-                  <Bot className="w-4 h-4 mr-2" />
-                  {language === 'ko' ? '🤖 Headless AI Agent 호출' : '🤖 Call Headless AI Agent'}
-                </Button>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {language === 'ko'
-                    ? '이 버튼은 Render.com 서버에서 Headless Chrome을 실행하여 AI Agent를 회의실에 참여시킵니다.'
-                    : 'This button launches a Headless Chrome on Render.com server to join the AI Agent to the room.'}
-                </p>
-              </CardContent>
-            </Card>
           )}
 
           {/* 안내 메시지 */}
