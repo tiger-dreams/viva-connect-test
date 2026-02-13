@@ -69,18 +69,27 @@ app.post('/join-as-agent', async (req, res) => {
         '--use-fake-device-for-media-stream', // Fake audio/video devices
         '--allow-running-insecure-content',
         '--disable-web-security', // Allow CORS for development
+        '--disable-blink-features=AutomationControlled', // Hide automation
       ],
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
+      ignoreDefaultArgs: ['--enable-automation'], // Don't show "Chrome is being controlled"
     });
 
     const page = await browser.newPage();
 
+    // Hide webdriver property to bypass browser detection
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => false,
+      });
+    });
+
     // Set viewport and user agent
     await page.setViewport({ width: 1280, height: 720 });
     await page.setUserAgent(
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
     );
 
     // Enable console logs from page
