@@ -173,54 +173,66 @@ app.post('/join-as-agent', async (req, res) => {
       }
     };
 
-    // Inject console capture AND visibility override on page
-    await driver.executeScript(`
-      // Override Page Visibility API to always appear visible
-      Object.defineProperty(document, 'hidden', {
-        get: function() { return false; },
-        configurable: true
-      });
+    // Helper function to inject scripts on page
+    const injectScripts = async () => {
+      await driver.executeScript(`
+        // Override Page Visibility API to always appear visible
+        Object.defineProperty(document, 'hidden', {
+          get: function() { return false; },
+          configurable: true
+        });
 
-      Object.defineProperty(document, 'visibilityState', {
-        get: function() { return 'visible'; },
-        configurable: true
-      });
+        Object.defineProperty(document, 'visibilityState', {
+          get: function() { return 'visible'; },
+          configurable: true
+        });
 
-      // Prevent visibilitychange events
-      const originalAddEventListener = document.addEventListener;
-      document.addEventListener = function(type, listener, options) {
-        if (type === 'visibilitychange') {
-          console.log('[Visibility Override] Blocked visibilitychange event listener');
-          return;
-        }
-        return originalAddEventListener.call(this, type, listener, options);
-      };
+        // Prevent visibilitychange events
+        const originalAddEventListener = document.addEventListener;
+        document.addEventListener = function(type, listener, options) {
+          if (type === 'visibilitychange') {
+            console.log('[Visibility Override] Blocked visibilitychange event listener');
+            return;
+          }
+          return originalAddEventListener.call(this, type, listener, options);
+        };
 
-      console.log('[Visibility Override] ✅ Page will always appear visible to PlanetKit');
+        console.log('[Visibility Override] ✅ Page will always appear visible to PlanetKit');
 
-      // Console capture
-      window.consoleCapture = [];
-      const originalLog = console.log;
-      const originalError = console.error;
-      const originalWarn = console.warn;
+        // Console capture
+        window.consoleCapture = [];
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
 
-      console.log = function(...args) {
-        window.consoleCapture.push('[log] ' + args.join(' '));
-        originalLog.apply(console, args);
-      };
-      console.error = function(...args) {
-        window.consoleCapture.push('[error] ' + args.join(' '));
-        originalError.apply(console, args);
-      };
-      console.warn = function(...args) {
-        window.consoleCapture.push('[warn] ' + args.join(' '));
-        originalWarn.apply(console, args);
-      };
-    `);
+        console.log = function(...args) {
+          window.consoleCapture.push('[log] ' + args.join(' '));
+          originalLog.apply(console, args);
+        };
+        console.error = function(...args) {
+          window.consoleCapture.push('[error] ' + args.join(' '));
+          originalError.apply(console, args);
+        };
+        console.warn = function(...args) {
+          window.consoleCapture.push('[warn] ' + args.join(' '));
+          originalWarn.apply(console, args);
+        };
+      `);
+    };
 
-    console.log('[Selenium Service] Console capture injected, reloading page...');
+    // Inject scripts on first load
+    console.log('[Selenium Service] Injecting console capture and visibility override...');
+    await injectScripts();
+
+    // Reload page and inject again (scripts don't persist across reload)
+    console.log('[Selenium Service] Reloading page to ensure clean state...');
     await driver.navigate().refresh();
-    await driver.sleep(5000);
+    await driver.sleep(3000);
+
+    // Re-inject scripts after reload
+    console.log('[Selenium Service] Re-injecting scripts after reload...');
+    await injectScripts();
+    await driver.sleep(2000);
 
     // Check if agent connected with periodic log capture
     console.log('[Selenium Service] Waiting for agent connection...');
