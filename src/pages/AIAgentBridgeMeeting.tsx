@@ -38,14 +38,23 @@ export const AIAgentBridgeMeeting = () => {
   const [isConnecting, setIsConnecting] = useState(true);
   const [conferenceConnected, setConferenceConnected] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
+  const [renderServiceCalled, setRenderServiceCalled] = useState(false);
+  const [renderServiceStatus, setRenderServiceStatus] = useState<string>('');
 
   // Refs
   const callStartTimeRef = useRef<number>(0);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const conferenceRef = useRef<any>(null);
+
+  // Conference 1: Real User (User A)
+  const conference1Ref = useRef<any>(null);
+  const audioElement1Ref = useRef<HTMLAudioElement>(null);
+
+  // Conference 2: AI Agent
+  const conference2Ref = useRef<any>(null);
+  const audioElement2Ref = useRef<HTMLAudioElement>(null);
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const audioElementRef = useRef<HTMLAudioElement>(null);
   const nextStartTimeRef = useRef<number>(0);
   const micStreamRef = useRef<MediaStream | null>(null);
 
@@ -65,24 +74,24 @@ export const AIAgentBridgeMeeting = () => {
     }
 
     const initializeBridge = async () => {
-      console.log('[AIAgentBridge] Initializing AI Agent Bridge');
+      console.log('[AIAgentBridge] Initializing 2-Conference AI Agent Bridge');
       console.log('[AIAgentBridge] Language:', language, 'Voice:', voice, 'Room:', roomId);
 
       try {
-        // Step 1: Setup AI Agent Service
+        // Step 1: Setup AI Agent Service event listeners
         setupAIAgent();
 
-        // Step 2: Join PlanetKit Conference
-        await joinPlanetKitConference();
+        // Step 2: Join 2 PlanetKit Conferences (User A + AI Agent)
+        await joinPlanetKitConferences();
 
-        // Step 3: Create Audio Bridge
-        await createAudioBridge();
+        // Step 3: Setup Audio Routing (Gemini connection + audio paths)
+        await setupAudioRouting();
 
         setIsConnecting(false);
         callStartTimeRef.current = Date.now();
         startDurationTimer();
 
-        console.log('[AIAgentBridge] Bridge initialized successfully');
+        console.log('[AIAgentBridge] ✅ 2-Conference Bridge initialized successfully');
       } catch (error: any) {
         console.error('[AIAgentBridge] Failed to initialize:', error);
         toast({
@@ -145,6 +154,22 @@ export const AIAgentBridgeMeeting = () => {
         audioCtx.resume();
       }
 
+      // One-time: Inject AI audio stream into Conference 2
+      if (conference2Ref.current && !conference2Ref.current._aiStreamInjected) {
+        try {
+          const mixedStream = mediaStreamDestRef.current.stream;
+          if (typeof conference2Ref.current.setCustomMediaStream === 'function') {
+            conference2Ref.current.setCustomMediaStream(mixedStream);
+            conference2Ref.current._aiStreamInjected = true;
+            console.log('[AIAgentBridge] ✅ AI audio stream → Conference 2 injection complete');
+          } else {
+            console.warn('[AIAgentBridge] setCustomMediaStream not available on Conference 2');
+          }
+        } catch (err) {
+          console.warn('[AIAgentBridge] Could not inject AI stream into Conference 2:', err);
+        }
+      }
+
       // Create buffer at exactly 24kHz to match Gemini's native output
       const buffer = audioCtx.createBuffer(1, audioData.length, 24000);
       buffer.getChannelData(0).set(audioData);
@@ -166,12 +191,10 @@ export const AIAgentBridgeMeeting = () => {
       // Advance the schedule
       nextStartTimeRef.current += buffer.duration;
 
-      // Route 1: To PlanetKit Conference (The primary path for the room)
+      // Route 1: To Conference 2 (AI Agent participant transmits to room)
       source.connect(mediaStreamDestRef.current);
 
-      // Route 2: Local Monitor (Tiger hearing the AI)
-      // Unmuted so the user hosting the bridge can hear the AI too.
-      // Note: If this device is in the same room as others, use headphones to prevent feedback loop.
+      // Route 2: Local Monitor (User A hears the AI)
       source.connect(audioCtx.destination);
 
     } catch (err) {
@@ -188,9 +211,78 @@ export const AIAgentBridgeMeeting = () => {
     aiAgentService.on('audioOutput', handleAudioOutput);
   };
 
-  // Join PlanetKit Conference
-  const joinPlanetKitConference = async () => {
-    console.log('[AIAgentBridge] Joining PlanetKit Conference');
+  // Conference 1 Delegate (User A)
+  const conferenceDelegate1 = {
+    evtConnected: () => {
+      console.log('[Conference 1] User A connected');
+      setConferenceConnected(true);
+      setParticipantCount(1); // Local user
+
+      toast({
+        title: 'Conference Joined',
+        description: `Joined as User A in room: ${roomId}`,
+      });
+    },
+
+    evtDisconnected: (disconnectDetails: any) => {
+      console.log('[Conference 1] User A disconnected:', disconnectDetails);
+      setConferenceConnected(false);
+      handleDisconnect();
+    },
+
+    evtPeerListUpdated: (peerUpdateInfo: any) => {
+      const addedPeers = peerUpdateInfo.addedPeers || [];
+      const removedPeers = peerUpdateInfo.removedPeers || [];
+
+      console.log('[Conference 1] Peer list updated:', { added: addedPeers.length, removed: removedPeers.length });
+
+      // Update participant count (User B and others)
+      setParticipantCount(prev => prev + addedPeers.length - removedPeers.length);
+    },
+
+    evtError: (error: any) => {
+      console.error('[Conference 1] Error:', error);
+      toast({
+        title: 'Conference 1 Error',
+        description: error?.message || 'Unknown error in User A conference',
+        variant: 'destructive',
+      });
+    },
+  };
+
+  // Conference 2 Delegate (AI Agent)
+  const conferenceDelegate2 = {
+    evtConnected: () => {
+      console.log('[Conference 2] AI Agent connected');
+
+      toast({
+        title: 'AI Agent Joined',
+        description: 'AI is now in the conference',
+      });
+    },
+
+    evtDisconnected: (disconnectDetails: any) => {
+      console.log('[Conference 2] AI Agent disconnected:', disconnectDetails);
+      // Conference 1만 남아있으면 정상 동작
+    },
+
+    evtPeerListUpdated: (peerUpdateInfo: any) => {
+      console.log('[Conference 2] AI peer list updated:', peerUpdateInfo);
+    },
+
+    evtError: (error: any) => {
+      console.error('[Conference 2] Error:', error);
+      toast({
+        title: 'AI Agent Error',
+        description: error?.message || 'Unknown error in AI agent conference',
+        variant: 'destructive',
+      });
+    },
+  };
+
+  // Join PlanetKit Conferences (2 instances)
+  const joinPlanetKitConferences = async () => {
+    console.log('[AIAgentBridge] Joining 2 PlanetKit Conferences');
 
     // Get PlanetKit credentials from environment
     const serviceId = import.meta.env.VITE_PLANETKIT_EVAL_SERVICE_ID;
@@ -201,103 +293,82 @@ export const AIAgentBridgeMeeting = () => {
       throw new Error('PlanetKit credentials not configured');
     }
 
-    // Generate access token (simplified - in production use server-side)
-    const userId = profile?.userId || 'ai-bridge-user';
-    const displayName = profile?.displayName || 'AI Bridge';
+    if (!profile?.userId) {
+      throw new Error('LINE profile information missing');
+    }
 
+    // User ID generation
+    const userId1 = profile.userId;  // User A
+    const userId2 = `AI_AGENT_${profile.userId}`;  // AI Agent
+
+    const displayName1 = profile.displayName || 'User A';
+    const displayName2 = 'AI Assistant';
+
+    console.log('[AIAgentBridge] User A ID:', userId1);
+    console.log('[AIAgentBridge] AI Agent ID:', userId2);
+
+    // Generate tokens
     const { generatePlanetKitToken } = await import('@/utils/token-generator');
-    const accessToken = await generatePlanetKitToken(
-      serviceId,
-      apiKey,
-      userId,
-      roomId,
-      3600,
-      apiSecret
-    );
+    const token1 = await generatePlanetKitToken(serviceId, apiKey, userId1, roomId, 3600, apiSecret);
+    const token2 = await generatePlanetKitToken(serviceId, apiKey, userId2, roomId, 3600, apiSecret);
 
-    // Initialize PlanetKit Conference
-    const conference = new PlanetKitEval.Conference();
-    conferenceRef.current = conference;
+    // Conference 1 creation (User A)
+    console.log('[AIAgentBridge] Creating Conference 1 (User A)');
+    const conference1 = new PlanetKitEval.Conference();
+    conference1Ref.current = conference1;
 
-    const conferenceDelegate = {
-      evtConnected: () => {
-        console.log('[AIAgentBridge] PlanetKit Conference connected');
-        setConferenceConnected(true);
-        setParticipantCount(1); // Local user
-
-        toast({
-          title: 'Conference Joined',
-          description: `Joined room: ${roomId}`,
-        });
-      },
-
-      evtDisconnected: (disconnectDetails: any) => {
-        console.log('[AIAgentBridge] PlanetKit Conference disconnected:', disconnectDetails);
-        setConferenceConnected(false);
-        setParticipantCount(0);
-      },
-
-      evtPeerListUpdated: (peerUpdateInfo: any) => {
-        const addedPeers = peerUpdateInfo.addedPeers || [];
-        const removedPeers = peerUpdateInfo.removedPeers || [];
-
-        console.log('[AIAgentBridge] Peer list updated:', { added: addedPeers.length, removed: removedPeers.length });
-
-        setParticipantCount(prev => prev + addedPeers.length - removedPeers.length);
-      },
-
-      evtError: (error: any) => {
-        console.error('[AIAgentBridge] PlanetKit error:', error);
-        toast({
-          title: 'Conference Error',
-          description: error?.message || 'An error occurred in the conference',
-          variant: 'destructive',
-        });
-      },
-    };
-
-    const conferenceParams = {
-      myId: userId,
-      displayName: displayName,
+    const conferenceParams1 = {
+      myId: userId1,
+      displayName: displayName1,
       myServiceId: serviceId,
       roomId: roomId,
       roomServiceId: serviceId,
-      accessToken: accessToken,
-      mediaType: 'video', // Must match PlanetKitMeetingArea's "video" svckey (groupcall.video)
-      cameraOn: false,    // Fix Issue 1: Force camera off (audio-only mode in video call)
-      micOn: true,        // Fix Issue 3: Ensure mic is on for audio transmission
-      mediaHtmlElement: { roomAudio: audioElementRef.current },
-      delegate: conferenceDelegate,
+      accessToken: token1,
+      mediaType: 'video',
+      cameraOn: false,  // User A camera off
+      micOn: true,      // User A mic on
+      mediaHtmlElement: { roomAudio: audioElement1Ref.current },
+      delegate: conferenceDelegate1,
     };
 
-    await conference.joinConference(conferenceParams);
-    console.log('[AIAgentBridge] PlanetKit Conference joined successfully');
+    await conference1.joinConference(conferenceParams1);
+    console.log('[AIAgentBridge] ✅ Conference 1 (User A) joined successfully');
+
+    // Small delay before joining Conference 2
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Conference 2 creation (AI Agent)
+    console.log('[AIAgentBridge] Creating Conference 2 (AI Agent)');
+    const conference2 = new PlanetKitEval.Conference();
+    conference2Ref.current = conference2;
+
+    const conferenceParams2 = {
+      myId: userId2,
+      displayName: displayName2,
+      myServiceId: serviceId,
+      roomId: roomId,
+      roomServiceId: serviceId,
+      accessToken: token2,
+      mediaType: 'video',
+      cameraOn: false,  // AI has no camera
+      micOn: true,      // AI audio transmission needed
+      mediaHtmlElement: { roomAudio: audioElement2Ref.current },  // Not used (echo prevention)
+      delegate: conferenceDelegate2,
+    };
+
+    await conference2.joinConference(conferenceParams2);
+    console.log('[AIAgentBridge] ✅ Conference 2 (AI Agent) joined successfully');
   };
 
-  // Create Audio Bridge
-  const createAudioBridge = async () => {
-    console.log('[AIAgentBridge] Creating audio bridge');
+  // Setup Audio Routing (2-Conference architecture)
+  const setupAudioRouting = async () => {
+    console.log('[AIAgentBridge] Setting up audio routing for 2-Conference architecture');
 
-    // Use 48kHz — standard WebRTC sample rate for PlanetKit compatibility
+    // Initialize AudioContext for AI audio processing
     audioContextRef.current = new AudioContext({ sampleRate: 48000 });
     mediaStreamDestRef.current = audioContextRef.current.createMediaStreamDestination();
 
-    // Step 1: Capture local microphone and mix into PlanetKit output stream.
-    // This ensures other participants hear the bridge user's voice alongside AI audio.
-    const micStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
-    micStreamRef.current = micStream;
-    const micSource = audioContextRef.current.createMediaStreamSource(micStream);
-    micSource.connect(mediaStreamDestRef.current);
-    console.log('[AIAgentBridge] Local mic mixed into PlanetKit output stream');
-
-    // Step 2: Connect to Gemini AI first — so the WebSocket and worklet are ready
-    // before we inject the custom stream into PlanetKit.
+    // Step 1: Connect to Gemini AI
     await aiAgentService.connect({
       language,
       voice,
@@ -305,37 +376,42 @@ export const AIAgentBridgeMeeting = () => {
         ? `당신은 그룹 통화에 참여한 AI 비서입니다. 한국어로 자연스럽고 친근하게 대화하세요. 간결하고 명확하게 답변하세요.`
         : `You are an AI assistant participating in a group call. Respond naturally and helpfully in English. Keep responses concise and clear.`,
     });
+    console.log('[AIAgentBridge] ✅ Gemini AI connected');
 
-    // Step 3: Inject the mixed stream (mic + AI audio) into PlanetKit.
-    // setCustomMediaStream replaces PlanetKit's internal mic capture, so the mixed
-    // stream is the sole outgoing audio — containing both the user's voice and AI voice.
-    if (conferenceRef.current) {
-      try {
-        const mixedStream = mediaStreamDestRef.current.stream;
-        if (typeof conferenceRef.current.setCustomMediaStream === 'function') {
-          await conferenceRef.current.setCustomMediaStream(mixedStream);
-          console.log('[AIAgentBridge] Mixed stream (mic + AI) injected into PlanetKit');
-        } else {
-          console.warn('[AIAgentBridge] setCustomMediaStream not available on conference');
-        }
-      } catch (err) {
-        console.warn('[AIAgentBridge] Could not set custom media stream:', err);
-      }
+    // Step 2: Route User A's microphone to Gemini (so AI hears User A)
+    try {
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      micStreamRef.current = micStream;
+
+      // Route mic to Gemini
+      aiAgentService.addAudioSource(micStream);
+      console.log('[AIAgentBridge] ✅ User A mic → Gemini routing complete');
+    } catch (err) {
+      console.error('[AIAgentBridge] Failed to capture microphone:', err);
+      throw new Error('Microphone access required for AI Bridge');
     }
 
-    // Step 4: Capture PlanetKit room audio and feed it to Gemini so the AI can
-    // hear what other conference participants are saying.
-    if (audioElementRef.current) {
+    // Step 3: Route Conference 1 room audio to Gemini (so AI hears User B and others)
+    if (audioElement1Ref.current) {
       try {
-        const roomStream = (audioElementRef.current as any).captureStream() as MediaStream;
+        const roomStream = (audioElement1Ref.current as any).captureStream() as MediaStream;
         aiAgentService.addAudioSource(roomStream);
-        console.log('[AIAgentBridge] Room audio routed to Gemini');
+        console.log('[AIAgentBridge] ✅ Conference 1 room audio → Gemini routing complete');
       } catch (err) {
         console.warn('[AIAgentBridge] Could not capture room audio for Gemini:', err);
       }
     }
 
-    console.log('[AIAgentBridge] Audio bridge created successfully');
+    // Step 4: AI audio output will be handled by handleAudioOutput()
+    // It will inject AI audio into Conference 2 via setCustomMediaStream
+
+    console.log('[AIAgentBridge] ✅ Audio routing setup complete');
   };
 
   const startDurationTimer = () => {
@@ -360,6 +436,60 @@ export const AIAgentBridgeMeeting = () => {
     });
   };
 
+  const handleCallRenderService = async () => {
+    console.log('[AIAgentBridge] Calling Render Service...');
+    setRenderServiceStatus('Calling Render Service...');
+
+    const renderServiceUrl = import.meta.env.VITE_RENDER_SERVICE_URL;
+
+    if (!renderServiceUrl) {
+      toast({
+        title: 'Configuration Error',
+        description: 'VITE_RENDER_SERVICE_URL not configured',
+        variant: 'destructive',
+      });
+      setRenderServiceStatus('Error: VITE_RENDER_SERVICE_URL not set');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${renderServiceUrl}/join-as-agent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          roomId: roomId,
+          userId: `AI_HEADLESS_${profile?.userId || 'guest'}`,
+          language: language,
+          voice: voice,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('[AIAgentBridge] ✅ Render Service called successfully:', data);
+        toast({
+          title: 'Headless AI Agent Joined',
+          description: `AI Agent joined room: ${roomId}`,
+        });
+        setRenderServiceCalled(true);
+        setRenderServiceStatus(`✅ AI Agent joined (Browser ID: ${data.browserId})`);
+      } else {
+        throw new Error(data.error || 'Failed to call Render Service');
+      }
+    } catch (error: any) {
+      console.error('[AIAgentBridge] Failed to call Render Service:', error);
+      toast({
+        title: 'Render Service Error',
+        description: error.message || 'Failed to call Headless AI Agent',
+        variant: 'destructive',
+      });
+      setRenderServiceStatus(`❌ Error: ${error.message}`);
+    }
+  };
+
   const handleEndCall = () => {
     console.log('[AIAgentBridge] Ending call...');
     cleanupAIAgent();
@@ -382,26 +512,63 @@ export const AIAgentBridgeMeeting = () => {
   };
 
   const cleanupPlanetKit = async () => {
-    if (conferenceRef.current && typeof conferenceRef.current.leaveConference === 'function') {
+    console.log('[AIAgentBridge] Cleaning up 2 Conferences');
+
+    // Clean up Conference 1 (User A)
+    if (conference1Ref.current && typeof conference1Ref.current.leaveConference === 'function') {
       try {
-        await conferenceRef.current.leaveConference();
+        await conference1Ref.current.leaveConference();
+        console.log('[AIAgentBridge] Conference 1 left');
       } catch (err) {
-        console.warn('[AIAgentBridge] Error leaving conference:', err);
+        console.warn('[AIAgentBridge] Error leaving Conference 1:', err);
       }
-      conferenceRef.current = null;
+      conference1Ref.current = null;
+    }
+
+    // Clean up Conference 2 (AI Agent)
+    if (conference2Ref.current && typeof conference2Ref.current.leaveConference === 'function') {
+      try {
+        await conference2Ref.current.leaveConference();
+        console.log('[AIAgentBridge] Conference 2 left');
+      } catch (err) {
+        console.warn('[AIAgentBridge] Error leaving Conference 2:', err);
+      }
+      conference2Ref.current = null;
     }
   };
 
   const cleanupAudioBridge = () => {
+    console.log('[AIAgentBridge] Cleaning up audio resources');
+
+    // Stop microphone tracks
     if (micStreamRef.current) {
       micStreamRef.current.getTracks().forEach(track => track.stop());
       micStreamRef.current = null;
     }
+
+    // Close AudioContext
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close().catch(() => { });
       audioContextRef.current = null;
     }
+
+    // Clear MediaStream references
     mediaStreamDestRef.current = null;
+
+    // Stop audio element streams
+    if (audioElement1Ref.current?.srcObject) {
+      const tracks = (audioElement1Ref.current.srcObject as MediaStream).getTracks();
+      tracks.forEach(track => track.stop());
+      audioElement1Ref.current.srcObject = null;
+    }
+
+    if (audioElement2Ref.current?.srcObject) {
+      const tracks = (audioElement2Ref.current.srcObject as MediaStream).getTracks();
+      tracks.forEach(track => track.stop());
+      audioElement2Ref.current.srcObject = null;
+    }
+
+    console.log('[AIAgentBridge] ✅ Cleanup complete');
   };
 
   // UI helpers
@@ -438,9 +605,11 @@ export const AIAgentBridgeMeeting = () => {
 
   return (
     <>
-      {/* Audio element for PlanetKit room audio — always mounted so the ref
-          is available when joinConference is called during the loading phase */}
-      <audio ref={audioElementRef} autoPlay playsInline className="hidden" />
+      {/* Conference 1 (User A) room audio - User A hears AI + User B */}
+      <audio ref={audioElement1Ref} autoPlay playsInline className="hidden" />
+
+      {/* Conference 2 (AI Agent) room audio - 사용 안함 (에코 방지) */}
+      <audio ref={audioElement2Ref} autoPlay={false} playsInline className="hidden" />
 
       {isConnecting ? (
         <div className="h-screen w-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center">
@@ -458,12 +627,12 @@ export const AIAgentBridgeMeeting = () => {
       <div className="fixed top-0 left-0 right-0 h-16 bg-black/30 backdrop-blur-sm border-b border-white/10 flex items-center justify-between px-4 z-10">
         <div className="flex flex-col">
           <span className="text-white font-semibold text-lg">AI Agent Bridge</span>
-          <span className={`text-xs ${stateDisplay.color}`}>{stateDisplay.text}</span>
+          <span className="text-xs text-white/70">User A + AI Agent</span>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-white" />
-            <span className="text-white text-sm">{participantCount}</span>
+            <span className="text-white text-sm">{participantCount + 1}</span> {/* +1 for AI Agent */}
           </div>
           <span className="text-white font-mono text-sm">{formatDuration(callDuration)}</span>
         </div>
@@ -471,38 +640,41 @@ export const AIAgentBridgeMeeting = () => {
 
       {/* Main Content Area - Scrollable */}
       <div className="flex-1 overflow-y-auto mt-16 mb-24 px-4 py-6">
-        {/* AI Avatar */}
-        <div className="flex justify-center mb-8">
-          <div className="relative">
-            <div
-              className={`w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-2xl ${agentState === 'speaking' ? 'animate-pulse' : ''
-                }`}
-            >
-              <svg
-                className="w-16 h-16 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                />
-              </svg>
+        {/* Participants Display */}
+        <div className="flex justify-center mb-8 gap-6">
+          {/* User A */}
+          <div className="flex flex-col items-center">
+            <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center shadow-lg">
+              <span className="text-white text-3xl">👤</span>
             </div>
-            {/* Speaking indicator ring */}
-            {agentState === 'speaking' && (
-              <div className="absolute inset-0 rounded-full border-4 border-purple-400 animate-ping"></div>
-            )}
+            <span className="text-white text-sm mt-2 font-medium">{profile?.displayName || 'User A'}</span>
+            <span className="text-gray-400 text-xs">Conference 1</span>
+          </div>
+
+          {/* AI Agent */}
+          <div className="flex flex-col items-center">
+            <div className="relative">
+              <div
+                className={`w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg ${
+                  agentState === 'speaking' ? 'animate-pulse' : ''
+                }`}
+              >
+                <span className="text-white text-3xl">🤖</span>
+              </div>
+              {/* Speaking indicator ring */}
+              {agentState === 'speaking' && (
+                <div className="absolute inset-0 rounded-full border-4 border-purple-400 animate-ping"></div>
+              )}
+            </div>
+            <span className="text-white text-sm mt-2 font-medium">AI Assistant</span>
+            <span className="text-gray-400 text-xs">Conference 2</span>
           </div>
         </div>
 
-        {/* User Info */}
+        {/* Room Info */}
         <div className="text-center mb-6">
-          <p className="text-white text-lg font-medium">{profile?.displayName || 'User'}</p>
-          <p className="text-gray-300 text-sm">Connected to: {roomId}</p>
+          <p className="text-gray-300 text-sm">Room: {roomId}</p>
+          <p className={`text-xs ${stateDisplay.color} mt-1`}>{stateDisplay.text}</p>
           <p className="text-gray-400 text-xs mt-1">
             {participantCount > 1
               ? `${participantCount} participants in room`
@@ -567,6 +739,24 @@ export const AIAgentBridgeMeeting = () => {
               </span>
             </div>
           </div>
+        </Card>
+
+        {/* Render Service Test */}
+        <Card className="bg-purple-500/10 backdrop-blur-md border-purple-500/30 p-4 mt-4">
+          <h3 className="text-white font-semibold text-sm mb-2">🚀 Headless AI Agent (Render Service)</h3>
+          <p className="text-gray-300 text-xs mb-3">
+            Call a headless Chrome instance on Render.com to join this room as an AI agent.
+          </p>
+          <Button
+            onClick={handleCallRenderService}
+            disabled={renderServiceCalled || !conferenceConnected}
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+          >
+            {renderServiceCalled ? '✅ Headless AI Called' : '🤖 Call Headless AI Agent'}
+          </Button>
+          {renderServiceStatus && (
+            <p className="text-xs text-gray-300 mt-2">{renderServiceStatus}</p>
+          )}
         </Card>
       </div>
 
