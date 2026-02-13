@@ -173,8 +173,32 @@ app.post('/join-as-agent', async (req, res) => {
       }
     };
 
-    // Inject console capture on page
+    // Inject console capture AND visibility override on page
     await driver.executeScript(`
+      // Override Page Visibility API to always appear visible
+      Object.defineProperty(document, 'hidden', {
+        get: function() { return false; },
+        configurable: true
+      });
+
+      Object.defineProperty(document, 'visibilityState', {
+        get: function() { return 'visible'; },
+        configurable: true
+      });
+
+      // Prevent visibilitychange events
+      const originalAddEventListener = document.addEventListener;
+      document.addEventListener = function(type, listener, options) {
+        if (type === 'visibilitychange') {
+          console.log('[Visibility Override] Blocked visibilitychange event listener');
+          return;
+        }
+        return originalAddEventListener.call(this, type, listener, options);
+      };
+
+      console.log('[Visibility Override] ✅ Page will always appear visible to PlanetKit');
+
+      // Console capture
       window.consoleCapture = [];
       const originalLog = console.log;
       const originalError = console.error;
