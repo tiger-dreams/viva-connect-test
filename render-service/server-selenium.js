@@ -156,11 +156,53 @@ app.post('/join-as-agent', async (req, res) => {
     // Wait for page to load
     await driver.sleep(5000);
 
-    // Check if agent connected
+    // Capture console logs manually (since CDP is not supported)
+    const captureLogs = async () => {
+      try {
+        const logs = await driver.executeScript(`
+          if (!window.consoleCapture) return [];
+          const captured = window.consoleCapture;
+          window.consoleCapture = [];
+          return captured;
+        `);
+        if (logs && logs.length > 0) {
+          logs.forEach(log => console.log(`[Headless Page] ${log}`));
+        }
+      } catch (err) {
+        // Ignore
+      }
+    };
+
+    // Inject console capture on page
+    await driver.executeScript(`
+      window.consoleCapture = [];
+      const originalLog = console.log;
+      const originalError = console.error;
+      const originalWarn = console.warn;
+
+      console.log = function(...args) {
+        window.consoleCapture.push('[log] ' + args.join(' '));
+        originalLog.apply(console, args);
+      };
+      console.error = function(...args) {
+        window.consoleCapture.push('[error] ' + args.join(' '));
+        originalError.apply(console, args);
+      };
+      console.warn = function(...args) {
+        window.consoleCapture.push('[warn] ' + args.join(' '));
+        originalWarn.apply(console, args);
+      };
+    `);
+
+    console.log('[Selenium Service] Console capture injected, reloading page...');
+    await driver.navigate().refresh();
+    await driver.sleep(5000);
+
+    // Check if agent connected with periodic log capture
     console.log('[Selenium Service] Waiting for agent connection...');
     const connected = await driver.executeScript(`
-      return new Promise((resolve) => {
-        const checkConnection = () => {
+      return new Promise(async (resolve) => {
+        const checkConnection = async () => {
           if (window.agentConnected === true) {
             resolve(true);
           } else if (window.agentConnected === false) {
@@ -174,10 +216,22 @@ app.post('/join-as-agent', async (req, res) => {
       });
     `);
 
+    // Capture final logs
+    await captureLogs();
+
     if (connected) {
       console.log('[Selenium Service] ✅ Agent connected successfully');
     } else {
-      console.warn('[Selenium Service] ⚠️ Agent connection uncertain');
+      console.warn('[Selenium Service] ⚠️ Agent connection failed or timeout');
+      // Capture error details
+      const errorDetails = await driver.executeScript(`
+        return {
+          agentConnected: window.agentConnected,
+          location: window.location.href,
+          errors: window.consoleCapture || []
+        };
+      `);
+      console.error('[Selenium Service] Error details:', JSON.stringify(errorDetails, null, 2));
     }
 
     // Store session
