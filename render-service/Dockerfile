@@ -49,13 +49,21 @@ RUN echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >
 RUN apt-get update && apt-get install -y google-chrome-stable
 
 # Install ChromeDriver (matching Chrome version)
-RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d'.' -f1) && \
-    wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}.0.6778.204/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip || \
-    wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/131.0.6778.204/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip
-RUN unzip /tmp/chromedriver.zip -d /tmp/ && \
+RUN CHROME_FULL_VERSION=$(google-chrome --version | awk '{print $3}') && \
+    echo "Detected Chrome version: ${CHROME_FULL_VERSION}" && \
+    CHROME_MAJOR_VERSION=$(echo ${CHROME_FULL_VERSION} | cut -d'.' -f1) && \
+    echo "Chrome major version: ${CHROME_MAJOR_VERSION}" && \
+    # Fetch latest ChromeDriver version for this Chrome major version
+    CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone-with-downloads.json" | \
+        grep -o "\"${CHROME_MAJOR_VERSION}\":{\"version\":\"[^\"]*\"" | \
+        grep -o "[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*" | head -1) && \
+    echo "Downloading ChromeDriver version: ${CHROMEDRIVER_VERSION}" && \
+    wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip && \
+    unzip /tmp/chromedriver.zip -d /tmp/ && \
     mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/ && \
     chmod +x /usr/local/bin/chromedriver && \
-    rm -rf /tmp/chromedriver*
+    rm -rf /tmp/chromedriver* && \
+    echo "✅ ChromeDriver ${CHROMEDRIVER_VERSION} installed successfully"
 
 # Set up virtual display
 ENV DISPLAY=:99
