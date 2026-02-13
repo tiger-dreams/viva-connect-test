@@ -1,5 +1,6 @@
 import express from 'express';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import cors from 'cors';
 
 const app = express();
@@ -55,11 +56,11 @@ app.post('/join-as-agent', async (req, res) => {
       });
     }
 
-    // Launch headless Chrome
-    console.log('[Render Service] Launching Puppeteer...');
+    // Launch headless Chrome with Sparticuz Chromium
+    console.log('[Render Service] Launching Puppeteer with optimized Chromium...');
     const browser = await puppeteer.launch({
-      headless: true,
       args: [
+        ...chromium.args,
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage', // Prevent /dev/shm usage (Render limitation)
@@ -69,6 +70,9 @@ app.post('/join-as-agent', async (req, res) => {
         '--allow-running-insecure-content',
         '--disable-web-security', // Allow CORS for development
       ],
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
     });
 
     const page = await browser.newPage();
