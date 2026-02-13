@@ -2,7 +2,7 @@ services:
   - type: web
     name: viva-connect-selenium-agent
     runtime: docker
-    region: oregon
+    region: singapore  # Closest to Korea (50-100ms latency)
     plan: free  # May need to upgrade to starter ($7/mo) for 2GB RAM
     dockerfilePath: ./Dockerfile
     dockerContext: .
