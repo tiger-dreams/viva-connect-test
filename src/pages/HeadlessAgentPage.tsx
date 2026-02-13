@@ -38,7 +38,6 @@ export const HeadlessAgentPage = () => {
   const audioElementRef = useRef<HTMLAudioElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const nextStartTimeRef = useRef<number>(0);
 
   // Initialize headless agent
   useEffect(() => {
@@ -127,24 +126,15 @@ export const HeadlessAgentPage = () => {
         }
       }
 
-      // Create buffer at 24kHz (Gemini native output)
-      const buffer = audioCtx.createBuffer(1, audioData.length, 24000);
-      buffer.getChannelData(0).set(audioData);
-
-      const source = audioCtx.createBufferSource();
-      source.buffer = buffer;
-
-      // Schedule playback
-      const now = audioCtx.currentTime;
-      if (nextStartTimeRef.current < now) {
-        nextStartTimeRef.current = now + 0.05;
+      // Send audio chunk to AudioWorklet (ring buffer)
+      const playbackNode = (audioCtx as any)._playbackNode;
+      if (playbackNode) {
+        // Transfer ownership for efficiency (avoid copying)
+        playbackNode.port.postMessage(
+          { audioChunk: audioData },
+          [audioData.buffer]
+        );
       }
-
-      source.start(nextStartTimeRef.current);
-      nextStartTimeRef.current += buffer.duration;
-
-      // Route AI audio to Conference
-      source.connect(mediaStreamDestRef.current);
 
     } catch (err) {
       console.error('[HeadlessAgent] Failed to route AI audio:', err);
@@ -222,13 +212,97 @@ export const HeadlessAgentPage = () => {
     console.log('[HeadlessAgent] ✅ Conference joined successfully');
   };
 
-  // Setup Audio Routing
+  // Setup Audio Routing with AudioWorklet + Ring Buffer
   const setupAudioRouting = async () => {
-    console.log('[HeadlessAgent] Setting up audio routing');
+    console.log('[HeadlessAgent] Setting up audio routing with AudioWorklet');
 
-    // Initialize AudioContext
-    audioContextRef.current = new AudioContext({ sampleRate: 48000 });
+    // Initialize AudioContext at 24kHz (matches Gemini output)
+    audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+    console.log('[HeadlessAgent] AudioContext created at 24kHz');
+
+    // AudioWorklet processor code (Ring Buffer)
+    const workletCode = `
+class AudioPlaybackProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.bufferSize = 48000;  // 2 seconds buffer (24kHz * 2s)
+    this.ringBuffer = new Float32Array(this.bufferSize);
+    this.writeIndex = 0;
+    this.readIndex = 0;
+    this.filled = 0;
+
+    // Receive audio chunks from main thread
+    this.port.onmessage = (e) => {
+      const chunk = e.data.audioChunk;
+      if (chunk) {
+        this.writeToBuffer(chunk);
+      }
+    };
+  }
+
+  writeToBuffer(chunk) {
+    // Write chunk to ring buffer
+    for (let i = 0; i < chunk.length; i++) {
+      this.ringBuffer[this.writeIndex] = chunk[i];
+      this.writeIndex = (this.writeIndex + 1) % this.bufferSize;
+      this.filled = Math.min(this.filled + 1, this.bufferSize);
+    }
+  }
+
+  process(inputs, outputs) {
+    const output = outputs[0];
+    if (!output || !output[0]) return true;
+
+    const channel = output[0];
+
+    // Jitter buffer: wait until 500ms (12000 samples) filled
+    if (this.filled < 12000) {
+      channel.fill(0);  // Output silence
+      return true;
+    }
+
+    // Read from ring buffer continuously
+    for (let i = 0; i < channel.length; i++) {
+      if (this.filled > 0) {
+        channel[i] = this.ringBuffer[this.readIndex];
+        this.readIndex = (this.readIndex + 1) % this.bufferSize;
+        this.filled--;
+      } else {
+        channel[i] = 0;  // Buffer underrun - output silence
+      }
+    }
+
+    return true;
+  }
+}
+
+registerProcessor('audio-playback-processor', AudioPlaybackProcessor);
+    `;
+
+    // Load AudioWorklet
+    const blob = new Blob([workletCode], { type: 'application/javascript' });
+    const workletUrl = URL.createObjectURL(blob);
+
+    try {
+      await audioContextRef.current.audioWorklet.addModule(workletUrl);
+      console.log('[HeadlessAgent] ✅ AudioWorklet loaded');
+    } finally {
+      URL.revokeObjectURL(workletUrl);
+    }
+
+    // Create AudioWorkletNode
+    const playbackNode = new AudioWorkletNode(
+      audioContextRef.current,
+      'audio-playback-processor'
+    );
+
+    // Connect to MediaStreamDestination (for PlanetKit)
     mediaStreamDestRef.current = audioContextRef.current.createMediaStreamDestination();
+    playbackNode.connect(mediaStreamDestRef.current);
+
+    // Store worklet node for sending audio chunks
+    (audioContextRef.current as any)._playbackNode = playbackNode;
+    console.log('[HeadlessAgent] ✅ AudioWorklet connected to MediaStreamDestination');
 
     // Connect to Gemini AI
     await aiAgentService.connect({
@@ -251,7 +325,7 @@ export const HeadlessAgentPage = () => {
       }
     }
 
-    console.log('[HeadlessAgent] ✅ Audio routing setup complete');
+    console.log('[HeadlessAgent] ✅ Audio routing setup complete (AudioWorklet + Ring Buffer)');
   };
 
   // Headless mode - minimal UI for debugging
