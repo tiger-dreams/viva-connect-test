@@ -63,7 +63,10 @@ export const HeadlessAgentPage = () => {
         console.log('[HeadlessAgent] ✅ Successfully connected and ready');
 
       } catch (error: any) {
-        console.error('[HeadlessAgent] Failed to initialize:', error);
+        console.error('[HeadlessAgent] Failed to initialize');
+        console.error('[HeadlessAgent] Error message:', error?.message || 'Unknown error');
+        console.error('[HeadlessAgent] Error stack:', error?.stack || 'No stack trace');
+        console.error('[HeadlessAgent] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
         window.agentConnected = false;
       }
     };
