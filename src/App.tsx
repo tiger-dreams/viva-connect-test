@@ -24,6 +24,7 @@ import { BetaScheduleRetryPage } from "./pages/BetaScheduleRetryPage";
 import { WebPushTestPage } from "./pages/WebPushTestPage";
 import { AIAgentCallMeeting } from "./pages/AIAgentCallMeeting";
 import { AIAgentBridgeMeeting } from "./pages/AIAgentBridgeMeeting";
+import { HeadlessAgentPage } from "./pages/HeadlessAgentPage";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +71,10 @@ const App = () => (
               
               {/* AI Agent Bridge - Browser as Bridge to PlanetKit Conference */}
               <Route path="/ai-agent-bridge" element={<AIAgentBridgeMeeting />} />
+
+              {/* Headless AI Agent - Runs in Puppeteer on Render.com */}
+              <Route path="/headless-agent" element={<HeadlessAgentPage />} />
+
               {/* LIFF Endpoint URL이 /setup인 경우를 위한 리다이렉트 */}
               {/* Beta 경로 */}
               <Route path="/setup/beta/agent-call" element={<BetaAgentCallTrigger />} />
