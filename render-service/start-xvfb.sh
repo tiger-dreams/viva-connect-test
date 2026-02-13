@@ -17,7 +17,7 @@ echo "[PulseAudio] ✅ Audio system started"
 
 # Start Node.js application
 echo "[App] Starting Selenium WebDriver service..."
-node server.js
+node server-selenium.js
 
 # If Node.js exits, kill Xvfb
 kill $XVFB_PID
