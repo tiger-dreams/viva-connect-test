@@ -224,21 +224,40 @@ app.post('/join-as-agent', async (req, res) => {
 
     // Check if agent connected with periodic log capture
     console.log('[Selenium Service] Waiting for agent connection...');
-    const connected = await driver.executeScript(`
-      return new Promise(async (resolve) => {
-        const checkConnection = async () => {
-          if (window.agentConnected === true) {
-            resolve(true);
-          } else if (window.agentConnected === false) {
-            resolve(false);
-          } else {
-            setTimeout(checkConnection, 1000);
-          }
-        };
-        checkConnection();
-        setTimeout(() => resolve(false), 90000); // 90s timeout
-      });
-    `);
+
+    // Capture logs every 5 seconds while waiting
+    let checkCount = 0;
+    const maxChecks = 18; // 90 seconds / 5 seconds
+
+    const connected = await new Promise(async (resolve) => {
+      const interval = setInterval(async () => {
+        checkCount++;
+
+        // Capture logs
+        await captureLogs();
+
+        // Check connection status
+        const status = await driver.executeScript(`
+          return {
+            agentConnected: window.agentConnected,
+            hasConsoleLogs: window.consoleCapture?.length || 0
+          };
+        `);
+
+        console.log(`[Selenium Service] Check ${checkCount}/${maxChecks}: agentConnected=${status.agentConnected}, logs=${status.hasConsoleLogs}`);
+
+        if (status.agentConnected === true) {
+          clearInterval(interval);
+          resolve(true);
+        } else if (status.agentConnected === false) {
+          clearInterval(interval);
+          resolve(false);
+        } else if (checkCount >= maxChecks) {
+          clearInterval(interval);
+          resolve(false);
+        }
+      }, 5000);
+    });
 
     // Capture final logs
     await captureLogs();
