@@ -11,6 +11,8 @@ import {
   Users,
   Share2,
   Phone,
+  Bot,
+  Loader2,
 } from "lucide-react";
 import { PlanetKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
@@ -56,6 +58,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
   const [connectionStartTime, setConnectionStartTime] = useState<Date | null>(null);
   const [callDuration, setCallDuration] = useState<string>("00:00:00");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [isInvitingAIAgent, setIsInvitingAIAgent] = useState(false);
+  const [aiAgentJoined, setAiAgentJoined] = useState(false);
 
   // 비디오 엘리먼트 refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -462,6 +466,22 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
               const remoteParticipants = updated.filter(p => p.id !== config.userId);
               return [localParticipant, ...remoteParticipants, ...newParticipants];
             });
+
+            // AI Agent 참가 감지
+            const aiAgent = addedPeers.find((peer: any) => {
+              const peerId = peer.userId || peer.peerId || peer.id || peer.myId;
+              return peerId && peerId.includes('AI_HEADLESS_');
+            });
+
+            if (aiAgent && !aiAgentJoined) {
+              const aiPeerId = aiAgent.userId || aiAgent.peerId || aiAgent.id || aiAgent.myId;
+              console.log('[AI Agent] ✅ AI Agent detected in room:', aiPeerId);
+              setAiAgentJoined(true);
+              toast({
+                title: language === 'ko' ? 'AI Agent 참가 완료' : 'AI Agent Joined',
+                description: language === 'ko' ? 'AI가 회의에 참가했습니다!' : 'AI has joined the meeting!',
+              });
+            }
           },
 
           evtPeersVideoUpdated: (videoUpdateInfo: any) => {
@@ -771,6 +791,70 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
     setInviteDialogOpen(true);
   };
 
+  // AI Agent 초대 핸들러
+  const inviteAIAgent = async () => {
+    if (!config.roomId) {
+      toast({
+        title: language === 'ko' ? 'AI Agent 초대 실패' : 'Failed to Invite AI Agent',
+        description: language === 'ko' ? 'Room ID가 없습니다.' : 'Room ID is missing.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsInvitingAIAgent(true);
+
+    try {
+      const renderServiceUrl = import.meta.env.VITE_RENDER_SERVICE_URL;
+
+      if (!renderServiceUrl) {
+        throw new Error('VITE_RENDER_SERVICE_URL이 설정되지 않았습니다.');
+      }
+
+      const aiUserId = `AI_HEADLESS_${profile?.userId || 'guest'}`;
+
+      console.log('[AI Agent] Calling Render Service:', {
+        roomId: config.roomId,
+        userId: aiUserId,
+        language: language,
+      });
+
+      const response = await fetch(`${renderServiceUrl}/join-as-agent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          roomId: config.roomId,
+          userId: aiUserId,
+          language: language,
+          voice: language === 'ko' ? 'Kore' : 'Aoede',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('[AI Agent] ✅ Render Service called successfully:', data);
+        toast({
+          title: language === 'ko' ? 'AI Agent 참가 중' : 'AI Agent Joining',
+          description: language === 'ko' ? 'AI가 회의에 참가하고 있습니다...' : 'AI is joining the meeting...',
+        });
+      } else {
+        throw new Error(data.error || 'Failed to call Render Service');
+      }
+    } catch (error: any) {
+      console.error('[AI Agent] Failed to invite AI Agent:', error);
+      toast({
+        title: language === 'ko' ? 'AI Agent 초대 실패' : 'Failed to Invite AI Agent',
+        description: error.message || (language === 'ko' ? 'AI Agent를 초대하지 못했습니다.' : 'Could not invite AI Agent'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsInvitingAIAgent(false);
+    }
+  };
+
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
@@ -1032,6 +1116,31 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
                   title={language === 'ko' ? '초대 링크 복사' : 'Copy Invite Link'}
                 >
                   <Share2 className="w-6 h-6" />
+                </Button>
+              )}
+
+              {/* AI Agent 초대 - Agent Call에서는 숨김 */}
+              {!isAgentCall && (
+                <Button
+                  onClick={inviteAIAgent}
+                  disabled={isInvitingAIAgent || aiAgentJoined}
+                  size="lg"
+                  className={`w-14 h-14 rounded-full ${
+                    aiAgentJoined
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-purple-600 hover:bg-purple-700 text-white'
+                  }`}
+                  title={
+                    aiAgentJoined
+                      ? (language === 'ko' ? 'AI Agent 참가 중' : 'AI Agent Active')
+                      : (language === 'ko' ? 'AI Agent 초대' : 'Invite AI Agent')
+                  }
+                >
+                  {isInvitingAIAgent ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <Bot className="w-6 h-6" />
+                  )}
                 </Button>
               )}
 
