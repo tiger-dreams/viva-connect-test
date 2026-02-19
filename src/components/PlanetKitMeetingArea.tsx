@@ -13,6 +13,7 @@ import {
   Phone,
   Bot,
   Loader2,
+  UserMinus,
 } from "lucide-react";
 import { PlanetKitConfig, ConnectionStatus, Participant } from "@/types/video-sdk";
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +60,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
   const [callDuration, setCallDuration] = useState<string>("00:00:00");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [isInvitingAIAgent, setIsInvitingAIAgent] = useState(false);
+  const [isKickingAIAgent, setIsKickingAIAgent] = useState(false);
   const [aiAgentJoined, setAiAgentJoined] = useState(false);
 
   // 비디오 엘리먼트 refs
@@ -426,6 +428,15 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
                 }
               }
             });
+
+            // AI Agent 퇴장 감지
+            const removedAIAgent = removedPeers.find((peer: any) => {
+              const peerId = peer.userId || peer.peerId || peer.id || peer.myId;
+              return peerId && peerId.includes('AI_HEADLESS_');
+            });
+            if (removedAIAgent) {
+              setAiAgentJoined(false);
+            }
 
             setParticipants(prev => {
               // 기존 참가자 목록에서 제거된 참가자 삭제
@@ -853,6 +864,41 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
     }
   };
 
+  const kickAIAgent = async () => {
+    if (!config.roomId) return;
+
+    setIsKickingAIAgent(true);
+    try {
+      const renderServiceUrl = import.meta.env.VITE_RENDER_SERVICE_URL;
+      if (!renderServiceUrl) throw new Error('VITE_RENDER_SERVICE_URL이 설정되지 않았습니다.');
+
+      const response = await fetch(`${renderServiceUrl}/disconnect-agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: config.roomId }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAiAgentJoined(false);
+        toast({
+          title: language === 'ko' ? 'AI Agent 내보내기 완료' : 'AI Agent Removed',
+          description: language === 'ko' ? 'AI가 회의에서 나갔습니다.' : 'AI has left the meeting.',
+        });
+      } else {
+        throw new Error(data.error || 'Failed to disconnect agent');
+      }
+    } catch (error: any) {
+      toast({
+        title: language === 'ko' ? 'AI Agent 내보내기 실패' : 'Failed to Remove AI Agent',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsKickingAIAgent(false);
+    }
+  };
+
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
@@ -1117,27 +1163,34 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
                 </Button>
               )}
 
-              {/* AI Agent 초대 - Agent Call에서는 숨김 */}
-              {!isAgentCall && (
+              {/* AI Agent 초대/내보내기 - Agent Call에서는 숨김 */}
+              {!isAgentCall && !aiAgentJoined && (
                 <Button
                   onClick={inviteAIAgent}
-                  disabled={isInvitingAIAgent || aiAgentJoined}
+                  disabled={isInvitingAIAgent}
                   size="lg"
-                  className={`w-14 h-14 rounded-full ${
-                    aiAgentJoined
-                      ? 'bg-green-600 hover:bg-green-700 text-white'
-                      : 'bg-purple-600 hover:bg-purple-700 text-white'
-                  }`}
-                  title={
-                    aiAgentJoined
-                      ? (language === 'ko' ? 'AI Agent 참가 중' : 'AI Agent Active')
-                      : (language === 'ko' ? 'AI Agent 초대' : 'Invite AI Agent')
-                  }
+                  className="w-14 h-14 rounded-full bg-purple-600 hover:bg-purple-700 text-white"
+                  title={language === 'ko' ? 'AI Agent 초대' : 'Invite AI Agent'}
                 >
                   {isInvitingAIAgent ? (
                     <Loader2 className="w-6 h-6 animate-spin" />
                   ) : (
                     <Bot className="w-6 h-6" />
+                  )}
+                </Button>
+              )}
+              {!isAgentCall && aiAgentJoined && (
+                <Button
+                  onClick={kickAIAgent}
+                  disabled={isKickingAIAgent}
+                  size="lg"
+                  className="w-14 h-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white"
+                  title={language === 'ko' ? 'AI Agent 내보내기' : 'Remove AI Agent'}
+                >
+                  {isKickingAIAgent ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <UserMinus className="w-6 h-6" />
                   )}
                 </Button>
               )}
