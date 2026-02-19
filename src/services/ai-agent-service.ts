@@ -442,13 +442,7 @@ export class AIAgentService {
     };
 
     this.sourceNode.connect(this.workletNode);
-    // Connect to a silent GainNode (gain=0) instead of destination directly.
-    // This keeps the worklet alive without playing room audio through Chrome's speakers,
-    // which would otherwise cause an echo loop on Windows VM (speakers → mic loopback).
-    const silentGain = this.audioContext.createGain();
-    silentGain.gain.value = 0;
-    silentGain.connect(this.audioContext.destination);
-    this.workletNode.connect(silentGain);
+    this.workletNode.connect(this.audioContext.destination); // required to keep worklet running
 
     this.setState('listening');
     console.log('[AIAgent] Microphone capture started');
