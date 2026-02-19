@@ -213,7 +213,7 @@ export const HeadlessAgentPage = () => {
               console.log('[HeadlessAgent] Leaving after farewell');
               conferenceRef.current?.leaveConference?.();
               aiAgentService.disconnect();
-              setTimeout(() => window.close(), 500);
+              (window as any).notifyAgentLeaving?.();
             }, 20000); // 20s for farewell speech to finish
           };
 
@@ -264,7 +264,7 @@ export const HeadlessAgentPage = () => {
             console.log('[HeadlessAgent] Auto-leaving empty room');
             conferenceRef.current?.leaveConference?.();
             aiAgentService.disconnect();
-            setTimeout(() => window.close(), 500);
+            (window as any).notifyAgentLeaving?.();
           }, 30000);
         }
       },

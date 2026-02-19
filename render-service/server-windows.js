@@ -90,6 +90,18 @@ app.post('/join-as-agent', async (req, res) => {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36'
     );
 
+    // Expose cleanup function so the headless page can trigger its own session removal
+    // (window.close() doesn't work in Puppeteer context)
+    await page.exposeFunction('notifyAgentLeaving', async () => {
+      if (activeSessions.has(roomId)) {
+        activeSessions.delete(roomId);
+        console.log(`[Windows Agent] Session cleaned up via notifyAgentLeaving: ${roomId}`);
+      }
+      setTimeout(async () => {
+        try { await browser.close(); } catch (e) { /* already closed */ }
+      }, 1000);
+    });
+
     // Forward console logs from the headless page
     page.on('console', (msg) => {
       const type = msg.type();
