@@ -243,7 +243,7 @@ export const HeadlessAgentPage = () => {
 class AudioPlaybackProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.bufferSize = 48000;  // 2 seconds buffer (24kHz * 2s)
+    this.bufferSize = 240000; // 10 seconds buffer (24kHz * 10s) - prevents overflow on fast VM
     this.ringBuffer = new Float32Array(this.bufferSize);
     this.writeIndex = 0;
     this.readIndex = 0;
@@ -284,10 +284,9 @@ class AudioPlaybackProcessor extends AudioWorkletProcessor {
       this.hasStarted = true;
     }
 
-    // After playback started: only pause when buffer is completely empty
-    // (natural silence between AI responses - no 500ms penalty)
+    // After playback started: output silence when buffer empty, no re-buffering
+    // (removing hasStarted reset prevents 100ms delay mid-response causing "mushed" audio)
     if (this.filled === 0) {
-      this.hasStarted = false;  // Re-buffer briefly on next response
       channel.fill(0);
       return true;
     }
