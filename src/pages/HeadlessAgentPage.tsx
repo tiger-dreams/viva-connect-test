@@ -230,6 +230,7 @@ class AudioPlaybackProcessor extends AudioWorkletProcessor {
     this.writeIndex = 0;
     this.readIndex = 0;
     this.filled = 0;
+    this.hasStarted = false;  // Track if playback has started
 
     // Receive audio chunks from main thread
     this.port.onmessage = (e) => {
@@ -255,13 +256,24 @@ class AudioPlaybackProcessor extends AudioWorkletProcessor {
 
     const channel = output[0];
 
-    // Jitter buffer: wait until 500ms (12000 samples) filled
-    if (this.filled < 12000) {
-      channel.fill(0);  // Output silence
+    // Initial buffering only: wait for 100ms (2400 samples) before first playback
+    if (!this.hasStarted) {
+      if (this.filled < 2400) {
+        channel.fill(0);
+        return true;
+      }
+      this.hasStarted = true;
+    }
+
+    // After playback started: only pause when buffer is completely empty
+    // (natural silence between AI responses - no 500ms penalty)
+    if (this.filled === 0) {
+      this.hasStarted = false;  // Re-buffer briefly on next response
+      channel.fill(0);
       return true;
     }
 
-    // Read from ring buffer continuously
+    // Read from ring buffer continuously (no threshold check mid-stream)
     for (let i = 0; i < channel.length; i++) {
       if (this.filled > 0) {
         channel[i] = this.ringBuffer[this.readIndex];
