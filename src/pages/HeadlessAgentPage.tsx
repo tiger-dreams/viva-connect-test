@@ -38,6 +38,9 @@ export const HeadlessAgentPage = () => {
   const audioElementRef = useRef<HTMLAudioElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const peersRef = useRef<Set<string>>(new Set());
+  const autoLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Initialize headless agent
   useEffect(() => {
@@ -75,6 +78,8 @@ export const HeadlessAgentPage = () => {
     // Cleanup on unmount
     return () => {
       console.log('[HeadlessAgent] Cleaning up...');
+      if (autoLeaveTimerRef.current) clearTimeout(autoLeaveTimerRef.current);
+      if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
       aiAgentService.off('stateChange', handleStateChange);
       aiAgentService.off('error', handleError);
       aiAgentService.off('audioOutput', handleAudioOutput);
@@ -197,6 +202,17 @@ export const HeadlessAgentPage = () => {
             console.warn('[HeadlessAgent] Could not capture room audio:', err);
           }
         }
+
+        // 5-minute session timer: send farewell then leave
+        sessionTimerRef.current = setTimeout(() => {
+          console.log('[HeadlessAgent] Session timeout (5min), sending farewell...');
+          aiAgentService.sendFarewell(language);
+          setTimeout(() => {
+            console.log('[HeadlessAgent] Leaving after farewell');
+            conferenceRef.current?.leaveConference?.();
+            aiAgentService.disconnect();
+          }, 15000);
+        }, 5 * 60 * 1000);
       },
 
       evtDisconnected: (details: any) => {
@@ -204,7 +220,34 @@ export const HeadlessAgentPage = () => {
       },
 
       evtPeerListUpdated: (peerUpdateInfo: any) => {
-        console.log('[HeadlessAgent] Peer list updated:', peerUpdateInfo);
+        const added = peerUpdateInfo.addedPeers || peerUpdateInfo.added || [];
+        const removed = peerUpdateInfo.removedPeers || peerUpdateInfo.removed || [];
+
+        added.forEach((peer: any) => {
+          const id = peer.userId || peer.peerId || peer.id;
+          if (id) peersRef.current.add(id);
+        });
+        removed.forEach((peer: any) => {
+          const id = peer.userId || peer.peerId || peer.id;
+          if (id) peersRef.current.delete(id);
+        });
+
+        // Someone joined → cancel pending auto-leave
+        if (added.length > 0 && autoLeaveTimerRef.current) {
+          clearTimeout(autoLeaveTimerRef.current);
+          autoLeaveTimerRef.current = null;
+          console.log('[HeadlessAgent] Participant joined, auto-leave cancelled');
+        }
+
+        // Room empty → start 30s auto-leave timer
+        if (peersRef.current.size === 0 && !autoLeaveTimerRef.current) {
+          console.log('[HeadlessAgent] Room empty, will auto-leave in 30s...');
+          autoLeaveTimerRef.current = setTimeout(() => {
+            console.log('[HeadlessAgent] Auto-leaving empty room');
+            conferenceRef.current?.leaveConference?.();
+            aiAgentService.disconnect();
+          }, 30000);
+        }
       },
 
       evtError: (error: any) => {

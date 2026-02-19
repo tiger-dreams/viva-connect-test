@@ -820,7 +820,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
         throw new Error('VITE_RENDER_SERVICE_URL이 설정되지 않았습니다.');
       }
 
-      const aiUserId = `AI_HEADLESS_${profile?.userId || 'guest'}`;
+      const sanitized = config.roomId.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().substring(0, 20);
+      const aiUserId = `AI_HEADLESS_${sanitized}`;
 
       console.log('[AI Agent] Calling Render Service:', {
         roomId: config.roomId,

@@ -243,6 +243,25 @@ export class AIAgentService {
     console.log('[AIAgent] Room audio connected to Gemini input');
   }
 
+  /**
+   * Send a farewell message to Gemini, triggering a closing statement.
+   * Called before the agent auto-leaves (session timeout or empty room).
+   */
+  sendFarewell(language: 'ko' | 'en'): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const text = language === 'ko'
+      ? '상담 시간이 5분 되었습니다. 따뜻하게 마무리 인사를 하고 대화를 끝내주세요.'
+      : 'The session time of 5 minutes is up. Please say a warm farewell and end the conversation.';
+    const message = {
+      clientContent: {
+        turns: [{ role: 'user', parts: [{ text }] }],
+        turnComplete: true,
+      },
+    };
+    console.log('[AIAgent] Sending farewell message');
+    this.ws.send(JSON.stringify(message));
+  }
+
   // --- WebSocket ---
 
   private openWebSocket(url: string): Promise<void> {

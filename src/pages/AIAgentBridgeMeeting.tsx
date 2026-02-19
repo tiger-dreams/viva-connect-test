@@ -183,7 +183,7 @@ export const AIAgentBridgeMeeting = () => {
         },
         body: JSON.stringify({
           roomId: roomId,
-          userId: `AI_HEADLESS_${profile?.userId || 'guest'}`,
+          userId: `AI_HEADLESS_${roomId.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().substring(0, 20)}`,
           language: language,
           voice: voice,
         }),
