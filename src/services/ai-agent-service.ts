@@ -103,6 +103,7 @@ export class AIAgentService {
   private state: AIAgentState = 'idle';
   private isMuted = false;
   private sessionConfig: SessionResponse | null = null;
+  private pendingAudioSource: MediaStream | null = null;
 
   // Event listeners
   private listeners: { [K in keyof AIAgentEventMap]?: EventCallback<AIAgentEventMap[K]>[] } = {};
@@ -227,14 +228,19 @@ export class AIAgentService {
    */
   addAudioSource(stream: MediaStream): void {
     if (!this.audioContext || !this.workletNode) {
-      console.warn('[AIAgent] Cannot add audio source: audio pipeline not initialized');
+      // Pipeline not ready yet (evtConnected fires before Gemini WebSocket connects)
+      // Queue it and apply once startMicCapture() initializes the pipeline
+      this.pendingAudioSource = stream;
       return;
     }
+    this._connectAudioSource(stream);
+  }
 
-    const source = this.audioContext.createMediaStreamSource(stream);
-    source.connect(this.workletNode);
+  private _connectAudioSource(stream: MediaStream): void {
+    const source = this.audioContext!.createMediaStreamSource(stream);
+    source.connect(this.workletNode!);
     this.additionalSources.push(source);
-    console.log('[AIAgent] Added external audio source to Gemini input');
+    console.log('[AIAgent] Room audio connected to Gemini input');
   }
 
   // --- WebSocket ---
@@ -438,6 +444,12 @@ export class AIAgentService {
 
     this.sourceNode.connect(this.workletNode);
     this.workletNode.connect(this.audioContext.destination); // required to keep worklet running
+
+    // Apply pending room audio source (queued from evtConnected before pipeline was ready)
+    if (this.pendingAudioSource) {
+      this._connectAudioSource(this.pendingAudioSource);
+      this.pendingAudioSource = null;
+    }
 
     this.setState('listening');
     console.log('[AIAgent] Microphone capture started');

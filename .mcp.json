@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "planetkit-docs": {
+      "command": "planet-docs-mcp-hybrid",
+      "args": []
+    }
+  }
+}
