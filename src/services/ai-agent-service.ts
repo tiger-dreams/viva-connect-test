@@ -270,7 +270,6 @@ export class AIAgentService {
       };
 
       this.ws.onmessage = (ev) => {
-        console.log('[AIAgent] WebSocket message received (raw)');
         this.handleServerMessage(ev.data);
       };
     });
@@ -339,7 +338,6 @@ export class AIAgentService {
   private parseServerMessage(text: string): void {
     try {
       const msg = JSON.parse(text);
-      console.log('[AIAgent] Received message type:', Object.keys(msg).join(', '));
 
       // Setup complete acknowledgment
       if (msg.setupComplete) {
@@ -350,14 +348,11 @@ export class AIAgentService {
       // Server content (audio response from Gemini)
       if (msg.serverContent) {
         const content = msg.serverContent;
-        console.log('[AIAgent] Server content keys:', Object.keys(content).join(', '));
 
         if (content.modelTurn?.parts) {
-          console.log('[AIAgent] Model turn with', content.modelTurn.parts.length, 'parts');
           for (const part of content.modelTurn.parts) {
             // Audio data
             if (part.inlineData?.data) {
-              console.log('[AIAgent] Received audio data chunk:', part.inlineData.data.length, 'chars');
               this.setState('speaking');
               const pcmBytes = this.base64ToArrayBuffer(part.inlineData.data);
               const float32 = this.pcm16ToFloat32(new Int16Array(pcmBytes));

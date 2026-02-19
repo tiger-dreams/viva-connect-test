@@ -179,12 +179,20 @@ export const HeadlessAgentPage = () => {
     const conferenceDelegate = {
       evtConnected: () => {
         console.log('[HeadlessAgent] Conference connected');
-        // Capture room audio AFTER conference is fully connected (not at join time)
+        // Capture room audio AFTER conference is fully connected
+        // Try srcObject first (direct MediaStream), fall back to captureStream
         if (audioElementRef.current) {
           try {
-            const roomStream = (audioElementRef.current as any).captureStream() as MediaStream;
-            aiAgentService.addAudioSource(roomStream);
-            console.log('[HeadlessAgent] ✅ Room audio → Gemini routing complete');
+            const audioEl = audioElementRef.current as any;
+            const roomStream: MediaStream | null =
+              (audioEl.srcObject instanceof MediaStream ? audioEl.srcObject : null)
+              ?? audioEl.captureStream?.();
+            if (roomStream) {
+              aiAgentService.addAudioSource(roomStream);
+              console.log('[HeadlessAgent] ✅ Room audio → Gemini routing complete');
+            } else {
+              console.warn('[HeadlessAgent] No room audio stream available');
+            }
           } catch (err) {
             console.warn('[HeadlessAgent] Could not capture room audio:', err);
           }
@@ -252,11 +260,12 @@ class AudioPlaybackProcessor extends AudioWorkletProcessor {
   }
 
   writeToBuffer(chunk) {
-    // Write chunk to ring buffer
+    // Write chunk to ring buffer - drop samples if full to prevent overflow
     for (let i = 0; i < chunk.length; i++) {
+      if (this.filled >= this.bufferSize) break;  // Buffer full, drop remainder
       this.ringBuffer[this.writeIndex] = chunk[i];
       this.writeIndex = (this.writeIndex + 1) % this.bufferSize;
-      this.filled = Math.min(this.filled + 1, this.bufferSize);
+      this.filled++;
     }
   }
 
