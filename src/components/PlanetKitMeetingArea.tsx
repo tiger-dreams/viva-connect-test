@@ -62,6 +62,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
   const [isInvitingAIAgent, setIsInvitingAIAgent] = useState(false);
   const [isKickingAIAgent, setIsKickingAIAgent] = useState(false);
   const [aiAgentJoined, setAiAgentJoined] = useState(false);
+  const [aiAgentSessionUsed, setAiAgentSessionUsed] = useState(false);
 
   // 비디오 엘리먼트 refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -436,6 +437,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
             });
             if (removedAIAgent) {
               setAiAgentJoined(false);
+              setAiAgentSessionUsed(true); // 세션 1회 소진 → 재초대 불가
             }
 
             setParticipants(prev => {
@@ -1165,7 +1167,7 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
               )}
 
               {/* AI Agent 초대/내보내기 - Agent Call에서는 숨김 */}
-              {!isAgentCall && !aiAgentJoined && (
+              {!isAgentCall && !aiAgentJoined && !aiAgentSessionUsed && (
                 <Button
                   onClick={inviteAIAgent}
                   disabled={isInvitingAIAgent}
@@ -1193,6 +1195,16 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
                   ) : (
                     <UserMinus className="w-6 h-6" />
                   )}
+                </Button>
+              )}
+              {!isAgentCall && !aiAgentJoined && aiAgentSessionUsed && (
+                <Button
+                  disabled
+                  size="lg"
+                  className="w-14 h-14 rounded-full"
+                  title={language === 'ko' ? 'AI Agent 세션 종료됨' : 'AI Agent session ended'}
+                >
+                  <Bot className="w-6 h-6" />
                 </Button>
               )}
 
