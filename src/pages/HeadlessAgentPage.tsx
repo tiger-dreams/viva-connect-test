@@ -236,6 +236,18 @@ export const HeadlessAgentPage = () => {
 
       evtDisconnected: (details: any) => {
         console.log('[HeadlessAgent] Conference disconnected:', details);
+        // Cancel pending timers to avoid duplicate notifyAgentLeaving calls
+        if (autoLeaveTimerRef.current) {
+          clearTimeout(autoLeaveTimerRef.current);
+          autoLeaveTimerRef.current = null;
+        }
+        if (sessionTimerRef.current) {
+          clearTimeout(sessionTimerRef.current);
+          sessionTimerRef.current = null;
+        }
+        // Always clean up session on disconnect (expected or unexpected)
+        aiAgentService.disconnect();
+        (window as any).notifyAgentLeaving?.();
       },
 
       evtPeerListUpdated: (peerUpdateInfo: any) => {
