@@ -203,15 +203,33 @@ export const HeadlessAgentPage = () => {
           }
         }
 
-        // 5-minute session timer: send farewell then leave
+        // 5-minute session timer: wait for current speech to end, then send farewell and leave
         sessionTimerRef.current = setTimeout(() => {
-          console.log('[HeadlessAgent] Session timeout (5min), sending farewell...');
-          aiAgentService.sendFarewell(language);
-          setTimeout(() => {
-            console.log('[HeadlessAgent] Leaving after farewell');
-            conferenceRef.current?.leaveConference?.();
-            aiAgentService.disconnect();
-          }, 15000);
+          console.log('[HeadlessAgent] Session timeout (5min), preparing farewell...');
+
+          const doFarewellAndLeave = () => {
+            aiAgentService.sendFarewell(language);
+            setTimeout(() => {
+              console.log('[HeadlessAgent] Leaving after farewell');
+              conferenceRef.current?.leaveConference?.();
+              aiAgentService.disconnect();
+              setTimeout(() => window.close(), 500);
+            }, 20000); // 20s for farewell speech to finish
+          };
+
+          // If Gemini is currently speaking, wait for it to finish before farewell
+          if (aiAgentService.getState() === 'speaking') {
+            console.log('[HeadlessAgent] Agent speaking, waiting for turn complete before farewell...');
+            const onStateChange = (state: AIAgentState) => {
+              if (state === 'listening') {
+                aiAgentService.off('stateChange', onStateChange);
+                doFarewellAndLeave();
+              }
+            };
+            aiAgentService.on('stateChange', onStateChange);
+          } else {
+            doFarewellAndLeave();
+          }
         }, 5 * 60 * 1000);
       },
 
@@ -246,6 +264,7 @@ export const HeadlessAgentPage = () => {
             console.log('[HeadlessAgent] Auto-leaving empty room');
             conferenceRef.current?.leaveConference?.();
             aiAgentService.disconnect();
+            setTimeout(() => window.close(), 500);
           }, 30000);
         }
       },

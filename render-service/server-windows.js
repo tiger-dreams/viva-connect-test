@@ -126,6 +126,14 @@ app.post('/join-as-agent', async (req, res) => {
       createdAt: new Date().toISOString(),
     });
 
+    // Clean up session when page closes (e.g., agent auto-leaves via window.close())
+    page.on('close', () => {
+      if (activeSessions.has(roomId)) {
+        activeSessions.delete(roomId);
+        console.log(`[Windows Agent] Session auto-cleaned after page close: ${roomId}`);
+      }
+    });
+
     res.json({
       success: true,
       message: 'AI Agent joined successfully',
