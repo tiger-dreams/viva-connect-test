@@ -586,7 +586,6 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
 
           // 로컬 사용자(나 자신)의 말하는 상태 업데이트 (Issue #10: Speaking indicator)
           evtMyTalkingStatusUpdated: (isActive: boolean) => {
-            console.log('[PlanetKit] My talking status updated:', isActive);
 
             setParticipants(prev => prev.map(p => {
               if (p.id === config.userId) {
@@ -600,7 +599,6 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
           evtPeersTalkingStatusUpdated: (talkingInfoArray: any) => {
             const talkingPeers = Array.isArray(talkingInfoArray) ? talkingInfoArray : [talkingInfoArray];
 
-            console.log('[PlanetKit] Peers talking status updated:', talkingPeers);
 
             talkingPeers.forEach((talkingInfo: any) => {
               // PlanetKit sends {active: [...], inactive: [...]} structure
