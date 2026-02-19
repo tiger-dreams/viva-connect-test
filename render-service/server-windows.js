@@ -64,8 +64,8 @@ app.post('/join-as-agent', async (req, res) => {
       args: [
         '--no-sandbox',
         '--use-fake-ui-for-media-stream',          // Auto-grant mic/camera permissions
-        // NOTE: --use-fake-device-for-media-stream intentionally omitted
-        // On Render.com this was needed for Linux, but on Windows we use real audio devices
+        '--use-fake-device-for-media-stream',      // Provide fake mic so Gemini pipeline can initialize
+        // Real room audio is routed separately via captureStream() + addAudioSource()
         '--autoplay-policy=no-user-gesture-required',
         '--disable-web-security',
         '--disable-blink-features=AutomationControlled',
