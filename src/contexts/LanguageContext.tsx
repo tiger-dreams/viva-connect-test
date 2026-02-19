@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-export type Language = 'ko' | 'en';
+export type Language = 'ko' | 'en' | 'ja' | 'th' | 'zh-TW';
 
 interface LanguageContextType {
   language: Language;
@@ -17,13 +17,17 @@ export const LanguageProvider = ({ children }: LanguageProviderProps) => {
   // 브라우저 언어 감지: 한국어면 'ko', 그 외에는 'en'
   const getDefaultLanguage = (): Language => {
     const savedLanguage = localStorage.getItem('language');
-    if (savedLanguage === 'ko' || savedLanguage === 'en') {
+    if (savedLanguage === 'ko' || savedLanguage === 'en' || savedLanguage === 'ja' || savedLanguage === 'th' || savedLanguage === 'zh-TW') {
       return savedLanguage as Language;
     }
 
     // 브라우저 언어 감지
     const browserLang = navigator.language.toLowerCase();
-    return browserLang.startsWith('ko') ? 'ko' : 'en';
+    if (browserLang.startsWith('ko')) return 'ko';
+    if (browserLang.startsWith('ja')) return 'ja';
+    if (browserLang.startsWith('zh')) return 'zh-TW';
+    if (browserLang.startsWith('th')) return 'th';
+    return 'en';
   };
 
   const [language, setLanguage] = useState<Language>(getDefaultLanguage());
