@@ -179,6 +179,16 @@ export const HeadlessAgentPage = () => {
     const conferenceDelegate = {
       evtConnected: () => {
         console.log('[HeadlessAgent] Conference connected');
+        // Capture room audio AFTER conference is fully connected (not at join time)
+        if (audioElementRef.current) {
+          try {
+            const roomStream = (audioElementRef.current as any).captureStream() as MediaStream;
+            aiAgentService.addAudioSource(roomStream);
+            console.log('[HeadlessAgent] ✅ Room audio → Gemini routing complete');
+          } catch (err) {
+            console.warn('[HeadlessAgent] Could not capture room audio:', err);
+          }
+        }
       },
 
       evtDisconnected: (details: any) => {
@@ -325,17 +335,6 @@ registerProcessor('audio-playback-processor', AudioPlaybackProcessor);
         : `You are an AI assistant participating in a group call. Respond naturally and helpfully in English. Keep responses concise and clear.`,
     });
     console.log('[HeadlessAgent] ✅ Gemini AI connected');
-
-    // Route Conference room audio to Gemini (so AI hears participants)
-    if (audioElementRef.current) {
-      try {
-        const roomStream = (audioElementRef.current as any).captureStream() as MediaStream;
-        aiAgentService.addAudioSource(roomStream);
-        console.log('[HeadlessAgent] ✅ Room audio → Gemini routing complete');
-      } catch (err) {
-        console.warn('[HeadlessAgent] Could not capture room audio:', err);
-      }
-    }
 
     console.log('[HeadlessAgent] ✅ Audio routing setup complete (AudioWorklet + Ring Buffer)');
   };
