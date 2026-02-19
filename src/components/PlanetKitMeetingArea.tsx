@@ -26,6 +26,7 @@ import { InviteUserDialog } from "@/components/InviteUserDialog";
 // PlanetKit 환경별 빌드 import
 import * as PlanetKitReal from "@line/planet-kit";
 import * as PlanetKitEval from "@line/planet-kit/dist/planet-kit-eval";
+import { getAgentLanguage, LANGUAGE_VOICE_MAP } from "@/config/ai-agent-languages";
 
 interface PlanetKitMeetingAreaProps {
   config: PlanetKitConfig;
@@ -825,10 +826,13 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
       const sanitized = config.roomId.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().substring(0, 20);
       const aiUserId = `AI_HEADLESS_${sanitized}`;
 
+      const agentLanguage = getAgentLanguage(config.roomId, language);
+      const agentVoice = LANGUAGE_VOICE_MAP[agentLanguage];
+
       console.log('[AI Agent] Calling Render Service:', {
         roomId: config.roomId,
         userId: aiUserId,
-        language: language,
+        language: agentLanguage,
       });
 
       const response = await fetch(`${renderServiceUrl}/join-as-agent`, {
@@ -839,8 +843,8 @@ export const PlanetKitMeetingArea = ({ config, onDisconnect, mode, sessionId, is
         body: JSON.stringify({
           roomId: config.roomId,
           userId: aiUserId,
-          language: language,
-          voice: language === 'ko' ? 'Kore' : 'Aoede',
+          language: agentLanguage,
+          voice: agentVoice,
         }),
       });
 

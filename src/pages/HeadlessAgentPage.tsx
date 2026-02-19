@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { aiAgentService, AIAgentState } from '@/services/ai-agent-service';
+import { AgentLanguage, AGENT_SYSTEM_PROMPTS } from '@/config/ai-agent-languages';
 import * as PlanetKitEval from '@line/planet-kit/dist/planet-kit-eval';
 
 /**
@@ -26,7 +27,7 @@ export const HeadlessAgentPage = () => {
   // URL parameters
   const roomId = searchParams.get('roomId') || 'headless-room';
   const userId = searchParams.get('userId') || `AI_AGENT_${Date.now()}`;
-  const language = (searchParams.get('lang') || 'ko') as 'ko' | 'en';
+  const language = (searchParams.get('lang') || 'ko') as AgentLanguage;
   const voice = searchParams.get('voice') || 'Kore';
 
   // State
@@ -400,9 +401,7 @@ registerProcessor('audio-playback-processor', AudioPlaybackProcessor);
     await aiAgentService.connect({
       language,
       voice,
-      systemPrompt: language === 'ko'
-        ? `당신은 그룹 통화에 참여한 AI 비서입니다. 한국어로 자연스럽고 친근하게 대화하세요. 간결하고 명확하게 답변하세요.`
-        : `You are an AI assistant participating in a group call. Respond naturally and helpfully in English. Keep responses concise and clear.`,
+      systemPrompt: AGENT_SYSTEM_PROMPTS[language],
     });
     console.log('[HeadlessAgent] ✅ Gemini AI connected');
 

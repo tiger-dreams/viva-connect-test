@@ -6,6 +6,8 @@
  * sends it to Gemini, and plays back the AI's audio response.
  */
 
+import { AgentLanguage, AGENT_FAREWELL_MESSAGES, AGENT_GREETING_TRIGGERS } from '@/config/ai-agent-languages';
+
 // --- Types ---
 
 export type AIAgentState =
@@ -18,7 +20,7 @@ export type AIAgentState =
   | 'disconnected';
 
 export interface AIAgentSessionConfig {
-  language: 'ko' | 'en';
+  language: AgentLanguage;
   voice?: string;
   systemPrompt?: string;
 }
@@ -247,11 +249,9 @@ export class AIAgentService {
    * Send a farewell message to Gemini, triggering a closing statement.
    * Called before the agent auto-leaves (session timeout or empty room).
    */
-  sendFarewell(language: 'ko' | 'en'): void {
+  sendFarewell(language: AgentLanguage): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-    const text = language === 'ko'
-      ? '상담 시간이 5분 되었습니다. 따뜻하게 마무리 인사를 하고 대화를 끝내주세요.'
-      : 'The session time of 5 minutes is up. Please say a warm farewell and end the conversation.';
+    const text = AGENT_FAREWELL_MESSAGES[language] ?? AGENT_FAREWELL_MESSAGES.en;
     const message = {
       clientContent: {
         turns: [{ role: 'user', parts: [{ text }] }],
@@ -330,10 +330,8 @@ export class AIAgentService {
   private sendInitialGreeting(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.sessionConfig) return;
 
-    const language = this.sessionConfig.config?.language || 'ko';
-    const text = language === 'ko' 
-      ? '안녕하세요, 마음 상담사 "해밀"입니다. 오늘 하루는 어떠셨나요? 제가 들어드릴게요.'
-      : 'Hello, I am "Haemil," your mental health counselor. How was your day? I am here to listen.';
+    const language = (this.sessionConfig.config?.language || 'ko') as AgentLanguage;
+    const text = AGENT_GREETING_TRIGGERS[language] ?? AGENT_GREETING_TRIGGERS.en;
 
     console.log('[AIAgent] Sending initial greeting trigger');
     
