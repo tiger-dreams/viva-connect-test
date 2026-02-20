@@ -62,7 +62,7 @@ const WORKLET_CODE = `
 class PCMCaptureProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this._bufferSize = 2048;
+    this._bufferSize = 1024;
     this._buffer = new Float32Array(this._bufferSize);
     this._writeIndex = 0;
   }
@@ -443,6 +443,14 @@ export class AIAgentService {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
       const pcm16Buffer: ArrayBuffer = ev.data.pcm16;
+
+      // VAD: RMS 기반 침묵 감지 → 침묵 프레임은 전송 스킵하여 Gemini 과금 절감
+      const pcm16 = new Int16Array(pcm16Buffer);
+      let sum = 0;
+      for (let i = 0; i < pcm16.length; i++) sum += pcm16[i] * pcm16[i];
+      const rms = Math.sqrt(sum / pcm16.length);
+      if (rms < 200) return; // 침묵 임계값 (0~32767 스케일, 약 0.6% 진폭)
+
       const base64 = this.arrayBufferToBase64(pcm16Buffer);
 
       const message = {
@@ -555,9 +563,11 @@ export class AIAgentService {
 
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
+    // Process in chunks to avoid call stack limits on large buffers
+    const CHUNK = 8192;
     let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK) as unknown as number[]);
     }
     return btoa(binary);
   }

@@ -350,9 +350,9 @@ class AudioPlaybackProcessor extends AudioWorkletProcessor {
 
     const channel = output[0];
 
-    // Initial buffering only: wait for 100ms (2400 samples) before first playback
+    // Initial buffering only: wait for ~67ms (1600 samples) before first playback
     if (!this.hasStarted) {
-      if (this.filled < 2400) {
+      if (this.filled < 1600) {
         channel.fill(0);
         return true;
       }
